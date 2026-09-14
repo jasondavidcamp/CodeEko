@@ -2,7 +2,9 @@ export interface Message { role: 'system' | 'user' | 'assistant'; content: strin
 export function apiBase(endpoint: string): string {
   const url = new URL(endpoint);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('Configure an HTTPS API base URL without credentials or query parameters.');
-  return url.toString().replace(/\/$/, '').replace(/\/v1$/, '') + '/v1';
+  const base = url.toString().replace(/\/+$/, '');
+  // Preserve explicitly versioned compatibility bases (for example /v1beta/openai).
+  return /\/v\d+(?:(?:alpha|beta)\d*)?(?:\/|$)/.test(url.pathname) ? base : base + '/v1';
 }
 export class GeminiClient {
   constructor(private endpoint: string, private key: string, private timeout: number, private transport: typeof fetch = fetch) {}

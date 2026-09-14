@@ -66,6 +66,8 @@ test('model discovery validates response and normalizes endpoint; chat uses stri
   assert.equal(calls[0].url, 'https://approved.example/v1/models'); assert.equal(calls[0].init?.redirect, 'error');
   assert.equal(JSON.parse(calls[1].init?.body as string).response_format.type, 'json_object');
   assert.throws(() => apiBase('http://bad.example')); assert.throws(() => apiBase('https://key:secret@bad.example'));
+  assert.equal(apiBase('https://approved.example/v1beta/openai/'), 'https://approved.example/v1beta/openai');
+  assert.equal(apiBase('https://approved.example/gateway/'), 'https://approved.example/gateway/v1');
   await assert.rejects(new GeminiClient('https://approved.example', 'secret', 1000, async () => new Response('{"data":[]}')).models(), /no models/);
   await assert.rejects(new GeminiClient('https://approved.example', 'secret', 1000, async () => new Response('secret', { status: 401 })).models(), e => e instanceof Error && !e.message.includes('secret') && e.message.includes('401'));
 });
@@ -119,4 +121,13 @@ test('nested repositories prompt for a boundary before Git execution', async t =
   const selected = await resolveRepository([root], async candidates => { choices = candidates; return nested; });
   assert.equal(selected, await fs.realpath(nested)); assert.deepEqual(choices, [root, nested].sort());
   await assert.rejects(resolveRepository([root], async () => undefined), /cancelled/);
+});
+test('one protocol correction can recover a missing version without executing invalid actions', async () => {
+  let calls = 0; let executions = 0;
+  const responses = ['{"tool":"list_files","args":{}}', '{"version":1,"tool":"list_files","args":{}}', '{"version":1,"tool":"complete_task","args":{"summary":"Done"}}'];
+  const answer = await runAgent({ complete: async () => responses[calls++] }, 'm', [], { execute: async () => { executions++; return {}; } }, () => 'Review', new AbortController().signal, () => {});
+  assert.equal(answer, 'Done'); assert.equal(calls, 3); assert.equal(executions, 1);
+  calls = 0;
+  await assert.rejects(runAgent({ complete: async () => { calls++; return '{"tool":"list_files","args":{}}'; } }, 'm', [], { execute: async () => { throw new Error('Invalid action executed'); } }, () => 'Review', new AbortController().signal, () => {}), /invalid version-1/);
+  assert.equal(calls, 2);
 });

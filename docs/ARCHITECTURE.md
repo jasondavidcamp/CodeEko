@@ -32,7 +32,7 @@ Thread files use versioned schema validation, temporary-file write and same-dire
 
 Budgets: 20 actions/task, 60,000 context characters/request, 14,000 result characters/action, 30 explicit file reads/task, 5 files/read_files call, 200 lines/file read, 12,000 text characters/read, 100 search matches, 10 million text characters/search, 20,000 manifest entries, 50 MB candidate bytes and 30 seconds/index refresh, 256,000 bytes/file, 1 MB HTTP response, 4 MiB Git stdout, 15 seconds/Git subprocess. Chat messages are at most 8,000 characters; completion summaries at most 12,000. Timeout/cancellation/invalid protocol terminate safely. Tool failures return a bounded generic error that permits the model to choose another read-only action within the same limits.
 
-No retries are made for failed network requests. The future edit/validation slice must enforce at most three total edit-and-validation attempts; that is separate from the read-only action budget.
+No retries are made for failed network requests. One schema-invalid model response can receive a correction request within the existing task budgets; no invalid action is executed. The future edit/validation slice must enforce at most three total edit-and-validation attempts; that is separate from the read-only action budget.
 
 ## Endpoint configuration
 

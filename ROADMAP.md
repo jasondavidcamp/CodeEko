@@ -247,6 +247,8 @@ Each slice should be demonstrated against the real pilot repository before addin
 
 Implementation evidence (2026-09-14): the initial TypeScript read-only slice now has an extension shell, strict version-1 action schemas, SecretStorage integration, model discovery with manual fallback, repository filtering, lexical PowerShell indexing, a bounded action loop, cancellation and persistent named threads. The HTTPS API endpoint is configured by the developer and has no built-in default. Automated isolated-repository and mock-endpoint checks are included; a VSIX can be built locally. Phase 1/2 exit criteria remain open pending a real VS Code/endpoint/PowerShell-repository demonstration. Editing, validation/repair and undo remain unimplemented.
 
+Live validation evidence (2026-09-14): a real public Gemini model passed the read-only explanation/follow-up suite over a synthetic five-file PowerShell module and test fixture. The same suite passed inside an isolated VS Code 1.138.0-insider Extension Development Host, alongside extension activation and conversation-panel lifecycle checks. Discovery, grounded citations, saved-thread reload, symbol refresh, cancellation and repository preservation passed. See `docs/ACCEPTANCE.md` for exact scope and remaining UI/restart/representative-repository checks. The next implementation slice remains safe multi-file editing and native review; the full pilot is not yet complete.
+
 1. Write the JSON action protocol and TypeScript interfaces.
 2. Scaffold the VSIX and direct Gemini client.
 3. Implement SecretStorage, model discovery, and the model picker.

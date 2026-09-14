@@ -7,7 +7,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 1. Install Git and VS Code 1.95 or newer on your Windows workstation. No separate runtime or backend installation is required.
 2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.1.0.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
-4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. Either the origin/base path or a URL ending in `/v1` is accepted. There is no public-provider fallback.
+4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
 6. Run **LLM Runtime: Select Model**. This queries `/v1/models` and persists the chosen ID. If discovery fails, the picker offers manual entry prefilled with the saved model; cancellation preserves that selection.
 7. Run **LLM Runtime: Open Conversation**, name a conversation, and ask a normal question such as “Explain how these PowerShell functions load configuration; cite files and lines.” Use **Cancel task** to stop a request or tool loop. Closing the panel also cancels work.
@@ -28,6 +28,8 @@ Press F5 to launch an Extension Development Host. Packaging produces a single VS
 
 Developer references are included in `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, and `docs/ACCEPTANCE.md`. The roadmap remains the long-term product direction.
 
+Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RUNTIME_TEST_ENDPOINT`, `LLM_RUNTIME_TEST_API_KEY`, and `LLM_RUNTIME_TEST_MODEL` in the process environment, then run `npm run test:live`. These tests make billable model requests and are excluded from `npm test`. Run `npm run test:host` to also test the actual VS Code extension host; Microsoft's development-only `@vscode/test-electron` helper downloads a separate test build into the OS temporary directory. Set `LLM_RUNTIME_VSCODE_VERSION` to choose a version (default `stable`), or set `LLM_RUNTIME_VSCODE_EXECUTABLE` to use an existing executable. It launches a temporary profile without changing your normal VS Code settings. Never put test keys in source files or committed settings.
+
 ## Current limits
 
 - Live progress is streamed at action boundaries; individual model JSON responses are buffered, bounded, parsed, and validated before execution. Token-level SSE streaming is not implemented.
@@ -36,7 +38,7 @@ Developer references are included in `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`,
 - Only on-disk content is indexed; save editor buffers before asking about recent edits. Index refreshes enumerate the Git manifest and reuse unchanged symbol entries. A watcher invalidates the in-memory index; each tool also refreshes Git membership/ignore policy. The private index snapshot is rebuilt after restart, while conversation history is loaded.
 - One conversation panel holds an OS lease per repository, preventing overlapping tasks and history writes across local VS Code windows. Windows named-pipe leases are released on process exit. Remote hosts and network-shared repositories are outside this pilot.
 - No edits, native change review, Pester/PSScriptAnalyzer execution, repair, or task undo yet. These belong to subsequent slices.
-- Endpoint interoperability, network/proxy/certificate behavior and interactive installation still require an end-to-end check. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
+- A public Gemini model and isolated VS Code Extension Development Host have passed the live smoke suite; see `docs/ACCEPTANCE.md` for evidence and remaining interactive checks. Other endpoint/network/proxy/certificate configurations still require validation. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
 
 ## Data and cleanup
 
