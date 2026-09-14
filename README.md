@@ -1,0 +1,45 @@
+# LLM Coding Agent Runtime
+
+A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.1 is the **read-only vertical slice**: ask questions, retrieve evidence and receive a grounded explanation. All repository changes remain the developer's own; the extension has no mutation or general command tools.
+
+## Install and connect
+
+1. Install Git and VS Code 1.95 or newer on your Windows workstation. No separate runtime or backend installation is required.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.1.0.vsix`.
+3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
+4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. Either the origin/base path or a URL ending in `/v1` is accepted. There is no public-provider fallback.
+5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
+6. Run **LLM Runtime: Select Model**. This queries `/v1/models` and persists the chosen ID. If discovery fails, the picker offers manual entry prefilled with the saved model; cancellation preserves that selection.
+7. Run **LLM Runtime: Open Conversation**, name a conversation, and ask a normal question such as “Explain how these PowerShell functions load configuration; cite files and lines.” Use **Cancel task** to stop a request or tool loop. Closing the panel also cancels work.
+
+`llmRuntime.requestTimeout` defaults to 60 seconds. `llmRuntime.permissionMode` defaults to Full access and is always visible in the panel. **Every permission mode is constrained to the same read-only allowlist in this release.** Endpoint/model/timeout settings are application-scoped so repository settings cannot redirect credentials or API traffic.
+
+## Develop, test, package
+
+Use Node.js 22 or newer and npm for development only:
+
+```powershell
+npm ci
+npm test
+npm run package
+```
+
+Press F5 to launch an Extension Development Host. Packaging produces a single VSIX containing compiled JavaScript and Zod (the only runtime library). TypeScript, VS Code types and `vsce` are development dependencies. Git runs as fixed argument arrays with no shell, a 15-second timeout, disabled fsmonitor, optional locks disabled, and a 4 MiB output cap. No PowerShell commands or tests from the inspected repository are executed in this slice.
+
+Developer references are included in `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, and `docs/ACCEPTANCE.md`. The roadmap remains the long-term product direction.
+
+## Current limits
+
+- Live progress is streamed at action boundaries; individual model JSON responses are buffered, bounded, parsed, and validated before execution. Token-level SSE streaming is not implemented.
+- PowerShell indexing uses conservative lexical patterns, not the PowerShell AST. It extracts function/class names, typed parameters, manifest fields, import/export/dot-source lines and Pester descriptions. Complex multiline syntax and dynamic dependencies may be missed; use text search and read the source to confirm. UTF-8 and UTF-16LE BOM are supported; legacy ANSI and UTF-16BE files are excluded.
+- Files over 256 KB, ignored content, likely sensitive configuration, binaries, generated directories, and linked paths are excluded. This is a conservative filename policy, not a general secret detector. Do not put credentials into chat or source files intended for model context.
+- Only on-disk content is indexed; save editor buffers before asking about recent edits. Index refreshes enumerate the Git manifest and reuse unchanged symbol entries. A watcher invalidates the in-memory index; each tool also refreshes Git membership/ignore policy. The private index snapshot is rebuilt after restart, while conversation history is loaded.
+- One conversation panel holds an OS lease per repository, preventing overlapping tasks and history writes across local VS Code windows. Windows named-pipe leases are released on process exit. Remote hosts and network-shared repositories are outside this pilot.
+- No edits, native change review, Pester/PSScriptAnalyzer execution, repair, or task undo yet. These belong to subsequent slices.
+- Endpoint interoperability, network/proxy/certificate behavior and interactive installation still require an end-to-end check. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
+
+## Data and cleanup
+
+Conversation history and index metadata are stored beneath VS Code's private per-user extension global storage, partitioned by a hash of the canonical Git root. No index or chat files are written to the inspected repository. History is local plaintext under the user's OS account protections; API keys use SecretStorage. Up to 100 named threads with 100 messages each are retained; each new task supplies at most 20 recent messages to the model. Interrupted tasks are marked interrupted when loaded and can receive a follow-up.
+
+To reset data, close all LLM Runtime panels and remove this extension's `globalStorage/internal-pilot.llm-coding-agent-runtime` directory from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.

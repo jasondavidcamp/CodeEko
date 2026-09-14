@@ -1,0 +1,11 @@
+src/**
+test/**
+dist/test/**
+**/*.map
+.vscode/**
+tsconfig.json
+extension.ts
+ROADMAP.md
+node_modules/typescript/**
+node_modules/zod/src/**
+.gitignore

@@ -1,0 +1,23 @@
+{
+  "name": "llm-coding-agent-runtime", "displayName": "LLM Coding Agent Runtime", "description": "Read-only repository agent for a configured OpenAI-compatible Gemini endpoint.",
+  "version": "0.1.0", "publisher": "internal-pilot", "private": true, "license": "UNLICENSED",
+  "engines": { "vscode": "^1.95.0" }, "categories": ["Other"], "main": "./dist/extension.js", "extensionKind": ["workspace"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": false },
+  "activationEvents": ["onCommand:llmRuntime.open"],
+  "contributes": {
+    "commands": [
+      { "command": "llmRuntime.open", "title": "LLM Runtime: Open Conversation" },
+      { "command": "llmRuntime.setKey", "title": "LLM Runtime: Set API Key" },
+      { "command": "llmRuntime.selectModel", "title": "LLM Runtime: Select Model" }
+    ],
+    "configuration": { "title": "LLM Coding Agent Runtime", "properties": {
+      "llmRuntime.endpoint": { "type": "string", "default": "", "scope": "application", "description": "HTTPS API base URL (origin or /v1). Configure your endpoint before connecting." },
+      "llmRuntime.model": { "type": "string", "default": "", "scope": "application", "description": "Selected model; also the fallback when discovery fails." },
+      "llmRuntime.requestTimeout": { "type": "number", "default": 60000, "minimum": 1000, "maximum": 300000, "scope": "application" },
+      "llmRuntime.permissionMode": { "type": "string", "enum": ["Review", "Workspace", "Full access", "Custom"], "default": "Full access", "description": "All modes permit only read-only tools in this release." }
+    } }
+  },
+  "scripts": { "build": "tsc -p .", "test": "npm run build && node --test dist/test/*.test.js", "package": "npm run build && vsce package --allow-missing-repository", "vscode:prepublish": "npm run build" },
+  "dependencies": { "zod": "^3.24.0" },
+  "devDependencies": { "@types/node": "^22.10.0", "@types/vscode": "^1.95.0", "@vscode/vsce": "^3.2.0", "typescript": "^5.7.0" }
+}
