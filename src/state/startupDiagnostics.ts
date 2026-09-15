@@ -2,12 +2,12 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type StartupEvent = 'activate' | 'resolve' | 'visible' | 'dispose' | 'stage.begin' | 'stage.end' | 'stage.failed' | 'focus.begin' | 'focus.end' | 'focus.failed' | 'html' | 'ready' | 'state.sent' | 'state.delivered' | 'state.ack' | 'handshake.timeout' | 'webview.error' | 'deactivate' | 'activation.timeout';
+export type StartupEvent = 'webview.bootstrap' | 'webview.main' | 'activate' | 'resolve' | 'visible' | 'dispose' | 'stage.begin' | 'stage.end' | 'stage.failed' | 'focus.begin' | 'focus.end' | 'focus.failed' | 'html' | 'ready' | 'state.sent' | 'state.delivered' | 'state.ack' | 'handshake.timeout' | 'webview.error' | 'deactivate' | 'activation.timeout';
 type Fields = { view?: string; stage?: string; code?: string; source?: string; visible?: boolean; delivered?: boolean; elapsedMs?: number; folders?: number; trusted?: boolean; extensionVersion?: string; vscodeVersion?: string; pid?: number };
-const events: StartupEvent[] = ['activate','resolve','visible','dispose','stage.begin','stage.end','stage.failed','focus.begin','focus.end','focus.failed','html','ready','state.sent','state.delivered','state.ack','handshake.timeout','webview.error','deactivate','activation.timeout'];
+const events: StartupEvent[] = ['webview.bootstrap','webview.main','activate','resolve','visible','dispose','stage.begin','stage.end','stage.failed','focus.begin','focus.end','focus.failed','html','ready','state.sent','state.delivered','state.ack','handshake.timeout','webview.error','deactivate','activation.timeout'];
 const stages = ['repository','lease.acquire','history','lease.release'];
 const codes = ['service-worker','invalid-state','lease-unavailable','workspace-trust','history-unavailable','git-unavailable','cancelled','ENOENT','EACCES','EPERM','EADDRINUSE','unknown'];
-const sources = ['automatic','command','script','promise','ready-missing','ack-missing'];
+const sources = ['automatic','command','script','promise','resource','csp','ready-missing','ack-missing'];
 export function startupError(error: unknown): string {
   const value = error as { message?: unknown; code?: unknown };
   if (typeof value?.code === 'string' && codes.includes(value.code)) return value.code;

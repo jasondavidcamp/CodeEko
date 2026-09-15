@@ -4,6 +4,13 @@ export function conversationHtml(): string {
   const nonce = randomBytes(16).toString('hex');
   return String.raw`<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'"><meta name="viewport" content="width=device-width, initial-scale=1">
+<script nonce="${nonce}">
+const vscode=acquireVsCodeApi();
+window.addEventListener('error',event=>vscode.postMessage({type:'startupError',source:event.target&&event.target!==window?'resource':'script'}),true);
+window.addEventListener('unhandledrejection',()=>vscode.postMessage({type:'startupError',source:'promise'}));
+window.addEventListener('securitypolicyviolation',()=>vscode.postMessage({type:'startupError',source:'csp'}));
+vscode.postMessage({type:'startupPhase',phase:'bootstrap'});
+</script>
 <style nonce="${nonce}">
 *{box-sizing:border-box}body{margin:0;color:var(--vscode-foreground);background:var(--vscode-editor-background);font:var(--vscode-font-size)/1.6 var(--vscode-font-family);height:100vh;display:flex;flex-direction:column}
 button,select,textarea{font:inherit;color:inherit}button{cursor:pointer;border:1px solid transparent;border-radius:6px;padding:5px 10px;background:transparent}button:hover{background:var(--vscode-toolbar-hoverBackground)}button:disabled{opacity:.4;cursor:default}button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:2px}[hidden]{display:none!important}
@@ -24,7 +31,8 @@ footer{flex:none;padding:8px 16px 14px;max-height:50vh;overflow:auto}.compose-wr
 <dialog id="renameDialog" aria-labelledby="renameTitle" aria-describedby="renameDescription"><form id="renameForm"><button id="renameClose" type="button" aria-label="Close rename dialog">×</button><h2 id="renameTitle">Rename chat</h2><p id="renameDescription">Keep it short and recognizable.</p><label class="sr-only" for="renameInput">Chat name</label><input id="renameInput" maxlength="100" autocomplete="off" required><p id="renameError" role="alert" hidden></p><div class="renameButtons"><button id="renameCancel" type="button">Cancel</button><button id="renameSave" type="submit">Save</button></div></form></dialog>
 <dialog id="choiceDialog" aria-labelledby="choiceTitle"><h2 id="choiceTitle"></h2><div id="choiceItems"></div><button id="choiceCancel">Cancel</button></dialog>
 <script nonce="${nonce}">
-const vscode=acquireVsCodeApi(),el=id=>document.getElementById(id);
+vscode.postMessage({type:'startupPhase',phase:'main'});
+const el=id=>document.getElementById(id);
 let questionId='',busy=false,threadId='',rendered='',drafts=new Map(),home=true,showAll=false,lastState,switchPending=false;
 const resize=()=>{el('input').style.height='auto';el('input').style.height=Math.min(el('input').scrollHeight,180)+'px';};
 const refresh=()=>{el('send').disabled=(busy&&!questionId)||(!home&&lastState?.thread.archived)||!threadId||!el('input').value.trim();el('send').hidden=busy&&!questionId;el('cancel').hidden=!busy;el('cancel').disabled=!busy;};
@@ -71,6 +79,6 @@ el('home').textContent=home?'Chats':'← '+m.thread.name;el('home').title=home?'
 const signature=JSON.stringify([threadId,m.thread.messages]);if(signature!==rendered){rendered=signature;el('messages').replaceChildren();for(const msg of m.thread.messages){const a=document.createElement('article');a.className=msg.role==='user'?'user':'assistant';const role=document.createElement('div');role.className='role';role.textContent=msg.role==='user'?'You':'Agent';const body=document.createElement('div');body.className='content';content(body,msg.content);a.append(role,body);el('messages').append(a);}if(follow)bottom();else el('latest').hidden=false;}
 for(const id of ['rename','archive','restore','new','home','history','settings','model','permissions','viewAll'])el(id).disabled=busy;el('status').className=busy?'working':'';
 if(!busy)el('status').textContent=home?'':({complete:'Completed',cancelled:'Stopped',blocked:'Needs attention',failed:'Task failed',idle:'Ready'})[m.thread.status]||'Ready';else if(!wasBusy)el('status').textContent='Working…';if(questionId)el('status').textContent='Waiting for your reply';refresh();
-}window.addEventListener('message',event=>{try{renderState(event.data);if(event.data?.type==='state'&&typeof event.data.startupToken==='string')vscode.postMessage({type:'startupAck',token:event.data.startupToken});}catch{vscode.postMessage({type:'startupError',source:'script'});}});window.addEventListener('error',()=>vscode.postMessage({type:'startupError',source:'script'}));window.addEventListener('unhandledrejection',()=>vscode.postMessage({type:'startupError',source:'promise'}));vscode.postMessage({type:'ready'});
+}window.addEventListener('message',event=>{try{renderState(event.data);if(event.data?.type==='state'&&typeof event.data.startupToken==='string')vscode.postMessage({type:'startupAck',token:event.data.startupToken});}catch{vscode.postMessage({type:'startupError',source:'script'});}});vscode.postMessage({type:'ready'});
 </script></body></html>`;
 }

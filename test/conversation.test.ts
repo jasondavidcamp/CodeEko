@@ -8,7 +8,7 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   const node = () => ({ value: '', textContent: '', style: {}, children: [] as any[], scrollHeight: 100, scrollTop: 0, clientHeight: 100, append(...items: any[]) { this.children.push(...items); }, replaceChildren() { this.children = []; }, getBoundingClientRect() { return {left:20,top:600}; }, togglePopover() {}, hidePopover() {}, matches() { return true; }, focus() {}, select() {}, showModal() {}, close() {}, querySelector() { return { focus() {} }; }, setAttribute(name: string, value: string) {} });
   const get = (id: string) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   const sent: any[] = []; let receive!: (event: any) => void;
-  const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(conversationHtml())![1];
+  const script = [...conversationHtml().matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)].map(match => match[1]).join("\n");
   vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: any) => sent.push(message) }), document: { getElementById: get, createElement: node }, window: { addEventListener: (type: string, callback: typeof receive) => { if (type === 'message') receive = callback; } } });
   const state = (id: string, busy = false) => receive({ data: { type: 'state', root: 'repo', mode: 'Review', busy, threads: [{ id, name: id }], thread: { id, status: 'idle', messages: [{ role: 'assistant', content: '**Safe** `code` <img src=x onerror=alert(1)>' }] } } });
   assert.ok(!conversationHtml().includes('permissionCustom'));
@@ -45,4 +45,25 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   const body = get('messages').children[0].children[1];
   assert.equal(body.children.map((item: any) => item.textContent).join(''), 'Safe code <img src=x onerror=alert(1)>');
   assert.equal(get('boundary').textContent, 'Review');
+});
+
+
+test('early bootstrap survives main parse failure and reports only fixed error categories', () => {
+  const scripts = [...conversationHtml().matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)].map(match => match[1]);
+  assert.equal(scripts.length, 2);
+  const sent: any[] = [], handlers = new Map<string, (event?: any) => void>();
+  let acquisitions = 0;
+  const window = { addEventListener: (type: string, handler: (event?: any) => void) => handlers.set(type, handler) };
+  const context = vm.createContext({window, acquireVsCodeApi: () => { acquisitions++; return { postMessage: (message: any) => sent.push(message) }; }});
+  vm.runInContext(scripts[0], context);
+  assert.equal(acquisitions, 1);
+  assert.equal(sent[0].phase, 'bootstrap');
+  assert.throws(() => vm.runInContext(scripts[1] + '\nconst = ;', context), /SyntaxError/);
+  handlers.get('error')!({ target: window, message: 'private source and key' });
+  handlers.get('error')!({ target: {}, message: 'private resource URL' });
+  handlers.get('unhandledrejection')!({reason:'private rejection'});
+  handlers.get('securitypolicyviolation')!({blockedURI:'private endpoint'});
+  assert.deepEqual(sent.slice(1).map(message => message.source), ['script','resource','promise','csp']);
+  assert.ok(!sent.some(message => message.phase === 'main' || message.type === 'ready'));
+  assert.ok(!JSON.stringify(sent).includes('private'));
 });

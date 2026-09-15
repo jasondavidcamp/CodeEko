@@ -330,3 +330,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.34: Persist bounded startup lifecycle metadata across launches and export sanitized diagnostics independently of the chat pane. Instrument initialization stages, focus failures, visibility/disposal, initial-state acknowledgement, handshake timeouts and shutdown. Tests cover retention, redaction, stale acknowledgements and failure export; an isolated VS Code host verifies a real render acknowledgement.
 - [ ] Capture the representative workstation's failed first launch and successful second launch, then diagnose the remaining startup problem.
+
+- [x] 0.4.35: Add an independent early webview bootstrap, main-script entry signal, and early script/resource/promise/CSP error categories without raw error content. Regression coverage verifies instrumentation survives a main-script parse failure; an isolated VS Code host confirms both startup signals and the render acknowledgement.

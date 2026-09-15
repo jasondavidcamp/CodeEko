@@ -57,7 +57,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   settings.permissionMode = 'Custom'; await receive({ type: 'ready' }); assert.equal(sent.at(-1).mode, 'Review'); settings.permissionMode = 'Full access';
   const originalHtml = panel.webview.html; await commands.get('llmRuntime.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
   assert.ok(panel.webview.html.includes("default-src 'none'")); assert.ok(panel.webview.html.includes('textContent'));
-  const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(panel.webview.html)![1];
+  const script = [...panel.webview.html.matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)].map(match => match[1]).join("\n");
   assert.doesNotThrow(() => new vm.Script(script)); // Catches template-string/newline quoting regressions.
   await receive({ type: 'ready' });
   let began!: () => void; const started = new Promise<void>(resolve => { began = resolve; });

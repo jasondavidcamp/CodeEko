@@ -172,7 +172,8 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     if (message.type === 'choiceReply') return;
     if (message.type === 'ready') { readyReceived = true; acknowledged = false; stateToken = randomUUID(); diagnostics.log('ready', { view: viewId }); armHandshake(); update(); return; }
     if (message.type === 'startupAck') { if (!acknowledged && message.token === stateToken) { acknowledged = true; clearTimeout(handshakeTimer); diagnostics.log('state.ack', { view: viewId }); } return; }
-    if (message.type === 'startupError') { diagnostics.log('webview.error', { view: viewId, source: message.source === 'promise' ? 'promise' : 'script', code: 'unknown' }); return; }
+    if (message.type === 'startupPhase') { if (message.phase === 'bootstrap' || message.phase === 'main') diagnostics.log(message.phase === 'bootstrap' ? 'webview.bootstrap' : 'webview.main', { view: viewId }); return; }
+    if (message.type === 'startupError') { diagnostics.log('webview.error', { view: viewId, source: ['promise','resource','csp'].includes(message.source) ? message.source : 'script', code: 'unknown' }); return; }
     if (message.type === 'cancel') { active.get(root)?.abort(); return; }
     if (message.type === 'answer') {
       if (!pendingQuestion || message.id !== pendingQuestion.id || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 8000) return;
