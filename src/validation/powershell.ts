@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { check } from '../policy/boundary';
+import { lifetimeBootstrap } from './lifetime';
 
 // Only fixed extension-owned scripts are executable. Repository data arrives over stdin.
 const preamble = String.raw`
@@ -11,7 +12,6 @@ $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'Windows PowerShell 5.1 required' }
-$request = [Console]::In.ReadToEnd() | ConvertFrom-Json
 `;
 const scripts = {
   inspect: String.raw`
@@ -105,7 +105,8 @@ export function createPowerShellRunner(executionPolicy: 'Inherit' | 'RemoteSigne
   if (process.platform !== 'win32') throw new Error('Windows PowerShell 5.1 is unavailable on this platform.');
   const windows = process.env.SystemRoot ?? 'C:\\Windows';
   const executable = path.join(windows, process.arch === 'ia32' ? 'Sysnative' : 'System32', 'WindowsPowerShell/v1.0/powershell.exe');
-  const script = preamble + scripts[operation];
+  const duration = operation === 'install' ? 120000 : 60000;
+  const script = preamble + lifetimeBootstrap + `\n$request = [ValidationLifetime]::Start(${duration}) | ConvertFrom-Json\n` + scripts[operation];
   return new Promise((resolve, reject) => {
     const policy = executionPolicy === 'RemoteSigned' ? ['-ExecutionPolicy', 'RemoteSigned'] : [];
     const child = spawn(executable, ['-NoLogo','-NoProfile','-NonInteractive', ...policy, '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { cwd: os.tmpdir(), env: validationEnvironment(), windowsHide: true, stdio: ['pipe','pipe','pipe'] });
@@ -116,7 +117,7 @@ export function createPowerShellRunner(executionPolicy: 'Inherit' | 'RemoteSigne
       else child.kill();
     };
     const abort = () => stop('Validation cancelled.');
-    const timer = setTimeout(() => stop('Validation timed out; process tree termination requested.'), operation === 'install' ? 120000 : 60000);
+    const timer = setTimeout(() => stop('Validation timed out; process tree termination requested.'), duration);
     signal.addEventListener('abort', abort, { once: true }); if (signal.aborted) abort();
     const collect = (chunk: Buffer, stdout: boolean) => { bytes += chunk.length; if (bytes > 256000) stop('Validation exceeded its output limit.'); else if (stdout) output += decoder.write(chunk); };
     child.stdout.on('data', chunk => collect(chunk, true)); child.stderr.on('data', chunk => collect(chunk, false));
@@ -129,7 +130,8 @@ export function createPowerShellRunner(executionPolicy: 'Inherit' | 'RemoteSigne
       if (code !== 0) return reject(new Error('PowerShell validation command failed; no successful result was recorded.'));
       try { resolve(JSON.parse(output.trim())); } catch { reject(new Error('Validation returned an invalid result.')); }
     });
-    child.stdin.end(JSON.stringify(payload));
+    // Keep the writer open: the validator watches EOF to detect host death.
+    child.stdin.write(JSON.stringify(payload) + '\n');
   });
 }; }
 export const runPowerShell = createPowerShellRunner();

@@ -60,7 +60,9 @@ The full isolated VS Code host suite passed again. Its live editing task was und
 
 `npm run test:recovery` passed in VS Code 1.138.0-insider. Its launcher terminated the isolated instance while a real synthetic Pester test was running after an applied repository edit. The owned validation child was verified stopped. Reopening the same profile recovered two named threads, interrupted status and the applied edit. The native conversation panel reopened, no mutation replayed automatically, no interrupted validation was reported as passed, and undo restored the baseline while preserving staged developer work.
 
-The test seeds state through the runtime's real task/thread classes, rather than typing a feature request into the webview. It uses no API credential, modifies only its synthetic repository/profile, and does not simulate power loss during a filesystem write. Its launcher kills the owned process tree; arbitrary host-crash child lifetime is not established by this test. Those remaining lifecycle, interactive and mid-write cases remain manual/hardening gates.
+The test seeds state through the runtime's real task/thread classes, rather than typing a feature request into the webview. It uses no API credential, modifies only its synthetic repository/profile, and does not simulate power loss during a filesystem write. The original 0.4.1 launcher killed the owned process tree. In 0.4.3 it kills the extension-host PID alone and verifies that the validator and its ordinary descendant stop before closing the remaining UI. Restart recovery, preserved staged work and undo passed again in VS Code 1.138.0-insider. Interactive and mid-write cases remain manual/hardening gates.
+
+Native lifetime tests additionally verify cleanup after completion, cancellation and forced validator termination, preservation of a separately launched process, an independent guard deadline, startup after owner-pipe closure, and refusal under Constrained Language. These fixtures do not establish confinement of broker-launched processes or malicious test code.
 
 ## Remaining manual pilot gate
 

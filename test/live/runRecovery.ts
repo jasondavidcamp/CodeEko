@@ -19,7 +19,12 @@ async function main(): Promise<void> {
   await fs.mkdir(workspace); await git(workspace, ['init']);
   await fs.writeFile(path.join(workspace, 'main.ps1'), 'function Get-Value { return 1 }\n');
   await fs.mkdir(path.join(workspace, 'tests'));
-  await fs.writeFile(path.join(workspace, 'tests/Slow.Tests.ps1'), `Describe 'controlled interruption' { It 'waits for the launcher' { [IO.File]::WriteAllText('${childMarker.replaceAll("'", "''")}', [string]$PID); Start-Sleep -Seconds 60; 1 | Should -Be 1 } }`);
+  const sleeper = Buffer.from('Start-Sleep -Seconds 120', 'utf16le').toString('base64');
+  await fs.writeFile(path.join(workspace, 'tests/Slow.Tests.ps1'), `Describe 'controlled interruption' { It 'waits for the launcher' {
+    $child = Start-Process -FilePath "$PSHOME/powershell.exe" -ArgumentList '-NoLogo','-NoProfile','-NonInteractive','-EncodedCommand','${sleeper}' -WindowStyle Hidden -PassThru
+    [IO.File]::WriteAllText('${childMarker.replaceAll("'", "''")}', (@{ validatorPid = $PID; descendantPid = $child.Id } | ConvertTo-Json -Compress))
+    Start-Sleep -Seconds 60; 1 | Should -Be 1
+  } }`);
   await git(workspace, ['add','.']); await git(workspace, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','fixture']);
   await fs.appendFile(path.join(workspace, 'main.ps1'), '# developer note\n');
   await fs.writeFile(path.join(workspace, 'Notes.txt'), 'staged developer work\n'); await git(workspace, ['add','Notes.txt']);
@@ -28,6 +33,7 @@ async function main(): Promise<void> {
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const name of Object.keys(env)) if (/KEY|TOKEN|SECRET|PASSWORD|ELECTRON_RUN_AS_NODE/i.test(name)) delete env[name];
   Object.assign(env, { LLM_RUNTIME_RECOVERY_STORAGE: path.join(profile, 'User/globalStorage/internal-pilot.llm-coding-agent-runtime'), LLM_RUNTIME_RECOVERY_MARKER: marker, LLM_RUNTIME_RECOVERY_REPORT: report, LLM_RUNTIME_RECOVERY_CHILD: childMarker });
+  let hostCrashCleanupVerified = false;
   const launch = async (phase: 'seed' | 'verify') => {
     const child = spawn(executable, [`--extensionDevelopmentPath=${project}`, `--extensionTestsPath=${path.join(__dirname, 'recoveryHost.js')}`, `--user-data-dir=${profile}`, `--extensions-dir=${path.join(temp, 'extensions')}`, '--disable-extensions','--disable-updates','--skip-welcome','--skip-release-notes','--log','error','--new-window', workspace], { env: { ...env, LLM_RUNTIME_RECOVERY_PHASE: phase }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
     child.stdout?.on('data', data => process.stdout.write(data)); child.stderr?.on('data', data => process.stderr.write(data));
@@ -41,11 +47,18 @@ async function main(): Promise<void> {
           if (launchError || child.exitCode !== null || Date.now() > deadline) throw new Error('Seed host did not reach its interruption checkpoint.');
           await new Promise(resolve => setTimeout(resolve, 100));
         }
-        console.log('Recovery checkpoint reached; terminating only the isolated test instance.');
-        await terminate(child); await exited;
         const checkpoint = JSON.parse(await fs.readFile(marker, 'utf8'));
-        let validatorAlive = true; try { process.kill(checkpoint.validatorPid, 0); } catch { validatorAlive = false; }
-        if (validatorAlive) throw new Error('The owned validation child survived termination of the isolated instance.');
+        console.log('Recovery checkpoint reached; terminating the extension host alone (no tree kill).');
+        // process.kill on Windows terminates this PID only. The UI remains alive
+        // while production lifetime enforcement must stop both owned processes.
+        process.kill(checkpoint.hostPid);
+        const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+        const stoppedBy = Date.now() + 10000;
+        while ([checkpoint.validatorPid, checkpoint.descendantPid].some(alive) && Date.now() < stoppedBy) await new Promise(resolve => setTimeout(resolve, 50));
+        if ([checkpoint.validatorPid, checkpoint.descendantPid].some(alive)) throw new Error('Validation or its descendant survived extension-host-only termination.');
+        hostCrashCleanupVerified = true;
+        console.log('Host-crash cleanup verified for validator and descendant before closing the isolated UI.');
+        await terminate(child); await exited;
       } else {
         const code = await exited; if (launchError) throw launchError; if (code !== 0) throw new Error(`Recovery verification exited with ${code}.`);
       }
@@ -54,8 +67,8 @@ async function main(): Promise<void> {
   try {
     await launch('seed'); await launch('verify');
     const result = JSON.parse(await fs.readFile(report, 'utf8'));
-    if (!result.undoAfterRestart || !result.noAutomaticReplay || !result.threadsRecovered || !result.validationInterrupted) throw new Error('Recovery report is incomplete.');
-    console.log('VERIFIED RESTART RECOVERY: ' + JSON.stringify(result));
+    if (!result.undoAfterRestart || !result.noAutomaticReplay || !result.threadsRecovered || !result.validationInterrupted || !hostCrashCleanupVerified) throw new Error('Recovery report is incomplete.');
+    console.log('VERIFIED RESTART RECOVERY: ' + JSON.stringify({ ...result, hostCrashCleanupVerified }));
   } finally { await fs.rm(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }); }
 }
 main().catch(error => { console.error(error instanceof Error ? error.message : 'Recovery test failed.'); process.exitCode = 1; });

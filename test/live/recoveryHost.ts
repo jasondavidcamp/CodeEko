@@ -38,10 +38,10 @@ export async function run(): Promise<void> {
       if (completed || Date.now() > deadline) throw new Error('Synthetic Pester validation did not reach its checkpoint.');
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    const validatorPid = Number(await fs.readFile(childMarker, 'utf8'));
-    assert.ok(Number.isInteger(validatorPid) && validatorPid > 0);
-    // Keep task/thread/validation running; the launcher terminates this entire instance and its child.
-    await fs.writeFile(marker, JSON.stringify({ id: task.id, thread: first.id, root, validatorPid, staged: await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']) }));
+    const { validatorPid, descendantPid } = JSON.parse(await fs.readFile(childMarker, 'utf8'));
+    for (const pid of [validatorPid, descendantPid]) { assert.ok(Number.isInteger(pid) && pid > 0); process.kill(pid, 0); }
+    // Keep validation running; the launcher kills this host PID alone first.
+    await fs.writeFile(marker, JSON.stringify({ id: task.id, thread: first.id, root, hostPid: process.pid, validatorPid, descendantPid, staged: await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']) }));
     await running;
     return;
   }

@@ -223,7 +223,7 @@ Goal: distribute a repeatable initial release.
 - [x] Test missing modules, failed installation reporting and selected-major discovery.
 - [ ] Verify real Pester 4 execution on a workstation where publisher policy permits installation (current installation attempt was rejected; verification was not bypassed).
 - [x] Add recovery tests for VS Code termination after an applied edit and during active Pester validation.
-- [ ] Enforce and verify child-process lifetime when the extension host dies without a coordinated process-tree shutdown.
+- [x] Enforce and verify child-process lifetime when the extension host dies without a coordinated process-tree shutdown (Windows Job Object, owner-pipe watcher, isolated host-only termination test).
 - [ ] Exercise termination during individual file replacement, deletion, and move operations on representative workstations.
 - [x] Document install, first-run authentication, permission modes, limitations, and uninstall/data cleanup.
 
@@ -272,6 +272,8 @@ Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in 
 Undo evidence (0.4): exact baseline restoration across patch/create/delete/move, full preflight, later-edit refusal, native previews, cancellation and resumable undo journals passed automated tests. The complete suite passed 38 tests. The real VS Code host restored a live Gemini task's baseline while preserving staged work and a developer comment. Whole-application termination and manual interactive pilot checks remain open.
 
 Restart evidence (0.4.1): a dedicated isolated VS Code process was terminated while a real Pester child was running after an applied edit. The child stopped. Restart recovered two threads and interrupted status, preserved the edit and developer work, reopened the native panel, avoided automatic replay and false validation success, and supported undo. Mid-write and manual representative-workstation checks remain open.
+
+Crash-lifetime evidence (0.4.3): native tests verify validator/descendant cleanup on completion, cancellation and forced validator exit while preserving an unrelated process. Guard tests cover early owner loss, an independent deadline and blocked initialization. The isolated VS Code recovery test kills the extension-host PID alone and confirms that Pester and its descendant stop before UI cleanup; restart and undo preserve developer work. Broker-launched processes are outside this lifetime mechanism; representative workstation policy and mid-write interruption remain open.
 
 ## Definition of pilot success
 

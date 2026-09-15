@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.95 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.2.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.3.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -42,7 +42,7 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 
 ## Current limits
 
-`npm run test:recovery` runs a separate opt-in Windows test without API credentials: it terminates only its own isolated VS Code instance during synthetic Pester validation, restarts that profile, and checks thread recovery, no automatic replay, and undo. It requires supported Pester and uses process-only RemoteSigned for its fixture.
+`npm run test:recovery` runs a separate opt-in Windows test without API credentials: it kills its isolated extension host alone during synthetic Pester validation, verifies that validation and its child process stop before closing the remaining UI, restarts that profile, and checks thread recovery, no automatic replay, and undo. It requires supported Pester and uses process-only RemoteSigned for its fixture.
 
 - Live progress is streamed at action boundaries; individual model JSON responses are buffered, bounded, parsed, and validated before execution. Token-level SSE streaming is not implemented.
 - PowerShell indexing uses conservative lexical patterns, not the PowerShell AST. It extracts function/class names, typed parameters, manifest fields, import/export/dot-source lines and Pester descriptions. Complex multiline syntax and dynamic dependencies may be missed; use text search and read the source to confirm. UTF-8 and UTF-16LE BOM are supported; legacy ANSI and UTF-16BE files are excluded.
@@ -52,6 +52,7 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 - Edits preserve UTF-8/UTF-8 BOM/UTF-16LE BOM and uniform line endings. New PowerShell files use UTF-8 BOM and CRLF. Mixed line endings, hard-linked mutation targets, case-only moves, and ambiguous preexisting changes are refused. New destinations never overwrite an existing file.
 - File replacement is atomic, but the final content check and replacement are not a filesystem compare-and-swap. A move uses two filesystem operations; an interruption can leave both names. Unconfirmed journal entries are labeled for inspection. Undo is explicit and sequential; interrupted undo can resume from its journal. There is no automatic rollback, and custom Windows ACL preservation is not guaranteed.
 - Automatic validation uses at most three rounds. Missing modules, declined test execution and unsupported module-loading analysis are reported as partial coverage. A test filename does not prove safety: only developer-selected Pester files execute. The default execution policy is inherited from the workstation.
+- Validation and ordinary descendant processes stop when the extension host exits. A Windows Job Object and input-pipe lifetime watcher enforce cleanup; initialization failure blocks validation. Workstation policy must permit the fixed PowerShell `Add-Type` bootstrap. This controls process lifetime, not filesystem or network access.
 - A public Gemini model and isolated VS Code Extension Development Host have passed the live smoke suite; see `docs/ACCEPTANCE.md` for evidence and remaining interactive checks. Other endpoint/network/proxy/certificate configurations still require validation. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
 
 ## Data and cleanup
