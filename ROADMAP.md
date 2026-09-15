@@ -67,6 +67,7 @@ Full access currently covers supported repository tools and fixed validation com
 - [x] Export sanitized startup diagnostics independently of a functioning chat pane.
 - [x] Offer opt-in bounded rejected-response capture and offline schema replay.
 - [x] Document install, build, configuration, limitations and data cleanup.
+- [x] Provide a current-user source-build installer with locked dependencies, optional tests, build-only mode and installed-version verification.
 - [x] Publish an MIT-licensed experimental GitHub prerelease with a VSIX and SHA-256 checksum.
 
 ## Next priorities
@@ -111,3 +112,5 @@ The initial public prerelease passed 118 tests with one unavailable Pester 4 che
 Detailed acceptance scenarios and validation behavior are documented in `docs/ACCEPTANCE.md` and `docs/VALIDATION.md`. Moves involve multiple filesystem operations and are not atomic as a whole. Unit-test selection is conservative inspection, not an execution sandbox. An experimental release is not evidence that all acceptance gates are complete.
 
 Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4 check skipped, and the native VS Code 1.137.0 activation/sidebar/settings check passed. Current tracked files and the rebuilt VSIX were scanned for retired product identifiers and publication-sensitive references; none were found. Earlier published artifacts remain unchanged.
+
+Source installer verification: a real dependency restore and package build passed, the built VSIX installed into an isolated VS Code user profile, and Windows PowerShell 5.1 subprocess tests verified paths containing spaces, build-only mode, optional tests and stop-on-failure behavior. No elevation or workstation-policy changes were used by the installer.

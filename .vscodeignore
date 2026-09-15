@@ -10,3 +10,5 @@ AGENTS.md
 node_modules/typescript/**
 node_modules/zod/src/**
 .gitignore
+
+scripts/**
