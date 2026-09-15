@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.39",
+  "version": "0.4.40",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {

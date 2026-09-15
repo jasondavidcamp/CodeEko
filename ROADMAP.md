@@ -342,3 +342,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.38: Disable automatic diff tabs by default; add an Editor settings toggle for proposed-change and task-completion previews. Tests verify default-off editing, explicit review, and opt-in previews.
 
 - [x] 0.4.39: Rename the visible product, commands, settings page and documentation to EKOD; package as ekod.vsix. Preserve the installed extension identity and settings keys for data compatibility. Automated UI checks and native VS Code sidebar/settings checks passed.
+
+- [x] 0.4.40: Add read-only git_show_commit with pinned revision metadata and filtered bounded diffs. Distinguish commit history from task changes; regression coverage includes the latest-commit conversation, initial commits, deletions, unsafe revisions, and preserved staged/working-tree changes.

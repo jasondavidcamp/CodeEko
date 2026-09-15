@@ -18,7 +18,7 @@ export async function safePath(root: string, relative: string, allowMissing = fa
   }
   return target;
 }
-const allowed = new Set(['list_files','search_text','find_symbol','read_file','read_files','git_status','ask_user','complete_task','git_diff_summary','open_diff']);
+const allowed = new Set(['list_files','search_text','find_symbol','read_file','read_files','git_status','git_show_commit','ask_user','complete_task','git_diff_summary','open_diff']);
 export const mutations = new Set(['apply_patch','create_file','delete_file','move_file']);
 export function authorize(tool: string, mode: string): void {
   if (!['Review','Workspace','Full access','Custom'].includes(mode) || (!allowed.has(tool) && !((mutations.has(tool) || tool === 'run_validation' || tool === 'git_commit') && ['Workspace','Full access'].includes(mode)))) throw new Error(`Tool denied in ${mode} mode.`);

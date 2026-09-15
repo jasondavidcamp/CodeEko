@@ -1,3 +1,4 @@
+import { showCommit } from '../repository/history';
 import { Action } from '../protocol/actions';
 import { RepositoryIndex, excluded } from '../indexing';
 import { git } from '../repository/git';
@@ -25,6 +26,7 @@ export class ReadOnlyTools {
         }
         return { matches, truncated: false };
       }
+      case 'git_show_commit': return showCommit(this.index.root, a.revision, signal);
       case 'git_status': {
         const raw = await git(this.index.root, ['status', '--porcelain=v1', '--no-renames', '-z', '--untracked-files=all'], signal);
         const parts = raw.split('\0'); const entries = [];
