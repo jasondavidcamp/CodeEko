@@ -18,6 +18,10 @@ import * as path from 'node:path';
 const active = new Map<string, AbortController>();
 const config = () => vscode.workspace.getConfiguration('llmRuntime');
 const mode = () => config().get<string>('permissionMode', 'Full access');
+function outcome(task?: EditTask, validation?: TaskValidation): string {
+  if (!task?.changes().length && !validation?.hasRun()) return '';
+  return '\n\n' + [task?.summary(), validation?.summary()].filter(Boolean).join('\n');
+}
 const keyName = (endpoint: string) => 'apiKey.' + createHash('sha256').update(apiBase(endpoint)).digest('hex');
 async function client(context: vscode.ExtensionContext): Promise<GeminiClient> {
   const endpoint = config().get<string>('endpoint', '');
@@ -222,11 +226,11 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             thread.activity = thread.activity.slice(-500);
             send({ type: 'progress', text });
           });
-          thread.messages.push({ role: 'assistant', content: (summary + '\n\n' + task.summary() + '\n' + validation.summary()).slice(0, 16000) }); thread.status = 'complete';
+          thread.messages.push({ role: 'assistant', content: (summary + outcome(task, validation)).slice(0, 16000) }); thread.status = 'complete';
         } catch (e) {
           thread.status = controller.signal.aborted ? 'cancelled' : e instanceof TaskConflict ? 'blocked' : 'failed';
           const reason = controller.signal.aborted ? 'Task cancelled.' : e instanceof Error ? e.message : 'Task failed.';
-          thread.messages.push({ role: 'assistant', content: `${reason}\n\n${task?.summary() ?? 'No repository files were changed.'}\n${validation?.summary() ?? 'Validation has not run.'}` });
+          thread.messages.push({ role: 'assistant', content: reason + outcome(task, validation) });
         } finally {
           try {
             if (task) {

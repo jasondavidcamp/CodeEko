@@ -35,6 +35,7 @@ export class TaskValidation {
   constructor(private task: EditTask, private hooks: ValidationHooks, private runner: PowerShellRunner = runPowerShell) {}
   assertCanEdit(): void { if (this.reports.length >= 3) throw new TaskConflict('Three validation rounds have finished. Review the remaining results before starting another task.'); }
   invalidate(): void { this.invalidated = true; }
+  hasRun(): boolean { return this.reports.length > 0; }
   summary(): string {
     const latest = this.reports.at(-1);
     if (!latest) return 'Validation has not run.';

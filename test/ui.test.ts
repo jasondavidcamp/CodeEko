@@ -56,6 +56,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).thread.messages.filter((m: any) => m.role === 'user').length, 1);
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"See pilot.ps1:1"}}' } }] }));
   await receive({ type: 'send', text: 'Follow up' }); assert.equal(sent.at(-1).thread.status, 'complete');
+  assert.equal(sent.at(-1).thread.messages.at(-1).content, 'See pilot.ps1:1');
   let questionCalls = 0;
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(++questionCalls === 1 ? { version: 1, tool: 'ask_user', args: { question: 'Which output format?' } } : { version: 1, tool: 'complete_task', args: { summary: 'Used your answer.' } }) } }] }));
   const questionRun = receive({ type: 'send', text: 'Generate a report' });
