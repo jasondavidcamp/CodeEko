@@ -1,3 +1,4 @@
+import { SettingsPage } from './settings';
 import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
 import { createHash, randomUUID } from 'node:crypto';
@@ -50,6 +51,8 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
 export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
   const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
   diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
+  const settingsPage = new SettingsPage(() => active.size > 0); context.subscriptions.push(settingsPage);
+  context.subscriptions.push(vscode.commands.registerCommand('llmRuntime.openSettings', () => settingsPage.open()));
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
   command('llmRuntime.setKey', async () => {
@@ -200,7 +203,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         try { await store.save(); } catch (error) { thread.archived = previous; throw error; }
         if (thread.archived) send({ type: 'home' });
       } else if (message.type === 'settings') {
-        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:internal-pilot.llm-coding-agent-runtime');
+        await vscode.commands.executeCommand('llmRuntime.openSettings');
       } else if (message.type === 'selectModel') {
         discoveryEndpoint = config().get<string>('endpoint', ''); discoveredModels = []; discoveryFailed = false;
         try { discoveredModels = await (await client(context)).models(); send({ type: 'models', items: discoveredModels }); }

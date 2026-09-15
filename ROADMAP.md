@@ -336,3 +336,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] Add repeated startup coverage using one persistent isolated profile. Six consecutive launches passed on stable VS Code 1.137.0, requiring a current-launch render acknowledgement before explicit sidebar refocus. This did not reproduce the representative profile's failure; other extensions were disabled.
 
 - [x] 0.4.36: Show eligible tracked deletions and both rename paths in model-facing Git status; skip re-staging already-staged deletions while retaining them in the selected commit. Regression tests verify staged/unstaged deletions, renames, excluded paths and preservation of unrelated staged work.
+
+- [x] 0.4.37: Add a dedicated settings editor tab with section navigation, grouped controls, validated user-setting updates, secure API-key setup and diagnostic export. Verified host-side value checks and busy protection, browser controls and responsive layouts, and native tab reuse on VS Code 1.137.0.

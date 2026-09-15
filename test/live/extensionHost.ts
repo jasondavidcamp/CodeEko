@@ -74,6 +74,14 @@ export async function run(): Promise<void> {
   for (const event of ['stage.end', 'webview.bootstrap', 'webview.main']) assert.ok(diagnostics?.launches.flat().some(entry => entry.event === event), event);
   await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   console.log('EXTENSION HOST PASSED: exported startup diagnostics include a real webview render acknowledgement.');
+  await vscode.commands.executeCommand('llmRuntime.openSettings');
+  await vscode.commands.executeCommand('llmRuntime.openSettings');
+  const findSettings = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'LLM Runtime Settings');
+  const settingsDeadline = Date.now() + 5000;
+  while (!findSettings().length && Date.now() < settingsDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  const settingsTabs = findSettings();
+  assert.equal(settingsTabs.length, 1, 'Settings must reuse one native editor tab.');
+  await vscode.window.tabGroups.close(settingsTabs);
   if (process.env.LLM_RUNTIME_HOST_UI_ONLY === '1') {
     await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true }));
     return;
