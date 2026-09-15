@@ -3,9 +3,13 @@ import * as path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 const turn = z.object({ role: z.enum(['user','assistant']), content: z.string().max(16000) });
-const thread = z.object({ id: z.string().uuid(), name: z.string().min(1).max(100), archived: z.boolean().optional(), messages: z.array(turn).max(100), activity: z.array(z.object({ at: z.string(), event: z.string().max(1000) })).max(500).default([]), taskId: z.string().uuid().optional(), reviewTaskId: z.string().uuid().optional(), undoTaskId: z.string().uuid().optional(), status: z.enum(['idle','running','complete','cancelled','failed','interrupted','blocked']) });
+const thread = z.object({ id: z.string().uuid(), name: z.string().min(1).max(100), archived: z.boolean().optional(), lastUsedAt: z.string().datetime().optional(), messages: z.array(turn).max(100), activity: z.array(z.object({ at: z.string(), event: z.string().max(1000) })).max(500).default([]), taskId: z.string().uuid().optional(), reviewTaskId: z.string().uuid().optional(), undoTaskId: z.string().uuid().optional(), status: z.enum(['idle','running','complete','cancelled','failed','interrupted','blocked']) });
 const state = z.object({ version: z.literal(1), threads: z.array(thread).max(100) });
 export type Thread = z.infer<typeof thread>;
+export function lastChatActivity(t: Thread): string | undefined {
+  const dates = [t.lastUsedAt, ...t.activity.map(a => a.at)].filter((value): value is string => !!value && Number.isFinite(Date.parse(value)));
+  return dates.sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+}
 export function repositoryStorage(storage: string, root: string): string { return path.join(storage, createHash('sha256').update(process.platform === 'win32' ? root.toLowerCase() : root).digest('hex')); }
 export class ThreadStore {
   threads: Thread[] = [];

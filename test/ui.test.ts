@@ -89,6 +89,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const archivedStore = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await archivedStore.load();
   assert.equal(archivedStore.threads.at(-1)?.archived, true); assert.equal(archivedStore.threads.at(-1)?.name, 'Renamed topic');
   assert.equal(archivedStore.threads.at(-1)?.messages.length, 2);
+  assert.ok(Number.isFinite(Date.parse(archivedStore.threads.at(-1)!.lastUsedAt!)));
   await receive({ type: 'restore' }); assert.equal(sent.at(-1).thread.archived, false);
   const persisted = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await persisted.load(); assert.equal(persisted.threads.length, 2);
   const text = await fs.readFile(path.join(repositoryStorage(storage, await fs.realpath(root)), 'threads.json'), 'utf8'); assert.ok(!text.includes('test-key'));

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { GeminiClient, apiBase } from '../api/client';
 import { resolveRepository } from '../repository/git';
 import { RepositoryIndex } from '../indexing';
-import { ThreadStore, Thread, repositoryStorage } from '../state/threads';
+import { ThreadStore, Thread, repositoryStorage, lastChatActivity } from '../state/threads';
 import { ReadOnlyTools } from '../tools/readOnly';
 import { runAgent } from '../agent/loop';
 import { acquireRepositoryLease } from '../state/lease';
@@ -101,7 +101,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
   const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
-  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
+  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, lastUsedAt: lastChatActivity(t), archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
   const ask = async (question: string, signal: AbortSignal): Promise<string> => {
     const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
     try { signal.throwIfAborted(); const answer = await vscode.window.showInputBox({ title: 'Agent question', prompt: question, ignoreFocusOut: true }, token.token); if (answer === undefined) { active.get(root)?.abort(); throw new Error('Cancelled.'); } return answer.slice(0, 8000); }
@@ -157,7 +157,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         } catch (error) {
           thread.status = controller.signal.aborted ? 'cancelled' : 'blocked';
           thread.messages.push({ role: 'assistant', content: `${controller.signal.aborted ? 'Undo cancelled.' : error instanceof Error ? error.message : 'Undo failed.'}\n${undoTask?.undoSummary() ?? 'No undo was performed.'}` });
-        } finally { active.delete(root); await store.save(); }
+        } finally { active.delete(root); thread.lastUsedAt = new Date().toISOString(); await store.save(); }
       } else if (message.type === 'review' && thread.reviewTaskId) {
         await review.open(await EditTask.load(index, storage, thread.reviewTaskId, hooks));
       } else if (message.type === 'sourceControl') {
@@ -174,7 +174,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         const controller = new AbortController(); active.set(root, controller);
         let task: EditTask | undefined;
         let validation: TaskValidation | undefined;
-        thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
+        thread.lastUsedAt = new Date().toISOString(); thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
         try {
           await store.save();
           const api = await client(context); if (!config().get<string>('model')) await selectModel(context, controller.signal);
@@ -217,7 +217,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
               await task.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed');
               if (task.changes().length && !disposed) await review.open(task);
             }
-          } finally { active.delete(root); await store.save(); }
+          } finally { active.delete(root); thread.lastUsedAt = new Date().toISOString(); await store.save(); }
         }
       }
     } catch (e) { send({ type: 'progress', text: e instanceof Error ? e.message : 'Operation failed.' }); }
