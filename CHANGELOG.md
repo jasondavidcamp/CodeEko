@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Build and install from source with the current-user installer.
+- Pause prebuilt VSIX downloads; retain release source tags.
+- Shorten README and link to setup, usage and development guides.
+
 ## 0.4.42 — EKOD naming cleanup
 
 - Use `ekod.*` for every setting, command and view, and `EKOD_*` for development environment variables.

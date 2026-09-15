@@ -4,7 +4,7 @@
 
 EKOD is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows.
 
-README.md explains installation and use. AGENTS.md defines contributor working boundaries. This roadmap records implemented capabilities and remaining work. Checked items have automated or recorded live evidence; they do not imply every workstation configuration has been verified.
+README.md introduces the product and links to setup, usage and development guides. AGENTS.md defines contributor working boundaries. This roadmap records implemented capabilities and remaining work. Checked items have automated or recorded live evidence; they do not imply every workstation configuration has been verified.
 
 ## Implemented capabilities
 
@@ -68,7 +68,8 @@ Full access currently covers supported repository tools and fixed validation com
 - [x] Offer opt-in bounded rejected-response capture and offline schema replay.
 - [x] Document install, build, configuration, limitations and data cleanup.
 - [x] Provide a current-user source-build installer with locked dependencies, optional tests, build-only mode and installed-version verification.
-- [x] Publish an MIT-licensed experimental GitHub prerelease with a VSIX and SHA-256 checksum.
+- [x] Publish the initial MIT-licensed experimental release. Binary distribution is now paused; source installation is the current path.
+- [x] Keep README brief and move setup, usage and development details to linked guides.
 
 ## Next priorities
 
@@ -111,6 +112,6 @@ The initial public prerelease passed 118 tests with one unavailable Pester 4 che
 
 Detailed acceptance scenarios and validation behavior are documented in `docs/ACCEPTANCE.md` and `docs/VALIDATION.md`. Moves involve multiple filesystem operations and are not atomic as a whole. Unit-test selection is conservative inspection, not an execution sandbox. An experimental release is not evidence that all acceptance gates are complete.
 
-Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4 check skipped, and the native VS Code 1.137.0 activation/sidebar/settings check passed. Current tracked files and the rebuilt VSIX were scanned for retired product identifiers and publication-sensitive references; none were found. Earlier published artifacts remain unchanged.
+Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4 check skipped, and the native VS Code 1.137.0 activation/sidebar/settings check passed. Current tracked files and the rebuilt VSIX were scanned for retired product identifiers and publication-sensitive references; none were found. Earlier commit history remains unchanged; release binaries were subsequently removed.
 
 Source installer verification: a real dependency restore and package build passed, the built VSIX installed into an isolated VS Code user profile, and Windows PowerShell 5.1 subprocess tests verified paths containing spaces, build-only mode, optional tests and stop-on-failure behavior. No elevation or workstation-policy changes were used by the installer.
