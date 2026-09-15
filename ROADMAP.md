@@ -153,6 +153,7 @@ Goal: make immediate repository changes while preserving developer work.
 - [x] Implement schema-validated patch/create/move/delete actions.
 - [x] Apply writes atomically per file with stale-content detection. Moves use two filesystem operations and are not atomic as a whole.
 - [x] Recover missing/incorrect model read hashes with at most two fresh-read corrections while preserving terminal conflicts for actual external edits.
+- [x] Verify real VS Code unsaved-buffer protection and live missing-read recovery in the isolated extension host; interactive webview submission remains a separate pilot check.
 - [x] Preserve encodings, BOMs, and line endings important to Windows PowerShell repositories.
 - [x] Work alongside existing uncommitted changes.
 - [x] Stop and ask when edits overlap ambiguously or developer changes cannot be preserved confidently.

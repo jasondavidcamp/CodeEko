@@ -5,6 +5,40 @@ import * as fs from 'node:fs/promises';
 import { runLiveEditing } from './editing';
 import { NativeReview } from '../../src/ui/review';
 import { runLiveValidation } from './validation';
+import * as path from 'node:path';
+import * as os from 'node:os';
+import { git } from '../../src/repository/git';
+import { RepositoryIndex } from '../../src/indexing';
+import { EditTask } from '../../src/state/editTask';
+
+async function verifyDirtyEditor(): Promise<void> {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-host-buffer-'));
+  const root = path.join(temp, 'repo'); const storage = path.join(temp, 'storage');
+  await fs.mkdir(root); await git(root, ['init']);
+  const file = path.join(root, 'main.ps1'); const original = 'function Get-Value { return 1 }\n';
+  await fs.writeFile(file, original);
+  await git(root, ['add', '.']); await git(root, ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'fixture']);
+  try {
+    const index = new RepositoryIndex(root, storage);
+    const hooks = { mode: () => 'Full access', isDirty: (target: string) => vscode.workspace.textDocuments.some(doc => doc.uri.scheme === 'file' && doc.uri.fsPath.toLowerCase() === target.toLowerCase() && doc.isDirty), confirm: async () => false, preview: async () => {} };
+    const signal = new AbortController().signal;
+    const task = await EditTask.capture(index, storage, hooks, signal);
+    const disk = await index.readDocument('main.ps1'); task.observe('main.ps1', disk.hash);
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+    await vscode.window.showTextDocument(document);
+    const edit = new vscode.WorkspaceEdit(); edit.insert(document.uri, new vscode.Position(0, 0), '# unsaved developer note\n');
+    assert.equal(await vscode.workspace.applyEdit(edit), true); assert.equal(document.isDirty, true);
+    await assert.rejects(task.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: disk.hash, edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal), /unsaved editor changes/);
+    assert.equal(await fs.readFile(file, 'utf8'), original);
+    assert.equal(document.getText(), '# unsaved developer note\n' + original);
+    assert.equal(task.changes().length, 0);
+    // Discard only this synthetic document in the isolated test profile.
+    await vscode.window.showTextDocument(document);
+    await vscode.commands.executeCommand('workbench.action.files.revert');
+    assert.equal(document.isDirty, false);
+    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+  } finally { await fs.rm(temp, { recursive: true, force: true }); }
+}
 
 // Invoked only by VS Code's --extensionTestsPath, never by npm test or a packaged VSIX.
 export async function run(): Promise<void> {
@@ -23,6 +57,8 @@ export async function run(): Promise<void> {
   assert.equal(tabs.length, 1, 'Conversation webview must open in the actual extension host.');
   await vscode.window.tabGroups.close(tabs);
   console.log(`EXTENSION HOST PASSED (VS Code ${vscode.version}): activation, commands, blank endpoint default and conversation webview lifecycle.`);
+  await verifyDirtyEditor();
+  console.log('EXTENSION HOST PASSED: real unsaved editor buffer blocks edits and preserves disk and buffer contents.');
   const live = await runLiveSmoke();
   const nativeReview = new NativeReview('llm-runtime-test-snapshot');
   let editing;
@@ -34,7 +70,7 @@ export async function run(): Promise<void> {
     assert.ok(diffs().length >= 3, 'Native task diffs must open for all edited files.');
     await vscode.window.tabGroups.close(diffs());
   } finally { nativeReview.dispose(); }
-  const validation = await runLiveValidation();
+  const validation = await runLiveValidation(true);
   assert.ok(process.env.LLM_RUNTIME_HOST_REPORT, 'Test launcher must provide a result path.');
-  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, nativeDiffsOpened: true, live, editing, validation }));
+  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, dirtyBufferPreserved: true, nativeDiffsOpened: true, live, editing, validation }));
 }
