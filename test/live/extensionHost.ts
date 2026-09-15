@@ -42,7 +42,7 @@ async function verifyDirtyEditor(): Promise<void> {
 
 // Invoked only by VS Code's --extensionTestsPath, never by npm test or a packaged VSIX.
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('internal-pilot.llm-coding-agent-runtime');
+  const extension = vscode.extensions.getExtension('jasondavidcamp.ekod');
   assert.ok(extension, 'Development extension must be installed in the test host.');
   await extension.activate(); assert.ok(extension.isActive);
   const commands = await vscode.commands.getCommands(true);

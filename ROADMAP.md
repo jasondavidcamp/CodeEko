@@ -344,3 +344,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.39: Rename the visible product, commands, settings page and documentation to EKOD; package as ekod.vsix. Preserve the installed extension identity and settings keys for data compatibility. Automated UI checks and native VS Code sidebar/settings checks passed.
 
 - [x] 0.4.40: Add read-only git_show_commit with pinned revision metadata and filtered bounded diffs. Distinguish commit history from task changes; regression coverage includes the latest-commit conversation, initial commits, deletions, unsafe revisions, and preserved staged/working-tree changes.
+
+- [x] 0.4.41: Prepare the initial MIT-licensed public prerelease as jasondavidcamp.ekod, with upgrade instructions, legacy history reuse, release notes and install/build guidance. Full suite: 118 passed, one unavailable Pester 4 check skipped; native VS Code 1.137.0 sidebar/settings check passed. The intermittent workstation startup problem remains open.

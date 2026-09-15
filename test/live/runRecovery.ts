@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   await fs.writeFile(path.join(profile, 'User/settings.json'), JSON.stringify({ 'security.workspace.trust.enabled': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'update.mode': 'none' }));
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const name of Object.keys(env)) if (/KEY|TOKEN|SECRET|PASSWORD|ELECTRON_RUN_AS_NODE/i.test(name)) delete env[name];
-  Object.assign(env, { LLM_RUNTIME_RECOVERY_STORAGE: path.join(profile, 'User/globalStorage/internal-pilot.llm-coding-agent-runtime'), LLM_RUNTIME_RECOVERY_MARKER: marker, LLM_RUNTIME_RECOVERY_REPORT: report, LLM_RUNTIME_RECOVERY_CHILD: childMarker });
+  Object.assign(env, { LLM_RUNTIME_RECOVERY_STORAGE: path.join(profile, 'User/globalStorage/jasondavidcamp.ekod'), LLM_RUNTIME_RECOVERY_MARKER: marker, LLM_RUNTIME_RECOVERY_REPORT: report, LLM_RUNTIME_RECOVERY_CHILD: childMarker });
   let hostCrashCleanupVerified = false;
   const launch = async (phase: 'seed' | 'verify') => {
     const child = spawn(executable, [`--extensionDevelopmentPath=${project}`, `--extensionTestsPath=${path.join(__dirname, 'recoveryHost.js')}`, `--user-data-dir=${profile}`, `--extensions-dir=${path.join(temp, 'extensions')}`, '--disable-extensions','--disable-updates','--skip-welcome','--skip-release-notes','--log','error','--new-window', workspace], { env: { ...env, LLM_RUNTIME_RECOVERY_PHASE: phase }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });

@@ -1,3 +1,4 @@
+import { compatibleStorage } from '../state/storage';
 import { SettingsPage } from './settings';
 import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
@@ -49,7 +50,7 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
   } finally { signal?.removeEventListener('abort', abort); token.dispose(); }
 }
 export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
-  const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
+  const diagnostics = startupDiagnostics = new StartupDiagnostics(compatibleStorage(context.globalStorageUri.fsPath));
   diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
   const settingsPage = new SettingsPage(() => active.size > 0); context.subscriptions.push(settingsPage);
   context.subscriptions.push(vscode.commands.registerCommand('llmRuntime.openSettings', () => settingsPage.open()));
@@ -118,7 +119,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.some(f => f.uri.scheme !== 'file')) throw new Error('Only local filesystem workspaces are supported.');
   const root = await diagnostics.stage('repository', viewId, () => resolveRepository(folders.map(f => f.uri.fsPath), async choices => { panel.webview.options = { enableScripts: true, localResourceRoots: [] }; const selected = paneChoice(panel, 'Choose the repository for this conversation', choices); panel.webview.html = conversationHtml(); const index = await selected; return index === undefined ? undefined : choices[index]; }));
-  const storage = repositoryStorage(context.globalStorageUri.fsPath, root);
+  const storage = repositoryStorage(compatibleStorage(context.globalStorageUri.fsPath), root);
   if (contained(root, storage)) throw new Error('Extension storage must be outside the repository. Open a narrower repository folder.');
   const releaseLease = await diagnostics.stage('lease.acquire', viewId, () => acquireRepositoryLease(root));
   let released = false;

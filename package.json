@@ -1,15 +1,15 @@
 {
-  "name": "llm-coding-agent-runtime",
+  "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.40",
-  "publisher": "internal-pilot",
+  "version": "0.4.41",
+  "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/jasondavidcamp/EKOD.git"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.106.0"
   },
@@ -172,5 +172,9 @@
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.2.0",
     "typescript": "^5.7.0"
+  },
+  "homepage": "https://github.com/jasondavidcamp/EKOD#readme",
+  "bugs": {
+    "url": "https://github.com/jasondavidcamp/EKOD/issues"
   }
 }

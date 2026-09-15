@@ -12,7 +12,7 @@ import { createPowerShellRunner } from '../../src/validation/powershell';
 
 // Dedicated opt-in host test. Its launcher kills only the isolated instance it created.
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('internal-pilot.llm-coding-agent-runtime'); assert.ok(extension); await extension.activate();
+  const extension = vscode.extensions.getExtension('jasondavidcamp.ekod'); assert.ok(extension); await extension.activate();
   const root = await fs.realpath(vscode.workspace.workspaceFolders![0].uri.fsPath);
   const base = process.env.LLM_RUNTIME_RECOVERY_STORAGE!; const marker = process.env.LLM_RUNTIME_RECOVERY_MARKER!;
   const storage = repositoryStorage(base, root); const index = new RepositoryIndex(root, storage);

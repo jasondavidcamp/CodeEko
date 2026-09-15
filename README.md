@@ -1,11 +1,13 @@
 # EKOD
 
+**Experimental prerelease.** [Download the VSIX](https://github.com/jasondavidcamp/EKOD/releases/tag/v0.4.41). Windows PowerShell 5.1 is the initial target. Some workstations intermittently need a second VS Code restart before the chat pane loads; this is not yet resolved.
+
 A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.4 adds task-scoped undo to guarded multi-file editing, native VS Code diffs, and bounded PowerShell validation/repair. Changes remain uncommitted unless you explicitly request a local commit.
 
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `ekod.vsix`.
+2. Download `ekod.vsix` from the linked GitHub release. In VS Code, run **Extensions: Install from VSIX…** and select `ekod.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension asks you to choose the repository inside the conversation pane before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **EKOD: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -78,7 +80,7 @@ From this development repository, run `npm run debug:replay -- "<absolute-path-t
 
 Conversation history, index metadata, validation reports, task journals, and raw file baseline/review snapshots are stored beneath VS Code's private per-user extension global storage, partitioned by a hash of the canonical Git root. No index or chat files are written to the inspected repository. History and snapshots are local plaintext under the user's OS account protections; API keys use SecretStorage. Snapshots can retain up to the 50 MB indexed baseline per task plus edits, with no automatic retention cleanup yet. Up to 100 named threads with 100 messages each are retained; each new task supplies at most 20 recent messages to the model. Interrupted tasks are marked interrupted when loaded and can receive a follow-up. Recorded diff snapshots survive reload and show the task's changes, not later external edits.
 
-To reset data, close all VS Code windows using EKOD and remove this extension's `globalStorage/internal-pilot.llm-coding-agent-runtime` directory from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.
+To reset data, close all VS Code windows using EKOD and remove this extension's `globalStorage/jasondavidcamp.ekod` directory (or `globalStorage/internal-pilot.llm-coding-agent-runtime` for an upgraded private installation) from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.
 
 Test requests include a repository file inventory to help reuse existing suites. The runtime sends compact validation feedback to the model and displays descriptive progress. Malformed model responses receive bounded, field-specific correction attempts; repeated failures stop without applying the rejected action.
 
@@ -107,6 +109,14 @@ Click the chat header settings gear to open **EKOD Settings** in an editor tab. 
 
 Automatic change-preview tabs are off by default. Enable **Editor → Automatically open change previews** in EKOD Settings (``llmRuntime.autoOpenDiffs``) to open proposed-change and task-result diffs automatically. Explicit review still opens native diffs; existing editor tabs are not closed or rearranged.
 
-EKOD retains its original extension ID (`internal-pilot.llm-coding-agent-runtime`), command IDs and `llmRuntime.*` setting keys for compatibility with existing installations, saved API keys and conversation history. New packages are named `ekod.vsix`.
+The public extension ID is `jasondavidcamp.ekod`. Command IDs and `llmRuntime.*` setting keys are retained. Packages are named `ekod.vsix`.
+
+### Upgrading from the private installation
+
+Uninstall the old `internal-pilot.llm-coding-agent-runtime` extension before installing the public VSIX, then reload VS Code. Do not delete its private global-storage directory: when present, EKOD reuses it to preserve chats, task history and diagnostics without copying live journals. Fresh installations use `globalStorage/jasondavidcamp.ekod`. Existing user settings remain in effect. Run **EKOD: Set API Key** once after upgrading: VS Code SecretStorage is scoped to the extension identity, so the new extension cannot read the old key. Reusing stored data does not resume tools or replay edits. Do not run both identities together.
 
 Ask EKOD to explain the latest commit. The read-only `git_show_commit` tool returns its message, timestamp, changed files and bounded diffs independently of uncommitted work. It accepts HEAD (default), HEAD~1 through HEAD~99, or a commit hash. Merge commits compare with the first parent; initial commits compare with an empty tree. Excluded/ignored files, links, binary content and files above 256 KB are omitted; diffs are limited to 8,000 characters per file and 24,000 total across up to 40 files, with omissions/truncation reported. Historical content does not count as a current file read for editing.
+
+## License
+
+EKOD is licensed under the [MIT License](LICENSE). Bundled dependencies retain their own license notices.
