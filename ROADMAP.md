@@ -327,3 +327,6 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.32: Isolate format correction from task history and allow two bounded corrections, including consecutive malformed actions. A regression preserves failed-validation context without executing invalid edits. A live synthetic fixture repaired four assertion failures, preserved source and staged work, and passed Pester in two validation rounds and six model calls. Add opt-in, bounded, API-key-redacted rejected-response capture in private task storage and offline schema replay with no tool execution.
 
 - [x] 0.4.33: Replace the irregular settings glyph with a symmetrical outlined gear; visually checked at sidebar size.
+
+- [x] 0.4.34: Persist bounded startup lifecycle metadata across launches and export sanitized diagnostics independently of the chat pane. Instrument initialization stages, focus failures, visibility/disposal, initial-state acknowledgement, handshake timeouts and shutdown. Tests cover retention, redaction, stale acknowledgements and failure export; an isolated VS Code host verifies a real render acknowledgement.
+- [ ] Capture the representative workstation's failed first launch and successful second launch, then diagnose the remaining startup problem.

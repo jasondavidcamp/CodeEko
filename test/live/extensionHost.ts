@@ -58,6 +58,11 @@ export async function run(): Promise<void> {
   console.log(`EXTENSION HOST PASSED (VS Code ${vscode.version}): sidebar initialized and refocused without an editor tab.`);
   await verifyDirtyEditor();
   console.log('EXTENSION HOST PASSED: real unsaved editor buffer blocks edits and preserves disk and buffer contents.');
+  const diagnostics = await vscode.commands.executeCommand<{ launches: { event: string }[][] }>('llmRuntime.exportStartupDiagnostics');
+  assert.ok(diagnostics?.launches.flat().some(entry => entry.event === 'state.ack'), 'The real webview must acknowledge rendering its initial state.');
+  assert.ok(diagnostics?.launches.flat().some(entry => entry.event === 'stage.end'));
+  await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  console.log('EXTENSION HOST PASSED: exported startup diagnostics include a real webview render acknowledgement.');
   if (process.env.LLM_RUNTIME_HOST_UI_ONLY === '1') {
     await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true }));
     return;

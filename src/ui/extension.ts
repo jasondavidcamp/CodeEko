@@ -16,7 +16,9 @@ import { NativeReview } from './review';
 import { TaskValidation } from '../validation/task';
 import { createPowerShellRunner } from '../validation/powershell';
 import * as path from 'node:path';
+import { StartupDiagnostics, startupError } from '../state/startupDiagnostics';
 const active = new Map<string, AbortController>();
+let startupDiagnostics: StartupDiagnostics | undefined;
 const config = () => vscode.workspace.getConfiguration('llmRuntime');
 const mode = () => { const value = config().get<string>('permissionMode', 'Full access'); return value === 'Custom' ? 'Review' : value; };
 function outcome(task?: EditTask, validation?: TaskValidation): string {
@@ -46,6 +48,8 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
   } finally { signal?.removeEventListener('abort', abort); token.dispose(); }
 }
 export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
+  const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
+  diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
   command('llmRuntime.setKey', async () => {
@@ -56,27 +60,39 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     if (key?.trim()) { await context.secrets.store(name, key.trim()); vscode.window.showInformationMessage('API key stored securely for this endpoint.'); }
   });
   command('llmRuntime.selectModel', () => selectModel(context));
+  command('llmRuntime.exportStartupDiagnostics', async () => {
+    const report = await diagnostics.export(context.logUri?.fsPath);
+    const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
+    await vscode.window.showTextDocument(document, { preview: false });
+    return report;
+  });
   let initialization: Promise<void> | undefined;
   let sidebar: vscode.WebviewView | undefined;
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('llmRuntime.conversation', {
     resolveWebviewView: view => {
+      const viewId = randomUUID(); diagnostics.log('resolve', { view: viewId, visible: view.visible });
       sidebar = view;
-      context.subscriptions.push(view.onDidDispose(() => { initialization = undefined; }));
-      initialization = open(context, review, view).catch(error => {
+      context.subscriptions.push(view.onDidDispose(() => { diagnostics.log('dispose', { view: viewId }); initialization = undefined; }));
+      if (view.onDidChangeVisibility) context.subscriptions.push(view.onDidChangeVisibility(() => diagnostics.log('visible', { view: viewId, visible: view.visible })));
+      initialization = open(context, review, view, diagnostics, viewId).catch(error => {
+        diagnostics.log('webview.error', { view: viewId, code: startupError(error) });
         const show = () => { void view.webview.postMessage({ type: 'progress', text: error instanceof Error ? error.message : 'Could not open the conversation.' }); };
-        context.subscriptions.push(view.webview.onDidReceiveMessage(message => { if (message?.type === 'ready') show(); }));
+        context.subscriptions.push(view.webview.onDidReceiveMessage(message => { if (message?.type === 'ready') { diagnostics.log('ready', { view: viewId }); show(); } }));
+        diagnostics.log('html', { view: viewId });
         view.webview.options = { enableScripts: true, localResourceRoots: [] }; view.webview.html = conversationHtml(); show();
       });
       return initialization;
     }
   }, { webviewOptions: { retainContextWhenHidden: true } }));
   command('llmRuntime.open', async () => {
-    await vscode.commands.executeCommand('llmRuntime.conversation.focus');
+    diagnostics.log('focus.begin', { source: 'command' });
+    try { await vscode.commands.executeCommand('llmRuntime.conversation.focus'); diagnostics.log('focus.end', { source: 'command' }); }
+    catch (error) { diagnostics.log('focus.failed', { source: 'command', code: startupError(error) }); throw error; }
     // View resolution crosses the workbench/extension-host boundary and can arrive
     // after the focus command has returned.
     const deadline = Date.now() + 10000;
     while (!initialization && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-    if (!initialization) throw new Error('The conversation sidebar did not open. Try LLM Runtime: Open Conversation again.');
+    if (!initialization) { diagnostics.log('activation.timeout'); throw new Error('The conversation sidebar did not open. Try LLM Runtime: Open Conversation again.'); }
     await initialization;
     return true;
   });
@@ -84,23 +100,28 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
   // Ambiguous workspaces retain the explicit repository-selection flow.
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (vscode.workspace.isTrusted && folders.length === 1 && folders[0].uri.scheme === 'file') {
-    void vscode.commands.executeCommand('llmRuntime.conversation.focus', { preserveFocus: true }).then(undefined, () => {});
+    diagnostics.log('focus.begin', { source: 'automatic' });
+    void vscode.commands.executeCommand('llmRuntime.conversation.focus', { preserveFocus: true }).then(() => diagnostics.log('focus.end', { source: 'automatic' }), error => diagnostics.log('focus.failed', { source: 'automatic', code: startupError(error) }));
+    const timer = setTimeout(() => { if (!initialization) diagnostics.log('activation.timeout'); }, 10000); timer.unref();
+    context.subscriptions.push({ dispose: () => clearTimeout(timer) });
   }
   return { isConversationVisible: () => sidebar?.visible === true };
 }
-async function open(context: vscode.ExtensionContext, review: NativeReview, panel: vscode.WebviewView): Promise<void> {
+async function open(context: vscode.ExtensionContext, review: NativeReview, panel: vscode.WebviewView, diagnostics: StartupDiagnostics, viewId: string): Promise<void> {
   let disposed = false;
   const earlyDispose = panel.onDidDispose(() => { disposed = true; });
   context.subscriptions.push(earlyDispose);
   if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening repository tools.');
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.some(f => f.uri.scheme !== 'file')) throw new Error('Only local filesystem workspaces are supported.');
-  const root = await resolveRepository(folders.map(f => f.uri.fsPath), async choices => { panel.webview.options = { enableScripts: true, localResourceRoots: [] }; const selected = paneChoice(panel, 'Choose the repository for this conversation', choices); panel.webview.html = conversationHtml(); const index = await selected; return index === undefined ? undefined : choices[index]; });
+  const root = await diagnostics.stage('repository', viewId, () => resolveRepository(folders.map(f => f.uri.fsPath), async choices => { panel.webview.options = { enableScripts: true, localResourceRoots: [] }; const selected = paneChoice(panel, 'Choose the repository for this conversation', choices); panel.webview.html = conversationHtml(); const index = await selected; return index === undefined ? undefined : choices[index]; }));
   const storage = repositoryStorage(context.globalStorageUri.fsPath, root);
   if (contained(root, storage)) throw new Error('Extension storage must be outside the repository. Open a narrower repository folder.');
-  const release = await acquireRepositoryLease(root);
+  const releaseLease = await diagnostics.stage('lease.acquire', viewId, () => acquireRepositoryLease(root));
+  let released = false;
+  const release = async () => { if (released) return; released = true; await diagnostics.stage('lease.release', viewId, releaseLease); };
   const store = new ThreadStore(storage);
-  try { await store.load(); } catch (error) { await release(); throw error; }
+  try { await diagnostics.stage('history', viewId, () => store.load()); } catch (error) { await release(); throw error; }
   if (disposed) { await release(); return; }
   let thread = store.threads.at(-1) ?? store.create('New conversation');
   const index = new RepositoryIndex(root, storage);
@@ -109,7 +130,19 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
-  const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
+  let readyReceived = false, acknowledged = false; let stateToken = randomUUID();
+  let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+  const armHandshake = () => { clearTimeout(handshakeTimer); handshakeTimer = setTimeout(() => {
+    if (!disposed && !acknowledged) diagnostics.log('handshake.timeout', { view: viewId, source: readyReceived ? 'ack-missing' : 'ready-missing' });
+  }, 10000); handshakeTimer.unref(); };
+  const send = (data: unknown) => {
+    if (disposed) return;
+    const initial = (data as { type?: string }).type === 'state' && !acknowledged;
+    if (initial) diagnostics.log('state.sent', { view: viewId });
+    void panel.webview.postMessage(initial ? { ...(data as object), startupToken: stateToken } : data).then(delivered => {
+      if (initial) diagnostics.log('state.delivered', { view: viewId, delivered });
+    }, error => diagnostics.log('webview.error', { view: viewId, code: startupError(error) }));
+  };
   let discoveredModels: string[] = []; let discoveryEndpoint = ''; let discoveryFailed = false;
   let pendingQuestion: { id: string; resolve(answer: string): void; reject(error: Error): void } | undefined;
   const update = () => send({ type: 'state', questionId: pendingQuestion?.id, root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, lastUsedAt: lastChatActivity(t), archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
@@ -137,7 +170,9 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const listener = panel.webview.onDidReceiveMessage(async message => {
     if (!message || typeof message.type !== 'string') return;
     if (message.type === 'choiceReply') return;
-    if (message.type === 'ready') { update(); return; }
+    if (message.type === 'ready') { readyReceived = true; acknowledged = false; stateToken = randomUUID(); diagnostics.log('ready', { view: viewId }); armHandshake(); update(); return; }
+    if (message.type === 'startupAck') { if (!acknowledged && message.token === stateToken) { acknowledged = true; clearTimeout(handshakeTimer); diagnostics.log('state.ack', { view: viewId }); } return; }
+    if (message.type === 'startupError') { diagnostics.log('webview.error', { view: viewId, source: message.source === 'promise' ? 'promise' : 'script', code: 'unknown' }); return; }
     if (message.type === 'cancel') { active.get(root)?.abort(); return; }
     if (message.type === 'answer') {
       if (!pendingQuestion || message.id !== pendingQuestion.id || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 8000) return;
@@ -254,11 +289,11 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     finally { busy = false; update(); if (disposed) await release(); }
   });
   const settings = vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('llmRuntime')) update(); });
-  context.subscriptions.push(panel.onDidDispose(() => { disposed = true; active.get(root)?.abort(); listener.dispose(); settings.dispose(); watcher.dispose(); invalidations.forEach(d => d.dispose()); if (!busy) void release(); }));
+  context.subscriptions.push(panel.onDidDispose(() => { disposed = true; clearTimeout(handshakeTimer); active.get(root)?.abort(); listener.dispose(); settings.dispose(); watcher.dispose(); invalidations.forEach(d => d.dispose()); if (!busy) void release(); }));
   // Install the listener before loading HTML so the initial ready message cannot race it.
-  panel.webview.html = conversationHtml();
+  diagnostics.log('html', { view: viewId }); armHandshake(); panel.webview.html = conversationHtml();
 }
-export function deactivate(): void { for (const controller of active.values()) controller.abort(); }
+export async function deactivate(): Promise<void> { startupDiagnostics?.log('deactivate'); for (const controller of active.values()) controller.abort(); await startupDiagnostics?.flush(); }
 
 
 export async function paneChoice(panel: vscode.WebviewView, question: string, choices: string[], signal?: AbortSignal): Promise<number | undefined> {

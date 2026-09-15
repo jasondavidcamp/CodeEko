@@ -9,9 +9,13 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   const get = (id: string) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   const sent: any[] = []; let receive!: (event: any) => void;
   const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(conversationHtml())![1];
-  vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: any) => sent.push(message) }), document: { getElementById: get, createElement: node }, window: { addEventListener: (_: string, callback: typeof receive) => { receive = callback; } } });
+  vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: any) => sent.push(message) }), document: { getElementById: get, createElement: node }, window: { addEventListener: (type: string, callback: typeof receive) => { if (type === 'message') receive = callback; } } });
   const state = (id: string, busy = false) => receive({ data: { type: 'state', root: 'repo', mode: 'Review', busy, threads: [{ id, name: id }], thread: { id, status: 'idle', messages: [{ role: 'assistant', content: '**Safe** `code` <img src=x onerror=alert(1)>' }] } } });
   assert.ok(!conversationHtml().includes('permissionCustom'));
+  receive({ data: { type: 'state', startupToken: 'initial-state', root: 'repo', mode: 'Review', busy: false, threads: [], thread: { id: 'one', name: 'One', messages: [] } } });
+  assert.equal(sent.at(-1).type, 'startupAck'); assert.equal(sent.at(-1).token, 'initial-state');
+  receive({ data: { type: 'state', startupToken: 'broken-state', thread: null } });
+  assert.equal(sent.at(-1).type, 'startupError'); assert.ok(!sent.some(m => m.type === 'startupAck' && m.token === 'broken-state'));
   receive({ data: { type: 'choice', id: 'approval', question: 'Delete <file>?', choices: ['Cancel', 'Approve'] } });
   assert.equal(get('choiceTitle').textContent, 'Delete <file>?');
   get('choiceItems').children[1].onclick();

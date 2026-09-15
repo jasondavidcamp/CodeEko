@@ -22,10 +22,11 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   let viewProvider: any; let viewResolved = false;
   let provider: any; let approveUndo = false; const nativeDiffs: { before: string; after: string }[] = [];
   const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, onDidDispose: (fn: () => void) => { disposeListeners.push(fn); return disposable; }, dispose: () => disposeListeners.forEach(fn => fn()) };
+  let exported = ''; let failFocus = false;
   const mock = {
-    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'llmRuntime.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
-    workspace: { isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
-    window: { showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'llmRuntime.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
+    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'llmRuntime.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'llmRuntime.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
+    workspace: { openTextDocument: async (options: any) => { exported = options.content; return {}; }, isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
+    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'llmRuntime.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
     Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
@@ -151,6 +152,17 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const captured = await fs.readFile(taskLog(), 'utf8');
   assert.equal(captured.trim().split('\n').length, 1, 'turning off capture applies before the next rejection');
   assert.ok(!captured.includes('test-key')); assert.match(captured, /REDACTED/);
+  await receive({ type: 'ready' });
+  const token = sent.at(-1).startupToken;
+  assert.equal(typeof token, 'string');
+  await receive({ type: 'startupAck', token: 'stale' });
+  await commands.get('llmRuntime.exportStartupDiagnostics')!();
+  assert.ok(!exported.includes('state.ack'));
+  await receive({ type: 'startupAck', token });
+  failFocus = true; await commands.get('llmRuntime.open')!();
+  await commands.get('llmRuntime.exportStartupDiagnostics')!();
+  for (const event of ['activate','resolve','stage.end','ready','state.sent','state.delivered','state.ack','focus.failed']) assert.ok(exported.includes(event), event);
+  assert.ok(!exported.includes(root)); assert.ok(!exported.includes('private-startup-error')); assert.ok(!exported.includes('test-key'));
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));
 });
 
