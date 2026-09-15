@@ -319,3 +319,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [ ] Confirm recovery in the installed extension against the ongoing representative conversation after reload.
 
 - [x] 0.4.29: Return clean source text with separate line metadata, report rejected literal match counts, and support explicit bounded replace-all edits for repeated names. Preflight all replacements and retain version, overlap, encoding and output-size guards. A synthetic live Gemini six-character function/test update recovered a repeated-name rejection and passed automatic PowerShell validation in eight model calls and one validation round, preserving staged work.
+
+- [x] 0.4.30: Track read/patch corrections per unresolved file and reset only after a successful mutation to that file. A deterministic regression reproduces the recorded edit → test-patch recovery → test-move recovery → source-move sequence, fails with the previous global counter, and passes with the fix while preserving staged work and reaching completion validation. Reads, no-op edits and unrelated mutations cannot reset an unresolved failure; overall task limits remain unchanged.

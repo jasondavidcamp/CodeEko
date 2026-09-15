@@ -140,6 +140,34 @@ test('repeated missing reads stop after two corrections inside the existing acti
   assert.equal(reads, 2);
 });
 
+test('reads, no-op patches and unrelated successful edits do not reset an unresolved file failure', async () => {
+  let calls = 0; let reads = 0;
+  const controller = new AbortController();
+  await assert.rejects(runAgent({ complete: async () => {
+    calls++;
+    if (calls === 3) return JSON.stringify({ version: 1, tool: 'create_file', args: { path: 'other.ps1', content: 'unrelated' } });
+    return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'a', newText: calls === 2 ? 'a' : 'b' }] } });
+  } }, 'mock', [], { execute: async action => {
+    if (action.tool === 'read_file') { reads++; return { path: 'main.ps1', text: 'a' }; }
+    if (action.tool === 'create_file') return { applied: true };
+    if (action.tool === 'apply_patch' && action.args.edits[0].newText === 'a') return { applied: false };
+    throw new ReadRequired('main.ps1');
+  } }, () => 'Full access', controller.signal, () => {}), /two read\/hash corrections/);
+  assert.equal(calls, 5); assert.equal(reads, 2);
+});
+
+test('successful mutations allow later independent recovery on the same file', async () => {
+  let calls = 0; let edits = 0;
+  const summary = await runAgent({ complete: async () => JSON.stringify(++calls === 7
+    ? { version: 1, tool: 'complete_task', args: { summary: 'Completed three recovered edits.' } }
+    : { version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'a', newText: 'b' }] } }) }, 'mock', [], { execute: async action => {
+    if (action.tool === 'read_file') return { path: 'main.ps1', text: 'a' };
+    if (++edits % 2) throw new ReadRequired('main.ps1');
+    return { applied: true };
+  } }, () => 'Full access', new AbortController().signal, () => {});
+  assert.match(summary, /three recovered edits/); assert.equal(edits, 6);
+});
+
 test('file reads preserve literal source while range metadata identifies omitted lines', async t => {
   const { root, storage } = await fixture(t);
   await fs.writeFile(path.join(root, 'main.ps1'), 'first\r\n    "quoted"\r\nlast\r\n');

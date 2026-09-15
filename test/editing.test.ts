@@ -39,6 +39,37 @@ async function read(tools: EditingTools, file = 'main.ps1'): Promise<string> {
 }
 const patch = (expectedHash: string, oldText = 'return 4', newText = 'return 8'): Action => ({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash, edits: [{ oldText, newText }] } });
 
+test('resolved patch and move failures do not exhaust recovery for a later source move', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await fs.writeFile(path.join(f.root, 'Notes.txt'), 'developer staged work\n'); await git(f.root, ['add', 'Notes.txt']);
+  const staged = await git(f.root, ['diff', '--cached']);
+  const { tools } = await f.start(); let calls = 0; let sourceHash = ''; let testHash = ''; let refreshed = '';
+  const move = (file: string, destination: string, expectedHash: string): Action => ({ version: 1, tool: 'move_file', args: { path: file, destination, expectedHash } });
+  const testPatch = (oldText: string): Action => ({ version: 1, tool: 'apply_patch', args: { path: 'other.ps1', edits: [{ oldText, newText: 'updated test' }] } });
+  let validationReached = false;
+  const executor = { execute: tools.execute.bind(tools), beforeComplete: async () => { validationReached = true; return undefined; } };
+  await runAgent({ complete: async (_model, messages) => {
+    const result = calls ? JSON.parse(messages.at(-1)!.content).result : undefined;
+    switch (++calls) {
+      case 1: return JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } });
+      case 2: sourceHash = result.hash; return JSON.stringify(patch(sourceHash));
+      case 3: return JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'other.ps1' } });
+      case 4: testHash = result.hash; return JSON.stringify(testPatch('missing literal'));
+      case 5: assert.equal(result.error, 'patch_target_required'); return JSON.stringify(testPatch('unchanged'));
+      case 6: return JSON.stringify(move('other.ps1', 'renamed-test.ps1', testHash));
+      case 7: assert.equal(result.error, 'read_required'); return JSON.stringify(move('other.ps1', 'renamed-test.ps1', result.currentRead.hash));
+      case 8: return JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'renamed-test.ps1' } });
+      case 9: return JSON.stringify(move('main.ps1', 'renamed-source.ps1', sourceHash));
+      case 10: assert.equal(result.error, 'read_required'); refreshed = result.currentRead.hash; return JSON.stringify(move('main.ps1', 'renamed-source.ps1', refreshed));
+      default: return JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Edits and moves completed.' } });
+    }
+  } }, 'mock', [], executor, f.hooks.mode, signal(), () => {});
+  assert.equal(calls, 11); assert.equal(validationReached, true); assert.notEqual(refreshed, sourceHash);
+  assert.match(await fs.readFile(path.join(f.root, 'renamed-source.ps1'), 'utf8'), /return 8/);
+  assert.match(await fs.readFile(path.join(f.root, 'renamed-test.ps1'), 'utf8'), /updated test/);
+  assert.equal(await git(f.root, ['diff', '--cached']), staged);
+});
+
 test('agent recovers a missing read or copied hash without relaxing external-edit checks', async t => {
   const f = await fixture(t); const { task, tools } = await f.start(); let calls = 0;
   const summary = await runAgent({ complete: async (_model, messages) => {
