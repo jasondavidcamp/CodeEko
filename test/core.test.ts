@@ -176,6 +176,19 @@ test('file reads preserve literal source while range metadata identifies omitted
   assert.equal(result.text, '    "quoted"'); assert.equal(result.startLine, 2); assert.equal(result.endLine, 2); assert.equal(result.truncated, true);
 });
 
+test('watcher invalidation refreshes symbols without hiding membership and real deletion still revokes reads', async t => {
+  const { root, storage } = await fixture(t); const file = path.join(root, 'main.ps1');
+  const stamp = new Date('2020-01-01T00:00:00Z');
+  await fs.writeFile(file, 'function Get-First {}'); await fs.utimes(file, stamp, stamp);
+  const index = new RepositoryIndex(root, storage); await index.refresh();
+  await fs.writeFile(file, 'function Get-Other {}'); await fs.utimes(file, stamp, stamp);
+  index.invalidate('main.ps1'); assert.ok(index.entries.has('main.ps1'));
+  await index.refresh(); assert.equal(index.entries.get('main.ps1')!.symbols[0].name, 'Get-Other');
+  await fs.unlink(file); index.invalidate('main.ps1');
+  await assert.rejects(index.readDocument('main.ps1'));
+  await index.refresh(); assert.equal(index.entries.has('main.ps1'), false);
+});
+
 test('automatic recovery reads respect cancellation and the total read budget', async () => {
   const controller = new AbortController(); let executions = 0;
   const action = JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'a', newText: 'b' }] } });

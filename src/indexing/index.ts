@@ -25,7 +25,13 @@ export async function textFile(root: string, file: string): Promise<string> { re
 export class RepositoryIndex {
   entries = new Map<string, Entry>();
   constructor(readonly root: string, private storage: string) {}
-  invalidate(file: string): void { this.entries.delete(file); }
+  invalidate(file: string): void {
+    // Watchers invalidate cached symbols, not manifest membership. Removing an
+    // entry here can race a validation snapshot after its completed refresh.
+    // refresh() determines additions/deletions; reads still check the real file.
+    const entry = this.entries.get(file);
+    if (entry) entry.mtime = -1;
+  }
   async refresh(signal?: AbortSignal): Promise<void> {
     check(signal);
     const deadline = Date.now() + 30000; let indexedBytes = 0;

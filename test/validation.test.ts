@@ -38,6 +38,30 @@ test('validation is mode-gated and child environment excludes secrets and inheri
   try { assert.equal(validationEnvironment().LLM_VALIDATION_SECRET, undefined); assert.ok(!validationEnvironment().PATH?.includes(process.cwd())); }
   finally { delete process.env.LLM_VALIDATION_SECRET; }
 });
+
+test('delayed watcher notification after a move cannot remove source from a validation snapshot', async t => {
+  const f = await fixture(t);
+  const tools = new EditingTools(f.reads, f.task, f.hooks.mode, async () => {});
+  const read = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { hash: string };
+  await tools.execute({ version: 1, tool: 'move_file', args: { path: 'main.ps1', destination: 'Renamed.ps1', expectedHash: read.hash } }, signal());
+  const refresh = f.index.refresh.bind(f.index); let refreshed = 0;
+  f.index.refresh = async currentSignal => {
+    await refresh(currentSignal);
+    // A delayed VS Code notification arrives after refresh populated membership,
+    // before validation enumerates it following its asynchronous Git checks.
+    if (++refreshed === 1) f.index.invalidate('Renamed.ps1');
+  };
+  const parsed: string[] = []; let pesterCalls = 0;
+  const validation = new TaskValidation(f.task, f.validationHooks, async (operation, payload) => {
+    if (operation === 'inspect') return available;
+    if (operation === 'parse') { parsed.push(...(payload as { files: { path: string }[] }).files.map(file => file.path)); return clean; }
+    if (operation === 'analyze') return clean;
+    if (operation === 'pester') { pesterCalls++; return { total: 1, passed: 1, failed: 0, skipped: 0, result: 'Passed', failures: [], containerErrors: [] }; }
+    throw new Error('Unexpected operation');
+  });
+  assert.equal((await validation.run(signal())).status, 'passed');
+  assert.ok(parsed.includes('Renamed.ps1')); assert.equal(pesterCalls, 1);
+});
 test('completion automatically validates and repairs, preserving failure evidence and enforcing three rounds', async t => {
   const f = await fixture(t); let rounds = 0;
   const runner: PowerShellRunner = async (operation, payload) => {
