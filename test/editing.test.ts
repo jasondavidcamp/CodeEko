@@ -329,3 +329,17 @@ test('Full access can update preexisting overlapping edits without changing stag
   assert.equal(await git(f.root, ['diff','--cached']), staged);
   assert.equal(f.counts().confirmations, 0);
 });
+
+
+test('patches bind to the latest runtime read without a model-copied hash', async t => {
+  const f = await fixture(t); f.mode('Full access'); const { tools } = await f.start();
+  const action: Action = { version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'return 4', newText: 'return 6' }] } };
+  await assert.rejects(tools.execute(action, signal()), ReadRequired);
+  await read(tools); await tools.execute(action, signal());
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 6/);
+  const next: Action = { version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'return 6', newText: 'return 8' }] } };
+  await assert.rejects(tools.execute(next, signal()), ReadRequired);
+  await read(tools); await fs.appendFile(path.join(f.root, 'main.ps1'), '# external');
+  await assert.rejects(tools.execute(next, signal()), /changed after/);
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 6/);
+});

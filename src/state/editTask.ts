@@ -295,7 +295,8 @@ export class EditTask {
       return { path: action.args.path, hash: hash(bytes), applied: true };
     }
     if (action.tool !== 'apply_patch' && action.tool !== 'move_file' && action.tool !== 'delete_file') throw new Error('Not an editing action.');
-    const file = action.args.path; const expected = action.args.expectedHash;
+    const file = action.args.path; const expected = action.args.expectedHash ?? (action.tool === 'apply_patch' ? this.observed.get(file) : undefined);
+    if (!expected) throw new ReadRequired(file);
     const state = await this.current(file, expected, signal);
     if (action.tool === 'apply_patch') {
       const text = state.document.text;

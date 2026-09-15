@@ -44,7 +44,7 @@ export async function runLiveValidation(injectMissingRead = false) {
       assert.ok(++calls <= 16);
       if (injectMissingRead && calls === 1) return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: '* 7', newText: '* 9' }] } });
       return api.complete(id, messages, signal);
-    } }, model, [{ role: 'user', content: 'The existing unit test requires capacity 36 for four workers. Repair the implementation to pass this test, preserving test expectations and unrelated work. Add docs/CHANGE.md explaining the corrected multiplier. Run validation and finish with actual results. Here is the first validation report:\n' + JSON.stringify(initial) }], tools, hooks.mode, controller.signal, text => { if (text.includes('A fresh read')) readCorrection = true; console.log(text); });
+    } }, model, [{ role: 'user', content: 'The existing unit test requires capacity 36 for four workers. Repair the implementation to pass this test, preserving test expectations and unrelated work. Add docs/CHANGE.md explaining the corrected multiplier. Run validation and finish with actual results. Here is the first validation report:\n' + JSON.stringify(initial) }], tools, hooks.mode, controller.signal, text => { if (text.includes('Refreshing the file version')) readCorrection = true; console.log(text); });
     if (injectMissingRead) assert.equal(readCorrection, true);
     const final = await validation.run(controller.signal);
     assert.equal(final.status, 'passed'); assert.ok(final.round >= 2 && final.round <= 3);

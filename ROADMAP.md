@@ -312,3 +312,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [ ] Verify local commits against representative repository policies and interrupted Git operations; hook/signing/filter execution remains unsupported.
 
 - [x] 0.4.26: Full access permits edits overlapping preexisting repository changes; Workspace retains protection. Clean files and changed Git HEADs no longer inherit stale protection from earlier tasks.
+
+- [x] 0.4.27: Bind hash-omitting patches to the runtime’s latest file read and distinguish literal-target failures from version failures; retain external-edit and reread-after-write checks.
