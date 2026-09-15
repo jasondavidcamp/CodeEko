@@ -14,12 +14,15 @@ Parser/analyzer failures prevent Pester from starting in that round. Test failur
 
 ## Workstation settings
 
-Both settings are application-scoped; repository settings and model actions cannot change them:
+These settings are application-scoped; repository settings and model actions cannot change them:
 
-- `llmRuntime.installValidationModules` defaults to false. Enabling it permits one attempt per task to install missing modules into CurrentUser from the verified HTTPS PSGallery source. Pester is pinned to 5.7.1; PSScriptAnalyzer uses the gallery release. Connectivity, package-provider, license or policy failures leave reduced coverage. The installer does not alter gallery trust, bypass publisher checks, or install globally.
-- `llmRuntime.validationExecutionPolicy` defaults to `Inherit`. `RemoteSigned` optionally permits local unsigned scripts in validation child processes only. It does not change machine settings or override Group Policy. An AllSigned workstation may block unsigned test fixtures; the failure appears in validation results.
+- `llmRuntime.pesterVersion` defaults to `Auto`, selecting the newest installed supported major. Choose `4` or `5` explicitly for a suite's requirements. Missing selected versions produce an omission, not a silent fallback. Changing the selected major invalidates cached validation results.
+- `llmRuntime.installValidationModules` defaults to false. Enabling it permits one attempt per task to install missing modules into CurrentUser from the verified HTTPS PSGallery source. Pester is pinned to 4.10.1 when major 4 is selected, otherwise 5.7.1; PSScriptAnalyzer uses the gallery release. Connectivity, package-provider, license or publisher-policy failures leave reduced coverage and are never reported as a passed installation. The installer does not alter gallery trust, bypass publisher checks, or install globally.
+- `llmRuntime.validationExecutionPolicy` defaults to `Inherit` and is captured when the task starts. `RemoteSigned` optionally permits local unsigned scripts in validation child processes only. It does not change machine settings or override Group Policy. An AllSigned workstation may block unsigned test fixtures; the failure appears in validation results.
 
 The fixed runner uses the system Windows PowerShell executable, no profile, no interactive prompts, an isolated working directory, and an allowlisted environment without API keys or inherited module-search overrides. Repository paths/text arrive as JSON over stdin, not executable command interpolation. Each command has a 60-second limit (120 seconds for installation), a 256 KB combined output cap, and cancellation requests process-tree termination. Already completed script side effects cannot be undone by cancellation.
+
+Timeout/cancellation enforcement depends on the extension host remaining alive. The recovery harness deliberately terminates its whole process tree; it does not prove that an arbitrary host crash automatically terminates every child. OS-enforced child lifetime after an uncoordinated crash remains a hardening item.
 
 ## Results and limits
 

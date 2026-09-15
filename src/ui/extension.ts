@@ -137,6 +137,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
           validation = new TaskValidation(task, {
             mode, isDirty: hooks.isDirty, redact: text => api.redact(text),
             installMissing: () => config().get<boolean>('installValidationModules', false),
+            pesterMajor: () => { const selected = config().get<string>('pesterVersion', 'Auto'); return selected === '4' ? 4 : selected === '5' ? 5 : undefined; },
             progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
             selectTests: async (candidates, signal) => {
               const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });

@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -66,6 +66,17 @@
           "maximum": 300000,
           "scope": "application"
         },
+        "llmRuntime.pesterVersion": {
+          "type": "string",
+          "enum": [
+            "Auto",
+            "4",
+            "5"
+          ],
+          "default": "Auto",
+          "scope": "application",
+          "description": "Auto selects the newest installed supported Pester version. Choose 4 or 5 for a suite that requires that major version. Missing selected versions are reported rather than silently substituted."
+        },
         "llmRuntime.validationExecutionPolicy": {
           "type": "string",
           "enum": [
@@ -80,7 +91,7 @@
           "type": "boolean",
           "default": false,
           "scope": "application",
-          "description": "Allow one CurrentUser installation attempt for missing Pester 5/PSScriptAnalyzer modules from PSGallery per task. Requires network access; failures are reported as reduced validation coverage."
+          "description": "Allow one CurrentUser installation attempt for missing selected Pester/PSScriptAnalyzer modules from PSGallery per task. Requires network access; failures are reported as reduced validation coverage."
         },
         "llmRuntime.permissionMode": {
           "type": "string",

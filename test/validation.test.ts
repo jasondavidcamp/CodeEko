@@ -196,3 +196,39 @@ test('identical Pester failures stop early despite changed attribution metadata'
   await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: read.hash, edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal());
   await assert.rejects(validation.run(signal()), /no diagnostic progress/);
 });
+test('selected Pester major reaches discovery and execution, and changing it invalidates cached results', async t => {
+  const f = await fixture(t); let major: 4 | 5 = 4; const versions: string[] = [];
+  const validation = new TaskValidation(f.task, { ...f.validationHooks, pesterMajor: () => major }, async (operation, payload) => {
+    if (operation === 'inspect') { assert.equal((payload as any).pesterMajor, major); return { ...available, modules: { ...available.modules, Pester: major === 4 ? '4.10.1' : '5.7.1' } }; }
+    if (operation === 'parse' || operation === 'analyze') return clean;
+    versions.push((payload as any).version);
+    return { total: 1, passed: 1, failed: 0, skipped: 0, result: 'Passed', failures: [], containerErrors: [] };
+  });
+  assert.equal((await validation.run(signal())).round, 1); major = 5;
+  assert.equal((await validation.run(signal())).round, 2); assert.deepEqual(versions, ['4.10.1','5.7.1']);
+});
+test('each installed supported Pester adapter reports pass and failure without substituting majors', { skip: process.platform !== 'win32' }, async t => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-pester-versions-')); t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const file = path.join(temp, 'Versions.Tests.ps1');
+  await fs.writeFile(file, "Describe 'versions' { It 'passes' { 2 | Should -Be 2 }; It 'fails' { 1 | Should -Be 2 } }");
+  for (const major of [4,5]) {
+    const detected = await runPowerShell('inspect', { pesterMajor: major }, signal()) as typeof available;
+    await t.test(`Pester ${major}`, { skip: detected.modules.Pester ? false : 'Requested major is not installed; no fallback was used.' }, async () => {
+      assert.ok(detected.modules.Pester!.startsWith(`${major}.`));
+      const result = await createPowerShellRunner('RemoteSigned')('pester', { paths: [file], version: detected.modules.Pester }, signal()) as any;
+      assert.equal(result.total, 2); assert.equal(result.passed, 1); assert.equal(result.failed, 1);
+    });
+  }
+});
+test('failed optional module installation is reported as reduced coverage, never as a passed install', async t => {
+  const f = await fixture(t);
+  const validation = new TaskValidation(f.task, { ...f.validationHooks, installMissing: () => true }, async operation => {
+    if (operation === 'inspect') return { ...available, modules: { ...available.modules, PSScriptAnalyzer: null } };
+    if (operation === 'install') return { modules: [{ name: 'PSScriptAnalyzer', installed: false, reason: 'Publisher verification refused this version.' }] };
+    if (operation === 'parse') return clean;
+    return { total: 1, passed: 1, failed: 0, skipped: 0, result: 'Passed', failures: [], containerErrors: [] };
+  });
+  const result = await validation.run(signal()); assert.equal(result.status, 'partial');
+  const installation = result.steps.find(step => step.command.startsWith('Install'))!;
+  assert.equal(installation.status, 'skipped'); assert.match(String(installation.detail), /Publisher verification/);
+});

@@ -17,7 +17,7 @@ const scripts = {
   inspect: String.raw`
 $modules = @{}
 foreach ($name in @('Pester','PSScriptAnalyzer')) {
-  $found = Get-Module -ListAvailable -Name $name | Where-Object { $_.Name -eq $name -and ($name -ne 'Pester' -or $_.Version.Major -in @(4,5)) } | Sort-Object Version -Descending | Select-Object -First 1
+  $found = Get-Module -ListAvailable -Name $name | Where-Object { $_.Name -eq $name -and ($name -ne 'Pester' -or ($_.Version.Major -in @(4,5) -and (!$request.pesterMajor -or $_.Version.Major -eq [int]$request.pesterMajor))) } | Sort-Object Version -Descending | Select-Object -First 1
   $modules[$name] = if ($found) { $found.Version.ToString() } else { $null }
 }
 @{ version = $PSVersionTable.PSVersion.ToString(); modules = $modules } | ConvertTo-Json -Compress -Depth 5
@@ -70,10 +70,16 @@ $results = @()
 foreach ($name in @('Pester','PSScriptAnalyzer')) {
   if ($request.names -contains $name) {
     try {
-      if ($name -eq 'Pester') { Install-Module -Name Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Repository PSGallery -Force -ErrorAction Stop }
+      if ($name -eq 'Pester') {
+        $version = if ($request.pesterMajor -eq 4) { '4.10.1' } else { '5.7.1' }
+        Install-Module -Name Pester -RequiredVersion $version -Scope CurrentUser -Repository PSGallery -Force -ErrorAction Stop
+      }
       else { Install-Module -Name PSScriptAnalyzer -Scope CurrentUser -Repository PSGallery -Force -ErrorAction Stop }
       $results += @{ name = $name; installed = $true }
-    } catch { $results += @{ name = $name; installed = $false } }
+    } catch {
+      $reason = if ($_.Exception.Message -match 'SkipPublisherCheck') { 'Publisher verification refused this version. No publisher check was bypassed.' } else { 'Installation failed. Check source connectivity, package-provider prerequisites, license, or workstation policy.' }
+      $results += @{ name = $name; installed = $false; reason = $reason }
+    }
   }
 }
 @{ modules = $results } | ConvertTo-Json -Compress -Depth 4

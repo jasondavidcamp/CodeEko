@@ -172,6 +172,7 @@ Goal: complete changes with automatic, trustworthy local validation.
 
 - [x] Invoke the Windows PowerShell 5.1 parser directly from the extension.
 - [x] Detect PSScriptAnalyzer and Pester versions.
+- [x] Allow developer selection of Pester 4 or 5 without silently substituting another major; invalidate cached results when selection changes.
 - [x] Attempt current-user module installation when enabled in user settings; clearly report failure and reduced validation scope.
 - [x] Test access to PowerShell Gallery during module installation.
 - [ ] Support an internal/Nexus module source.
@@ -218,8 +219,11 @@ Goal: distribute a repeatable initial release.
 - [ ] Add structured local logs for model calls, tools, commands, edits, validation, permissions, and errors without recording API keys.
 - [ ] Test on representative Windows developer configurations and network conditions.
 - [ ] Validate certificate trust, proxies, endpoint timeouts, API failures, and model-list fallback.
-- [ ] Test PowerShell 5.1 encoding, module, and Pester-version variations.
+- [x] Test Windows PowerShell 5.1 UTF-8/BOM/UTF-16LE handling and Pester 5 execution.
+- [x] Test missing modules, failed installation reporting and selected-major discovery.
+- [ ] Verify real Pester 4 execution on a workstation where publisher policy permits installation (current installation attempt was rejected; verification was not bypassed).
 - [x] Add recovery tests for VS Code termination after an applied edit and during active Pester validation.
+- [ ] Enforce and verify child-process lifetime when the extension host dies without a coordinated process-tree shutdown.
 - [ ] Exercise termination during individual file replacement, deletion, and move operations on representative workstations.
 - [x] Document install, first-run authentication, permission modes, limitations, and uninstall/data cleanup.
 

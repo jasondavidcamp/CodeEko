@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.95 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.1.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.2.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -15,6 +15,8 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 `llmRuntime.requestTimeout` defaults to 60 seconds. `llmRuntime.permissionMode` defaults to Full access and is always visible in the panel. **Workspace and Full access enable repository edits; Review and Custom remain read-only.** No mode enables general commands. Endpoint/model/timeout/permission settings are application-scoped so repository settings cannot redirect credentials or elevate permissions.
 
 Ask for a focused code change to use editing. The agent reads files before proposing exact replacements. Stale content, unsaved editor buffers, and overlap with preexisting developer edits stop the task. Delete, move, and whole-file erasure open a preview and require approval, with Cancel selected initially. Completed changes open in native diff tabs; use **Review changes** to reopen the recorded task diffs and **Source Control** for the full working tree. Cancellation retains completed edits and reports them. Use **Undo task changes** to preview and restore the last edit task’s baseline. Later conflicting edits stop undo. See [Undo](docs/UNDO.md) for cancellation and recovery behavior.
+
+For legacy test suites, set `llmRuntime.pesterVersion` to `4` or `5`. `Auto` uses the newest installed supported version. A missing selected major is reported; another major is never substituted silently. Optional module installation preserves publisher verification and reports blocked installations as reduced coverage.
 
 ## Repository documents
 

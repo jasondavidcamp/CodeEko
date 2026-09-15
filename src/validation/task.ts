@@ -21,6 +21,7 @@ export interface ValidationHooks {
   isDirty(file: string): boolean;
   selectTests(candidates: string[], signal: AbortSignal): Promise<string[]>;
   installMissing(): boolean;
+  pesterMajor?(): 4 | 5 | undefined;
   progress(message: string): void;
   redact(text: string): string;
 }
@@ -48,6 +49,7 @@ export class TaskValidation {
   private async snapshot(signal: AbortSignal) {
     await this.task.index.refresh(signal);
     const fingerprint = createHash('sha256');
+    fingerprint.update(JSON.stringify({ pesterMajor: this.hooks.pesterMajor?.() ?? 'Auto', installMissing: this.hooks.installMissing() }));
     fingerprint.update(await git(this.task.index.root, ['rev-parse','--verify','--quiet','HEAD'], signal, true));
     fingerprint.update(await git(this.task.index.root, ['diff','--cached','--no-ext-diff','--no-textconv','--no-color'], signal));
     const files: { path: string; text: string }[] = [];
@@ -90,14 +92,17 @@ export class TaskValidation {
     };
     try {
       let available: z.infer<typeof inventory> | undefined;
-      await step('Detect Windows PowerShell 5.1 and modules', async () => { available = inventory.parse(await this.runner('inspect', {}, signal)); return { failed: false, detail: available }; }, true);
+      const selection = { pesterMajor: this.hooks.pesterMajor?.() };
+      await step('Detect Windows PowerShell 5.1 and modules', async () => { available = inventory.parse(await this.runner('inspect', selection, signal)); return { failed: false, detail: available }; }, true);
       if (!available) return report;
       const missing = Object.entries(available.modules).filter(([, version]) => !version).map(([name]) => name);
       if (missing.length && this.hooks.installMissing() && !this.installationAttempted) {
         this.installationAttempted = true;
         await step('Install missing modules from PSGallery (CurrentUser)', async () => {
-          const result = await this.runner('install', { names: missing }, signal);
-          available = inventory.parse(await this.runner('inspect', {}, signal));
+          const result = z.object({ modules: z.array(z.object({ name: z.enum(['Pester','PSScriptAnalyzer']), installed: z.boolean(), reason: z.string().optional() })) }).parse(await this.runner('install', { names: missing, ...selection }, signal));
+          available = inventory.parse(await this.runner('inspect', selection, signal));
+          const failed = result.modules.filter(module => !module.installed);
+          if (failed.length) throw new Error('Module installation incomplete: ' + failed.map(module => `${module.name}: ${module.reason ?? 'Installation failed.'}`).join(' '));
           return { failed: false, detail: result };
         }, true);
       }
@@ -126,11 +131,11 @@ export class TaskValidation {
           await step('Invoke-Pester (developer-selected files)', async () => {
             const paths = await Promise.all(this.selected!.map(name => safePath(this.task.index.root, name)));
             const result = tests.parse(await this.runner('pester', { paths, version: available!.modules.Pester }, signal));
-            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...result, paths: this.selected, origin: this.task.changes().length ? 'Unknown: no isolated baseline test execution was performed for comparison.' : 'Observed before this task made any edits.' } };
+            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...result, version: available!.modules.Pester, paths: this.selected, origin: this.task.changes().length ? 'Unknown: no isolated baseline test execution was performed for comparison.' : 'Observed before this task made any edits.' } };
           });
         } else report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: candidates.length ? 'No test files approved for execution.' : 'No eligible unit-test candidates discovered.' });
       }
-      if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository content changed during validation. Results are stale; inspect test side effects or external edits.');
+      if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository content or validation settings changed during validation. Results are stale; inspect test side effects or external edits.');
       report.status = report.steps.some(item => item.status === 'failed') ? 'failed' : report.steps.some(item => item.status === 'skipped') ? 'partial' : 'passed';
       this.invalidated = false;
       if (report.status === 'failed' && latest?.status === 'failed' && this.failureSignature(latest) === this.failureSignature(report)) throw new NoProgress('The same validation failures remain after repair. Stopped early because no diagnostic progress was made.');
