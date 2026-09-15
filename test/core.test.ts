@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { safePath, contained, authorize } from '../src/policy/boundary';
+import { safePath, contained, authorize, ReadRequired } from '../src/policy/boundary';
 import { parseAction } from '../src/protocol/actions';
 import { RepositoryIndex } from '../src/indexing';
 import { git, resolveRepository } from '../src/repository/git';
@@ -130,4 +130,10 @@ test('one protocol correction can recover a missing version without executing in
   calls = 0;
   await assert.rejects(runAgent({ complete: async () => { calls++; return '{"tool":"list_files","args":{}}'; } }, 'm', [], { execute: async () => { throw new Error('Invalid action executed'); } }, () => 'Review', new AbortController().signal, () => {}), /invalid version-1/);
   assert.equal(calls, 2);
+});
+
+test('repeated missing reads stop after two corrections inside the existing action budget', async () => {
+  let calls = 0;
+  await assert.rejects(runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: 'a', newText: 'b' }] } }); } }, 'm', [], { execute: async () => { throw new ReadRequired('main.ps1'); } }, () => 'Full access', new AbortController().signal, () => {}), /two read\/hash corrections/);
+  assert.equal(calls, 3);
 });

@@ -1,11 +1,11 @@
 import { Message } from '../api/client';
-import { authorize, check, TaskConflict } from '../policy/boundary';
+import { authorize, check, TaskConflict, ReadRequired } from '../policy/boundary';
 import { parseAction, taskProtocol, Action } from '../protocol/actions';
 export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal): Promise<string> }
 export interface ToolExecutor { execute(action: Action, signal: AbortSignal): Promise<unknown>; beforeComplete?(signal: AbortSignal): Promise<unknown | undefined> }
 export const limits = { turns: 20, contextCharacters: 60000, resultCharacters: 14000, totalReadFiles: 30 };
 export async function runAgent(model: Model, selectedModel: string, history: Message[], tools: ToolExecutor, mode: () => string, signal: AbortSignal, progress: (text: string) => void): Promise<string> {
-  const messages: Message[] = [{ role: 'system', content: taskProtocol(mode()) }, ...history.slice(-20)]; let readCount = 0; let protocolCorrections = 0;
+  const messages: Message[] = [{ role: 'system', content: taskProtocol(mode()) }, ...history.slice(-20)]; let readCount = 0; let protocolCorrections = 0; let readCorrections = 0;
   for (let turn = 0; turn < limits.turns; turn++) {
     check(signal);
     const characters = messages.reduce((sum, m) => sum + m.content.length, 0);
@@ -33,7 +33,17 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
     if (readCount > limits.totalReadFiles) throw new Error('Task file-read limit reached.');
     progress(`Running ${action.tool.replaceAll('_', ' ')}.`);
     let result: unknown;
-    try { result = await tools.execute(action, signal); } catch (error) { check(signal); if (error instanceof TaskConflict) throw error; result = { error: 'Tool could not complete within repository policy. Re-read the file and check the exact arguments. No successful mutation is implied by this error.' }; }
+    try { result = await tools.execute(action, signal); } catch (error) {
+      check(signal);
+      if (error instanceof ReadRequired) {
+        if (++readCorrections > 2) throw new TaskConflict('Stopped after two read/hash corrections. No edit was applied for the rejected attempts.');
+        progress(`A fresh read of ${error.file} is required before retrying the edit (${readCorrections}/2).`);
+        result = { error: 'read_required', path: error.file, instruction: 'No edit was applied. Call read_file for this path now, then copy its exact returned hash into expectedHash. Earlier conversation summaries and validation results do not count as a file read.' };
+      } else {
+        if (error instanceof TaskConflict) throw error;
+        result = { error: 'Tool could not complete within repository policy. Re-read the file and check the exact arguments. No successful mutation is implied by this error.' };
+      }
+    }
     check(signal);
     const serialized = JSON.stringify(result);
     messages.push({ role: 'assistant', content: raw }, { role: 'user', content: JSON.stringify({ version: 1, tool: action.tool, result: serialized.length <= limits.resultCharacters ? result : { truncated: true, text: serialized.slice(0, limits.resultCharacters) } }) });

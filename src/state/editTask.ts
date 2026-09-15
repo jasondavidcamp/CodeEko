@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { RepositoryIndex, excluded, fileDocument } from '../indexing';
 import { git } from '../repository/git';
 import { decode, encode, hash } from '../repository/document';
-import { authorize, check, contained, safePath, TaskConflict } from '../policy/boundary';
+import { authorize, check, contained, safePath, TaskConflict, ReadRequired } from '../policy/boundary';
 import { Action } from '../protocol/actions';
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
@@ -204,11 +204,12 @@ export class EditTask {
   private async current(file: string, expectedHash: string, signal: AbortSignal) {
     check(signal); const full = await this.allowedPath(file);
     const known = this.journal.files[file];
-    if (!known || known.current !== expectedHash || this.observed.get(file) !== expectedHash) throw new TaskConflict(`Read ${file} again before editing; its task/read hash is stale or missing.`);
+    if (!known) throw new TaskConflict(`The file is outside this task's captured baseline: ${file}`);
     const document = await fileDocument(this.index.root, file);
-    if (document.hash !== expectedHash) throw new TaskConflict(`${file} changed after it was read. Please review the external changes and retry the task.`);
+    if (document.hash !== known.current) throw new TaskConflict(`${file} changed after it was read. Please review the external changes and retry the task.`);
     const stat = await fs.lstat(full);
     if (stat.nlink > 1) throw new TaskConflict(`Hard-linked files cannot be edited safely: ${file}`);
+    if (known.current !== expectedHash || this.observed.get(file) !== expectedHash) throw new ReadRequired(file);
     return { full, document, known, stat };
   }
   async execute(action: Action, signal: AbortSignal): Promise<unknown> {

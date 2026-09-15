@@ -11,7 +11,8 @@ import { EditTask, EditHooks } from '../src/state/editTask';
 import { EditingTools } from '../src/tools/editing';
 import { ReadOnlyTools } from '../src/tools/readOnly';
 import { Action, parseAction } from '../src/protocol/actions';
-import { authorize } from '../src/policy/boundary';
+import { authorize, ReadRequired } from '../src/policy/boundary';
+import { runAgent } from '../src/agent/loop';
 
 const signal = () => new AbortController().signal;
 async function fixture(t: any, bytes: Buffer = Buffer.from('# stable\nfunction Get-Count {\n    return 4\n}\n# original comment\n')) {
@@ -37,6 +38,26 @@ async function read(tools: EditingTools, file = 'main.ps1'): Promise<string> {
   return (await tools.execute({ version: 1, tool: 'read_file', args: { path: file } }, signal()) as { hash: string }).hash;
 }
 const patch = (expectedHash: string, oldText = 'return 4', newText = 'return 8'): Action => ({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash, edits: [{ oldText, newText }] } });
+
+test('agent recovers a missing read or copied hash without relaxing external-edit checks', async t => {
+  const f = await fixture(t); const { task, tools } = await f.start(); let calls = 0;
+  const summary = await runAgent({ complete: async (_model, messages) => {
+    calls++;
+    if (calls === 1) return JSON.stringify(patch('0'.repeat(64)));
+    if (calls === 2) {
+      assert.match(messages.at(-1)!.content, /read_required/); assert.equal(task.changes().length, 0);
+      return JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } });
+    }
+    if (calls === 3) return JSON.stringify(patch(JSON.parse(messages.at(-1)!.content).result.hash));
+    return JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Fixed after a fresh read.' } });
+  } }, 'mock', [], tools, f.hooks.mode, signal(), () => {});
+  assert.match(summary, /fresh read/); assert.equal(calls, 4); assert.equal(task.changes().length, 1);
+  await assert.rejects(tools.execute(patch('0'.repeat(64), 'return 8', 'return 12'), signal()), ReadRequired);
+  await fs.appendFile(path.join(f.root, 'main.ps1'), '# external save\n');
+  const external = await fs.readFile(path.join(f.root, 'main.ps1')); let retries = 0;
+  await assert.rejects(runAgent({ complete: async () => { retries++; return JSON.stringify(patch('0'.repeat(64))); } }, 'mock', [], tools, f.hooks.mode, signal(), () => {}), /changed after/);
+  assert.equal(retries, 1); assert.deepEqual(await fs.readFile(path.join(f.root, 'main.ps1')), external);
+});
 
 test('a conflict after intent is recorded preserves evidence and prevents further task mutations', async t => {
   const f = await fixture(t); const { task, tools } = await f.start();

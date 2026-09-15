@@ -12,7 +12,7 @@ import { EditingTools } from '../../src/tools/editing';
 import { TaskValidation } from '../../src/validation/task';
 import { runPowerShell, createPowerShellRunner } from '../../src/validation/powershell';
 
-export async function runLiveValidation() {
+export async function runLiveValidation(injectMissingRead = false) {
   const endpoint = process.env.LLM_RUNTIME_TEST_ENDPOINT; const key = process.env.LLM_RUNTIME_TEST_API_KEY; const model = process.env.LLM_RUNTIME_TEST_MODEL;
   assert.ok(endpoint && key && model, 'Configure live test endpoint, key and model in the environment.');
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-live-validation-')); const root = path.join(temp, 'repo');
@@ -39,7 +39,13 @@ export async function runLiveValidation() {
     assert.equal(failedTests?.status, 'failed');
     const tools = new EditingTools(new ReadOnlyTools(index, async () => 'Fix the implementation, preserving existing test expectations.'), task, hooks.mode, async () => {}, validation);
     let calls = 0;
-    const summary = await runAgent({ complete: async (id, messages, signal) => { assert.ok(++calls <= 16); return api.complete(id, messages, signal); } }, model, [{ role: 'user', content: 'The existing unit test requires capacity 36 for four workers. Repair the implementation to pass this test, preserving test expectations and unrelated work. Add docs/CHANGE.md explaining the corrected multiplier. Run validation and finish with actual results. Here is the first validation report:\n' + JSON.stringify(initial) }], tools, hooks.mode, controller.signal, console.log);
+    let readCorrection = false;
+    const summary = await runAgent({ complete: async (id, messages, signal) => {
+      assert.ok(++calls <= 16);
+      if (injectMissingRead && calls === 1) return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: '* 7', newText: '* 9' }] } });
+      return api.complete(id, messages, signal);
+    } }, model, [{ role: 'user', content: 'The existing unit test requires capacity 36 for four workers. Repair the implementation to pass this test, preserving test expectations and unrelated work. Add docs/CHANGE.md explaining the corrected multiplier. Run validation and finish with actual results. Here is the first validation report:\n' + JSON.stringify(initial) }], tools, hooks.mode, controller.signal, text => { if (text.includes('A fresh read')) readCorrection = true; console.log(text); });
+    if (injectMissingRead) assert.equal(readCorrection, true);
     const final = await validation.run(controller.signal);
     assert.equal(final.status, 'passed'); assert.ok(final.round >= 2 && final.round <= 3);
     assert.match(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), /\*\s*9/);
@@ -48,7 +54,7 @@ export async function runLiveValidation() {
     await task.finish('complete');
     console.log('LIVE VALIDATION PASSED: ' + api.redact(summary));
     const installed = await runPowerShell('inspect', {}, controller.signal);
-    return { model, modelCalls: calls, validationRounds: final.round, initialFailure: true, repaired: true, preexistingWorkPreserved: true, testsPreserved: true, leftUncommitted: true, installed };
+    return { model, modelCalls: calls, validationRounds: final.round, readCorrection, initialFailure: true, repaired: true, preexistingWorkPreserved: true, testsPreserved: true, leftUncommitted: true, installed };
   } finally { clearTimeout(timer); await fs.rm(temp, { recursive: true, force: true }); }
 }
 if (require.main === module) runLiveValidation().then(result => console.log(JSON.stringify(result))).catch(error => { console.error(error instanceof Error ? error.message : 'Live validation failed.'); process.exitCode = 1; });

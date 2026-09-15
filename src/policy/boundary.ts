@@ -24,4 +24,7 @@ export function authorize(tool: string, mode: string): void {
   if (!['Review','Workspace','Full access','Custom'].includes(mode) || (!allowed.has(tool) && !((mutations.has(tool) || tool === 'run_validation') && ['Workspace','Full access'].includes(mode)))) throw new Error(`Tool denied in ${mode} mode.`);
 }
 export class TaskConflict extends Error {}
+export class ReadRequired extends TaskConflict {
+  constructor(readonly file: string) { super(`Read ${file} again before editing; its task/read hash is stale or missing. No edit was applied.`); }
+}
 export function check(signal?: AbortSignal): void { signal?.throwIfAborted(); }
