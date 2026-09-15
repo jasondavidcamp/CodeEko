@@ -23,7 +23,7 @@ The fixed runner uses the system Windows PowerShell executable, no profile, no i
 
 Task-private `validation.json` records rounds, commands, statuses and bounded diagnostics. Repository text fingerprints, HEAD and staged diff are checked for staleness. Editor buffers must be saved. Fingerprints cover readable manifest content, not every possible external or ignored-file side effect. A local process can still race checks. Validation is not a security boundary against malicious tests or installed modules.
 
-The final UI summary distinguishes passed, failed, partial, unrun and stale results. A partial result is not proof of correct behavior. Reports are local plaintext alongside task snapshots. Task undo is a separate roadmap item.
+The final UI summary distinguishes passed, failed, partial, unrun and stale results. A partial result is not proof of correct behavior. Reports are local plaintext alongside task snapshots. Task undo invalidates the historical validation result for the current working tree; see UNDO.md.
 
 Developer tests use synthetic repositories; real Pester fixture tests explicitly use process-only RemoteSigned and never change machine execution policy. Run `npm run test:live:validation` with the README's environment variables for a real-model repair demonstration. This requires supported Pester and PSScriptAnalyzer for a full pass.
 

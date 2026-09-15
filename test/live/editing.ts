@@ -55,8 +55,15 @@ export async function runLiveEditing(review: (task: EditTask) => Promise<void> =
     const reloaded = await EditTask.load(index, storage, task.id, hooks);
     assert.match(await reloaded.snapshot(reloaded.changes().find(c => c.path === 'Private/Get-WidgetCapacity.ps1')!.before), /\* 7/);
     await review(reloaded);
+    const undoTask = await EditTask.load(index, storage, task.id, { ...hooks, confirm: async () => true });
+    await undoTask.undo(controller.signal);
+    assert.deepEqual(await fs.readFile(path.join(root, 'Private/Get-WidgetCapacity.ps1')), encode(source + developerNote, format));
+    assert.deepEqual(await fs.readFile(path.join(root, 'tests/Widget.Tests.ps1')), encode(tests, format));
+    await assert.rejects(fs.stat(path.join(root, 'docs/CHANGE.md')));
+    assert.deepEqual(await fs.readFile(path.join(root, 'Notes.txt')), notes);
+    assert.equal(await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']), staged);
     console.log('LIVE EDITING PASSED: ' + api.redact(summary));
-    return { model: modelId, modelCalls: calls, actions, changedFiles: task.changes().map(c => c.path), preexistingWorkPreserved: true, encodingsPreserved: true, stagedIndexPreserved: true, leftUncommitted: true, reviewSnapshotsReloaded: true };
+    return { model: modelId, modelCalls: calls, actions, changedFiles: task.changes().map(c => c.path), preexistingWorkPreserved: true, encodingsPreserved: true, stagedIndexPreserved: true, leftUncommitted: true, reviewSnapshotsReloaded: true, undoRestoredBaseline: true };
   } finally { clearTimeout(timeout); await fs.rm(temp, { recursive: true, force: true }); }
 }
 

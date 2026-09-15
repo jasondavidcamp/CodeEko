@@ -1,11 +1,11 @@
 # LLM Coding Agent Runtime
 
-A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.3 adds Windows PowerShell 5.1 validation and bounded repair to guarded multi-file editing and native VS Code diffs. Changes remain uncommitted; task undo is not yet implemented.
+A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.4 adds task-scoped undo to guarded multi-file editing, native VS Code diffs, and bounded PowerShell validation/repair. Changes remain uncommitted.
 
 ## Install and connect
 
 1. Install Git and VS Code 1.95 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.3.0.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.0.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -14,7 +14,13 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 
 `llmRuntime.requestTimeout` defaults to 60 seconds. `llmRuntime.permissionMode` defaults to Full access and is always visible in the panel. **Workspace and Full access enable repository edits; Review and Custom remain read-only.** No mode enables general commands. Endpoint/model/timeout/permission settings are application-scoped so repository settings cannot redirect credentials or elevate permissions.
 
-Ask for a focused code change to use editing. The agent reads files before proposing exact replacements. Stale content, unsaved editor buffers, and overlap with preexisting developer edits stop the task. Delete, move, and whole-file erasure open a preview and require approval, with Cancel selected initially. Completed changes open in native diff tabs; use **Review changes** to reopen the recorded task diffs and **Source Control** for the full working tree. Cancellation retains completed edits and reports them.
+Ask for a focused code change to use editing. The agent reads files before proposing exact replacements. Stale content, unsaved editor buffers, and overlap with preexisting developer edits stop the task. Delete, move, and whole-file erasure open a preview and require approval, with Cancel selected initially. Completed changes open in native diff tabs; use **Review changes** to reopen the recorded task diffs and **Source Control** for the full working tree. Cancellation retains completed edits and reports them. Use **Undo task changes** to preview and restore the last edit task’s baseline. Later conflicting edits stop undo. See [Undo](docs/UNDO.md) for cancellation and recovery behavior.
+
+## Repository documents
+
+- `README.md`: human setup, usage, and development guidance.
+- `AGENTS.md`: boundaries for agents working on this repository.
+- `ROADMAP.md`: product direction and checked progress.
 
 ## Develop, test, package
 
@@ -40,7 +46,7 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 - Only on-disk content is indexed; save editor buffers before asking about recent edits. Index refreshes enumerate the Git manifest and reuse unchanged symbol entries. A watcher invalidates the in-memory index; each tool also refreshes Git membership/ignore policy. The private index snapshot is rebuilt after restart, while conversation history is loaded.
 - One conversation panel holds an OS lease per repository, preventing overlapping tasks and history writes across local VS Code windows. Windows named-pipe leases are released on process exit. Remote hosts and network-shared repositories are outside this pilot.
 - Edits preserve UTF-8/UTF-8 BOM/UTF-16LE BOM and uniform line endings. New PowerShell files use UTF-8 BOM and CRLF. Mixed line endings, hard-linked mutation targets, case-only moves, and ambiguous preexisting changes are refused. New destinations never overwrite an existing file.
-- File replacement is atomic, but the final content check and replacement are not a filesystem compare-and-swap. A move uses two filesystem operations; an interruption can leave both names. Unconfirmed journal entries are labeled for inspection. There is no automatic rollback or task undo, and custom Windows ACL preservation is not guaranteed.
+- File replacement is atomic, but the final content check and replacement are not a filesystem compare-and-swap. A move uses two filesystem operations; an interruption can leave both names. Unconfirmed journal entries are labeled for inspection. Undo is explicit and sequential; interrupted undo can resume from its journal. There is no automatic rollback, and custom Windows ACL preservation is not guaranteed.
 - Automatic validation uses at most three rounds. Missing modules, declined test execution and unsupported module-loading analysis are reported as partial coverage. A test filename does not prove safety: only developer-selected Pester files execute. The default execution policy is inherited from the workstation.
 - A public Gemini model and isolated VS Code Extension Development Host have passed the live smoke suite; see `docs/ACCEPTANCE.md` for evidence and remaining interactive checks. Other endpoint/network/proxy/certificate configurations still require validation. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
 

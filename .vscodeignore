@@ -6,6 +6,7 @@ dist/test/**
 tsconfig.json
 extension.ts
 ROADMAP.md
+AGENTS.md
 node_modules/typescript/**
 node_modules/zod/src/**
 .gitignore

@@ -26,7 +26,7 @@ export class NativeReview implements vscode.TextDocumentContentProvider, vscode.
     if (file && !changes.length) throw new Error('That file has no changes recorded for this task.');
     for (const change of changes) {
       const before = await task.snapshot(change.before); const after = await task.snapshot(change.after);
-      const label = change.state === 'prepared' ? 'Unconfirmed operation—inspect working tree' : 'Agent task changes';
+      const label = change.state === 'prepared' ? 'Unconfirmed operation—inspect working tree' : task.undoState() === 'complete' ? 'Historical task changes (undone)' : task.undoState() === 'running' ? 'Historical task changes (undo incomplete)' : 'Agent task changes';
       await vscode.commands.executeCommand('vscode.diff', this.resource(change.path, before), this.resource(change.path, after), `${label} · ${change.path}`, { preview: false, preserveFocus: true });
     }
   }

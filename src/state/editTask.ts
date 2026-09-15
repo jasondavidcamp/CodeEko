@@ -11,7 +11,7 @@ import { Action } from '../protocol/actions';
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const fileState = z.object({ before: digest, current: digest.nullable(), preexisting: z.boolean(), protected: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().nonnegative() })) });
 const changeSchema = z.object({ path: z.string(), before: digest.nullable(), after: digest.nullable(), preexisting: z.boolean(), operation: z.enum(['patch','create','delete','move']), state: z.enum(['prepared','applied']) });
-const journalSchema = z.object({ version: z.literal(1), id: z.string().uuid(), root: z.string(), head: z.string().nullable(), status: z.enum(['running','complete','cancelled','failed','blocked']), files: z.record(fileState), changes: z.array(changeSchema).max(24) });
+const journalSchema = z.object({ version: z.literal(1), id: z.string().uuid(), root: z.string(), head: z.string().nullable(), status: z.enum(['running','complete','cancelled','failed','blocked']), files: z.record(fileState), changes: z.array(changeSchema).max(24), undo: z.object({ state: z.enum(['running','complete']), restored: z.array(z.string()).max(24), pending: z.string().nullable() }).optional() });
 export type TaskChange = z.infer<typeof changeSchema>;
 export interface EditHooks {
   mode(): string;
@@ -34,6 +34,7 @@ export class EditTask {
   }
   static async capture(index: RepositoryIndex, storage: string, hooks: EditHooks, signal: AbortSignal, previous?: EditTask): Promise<EditTask> {
     if (contained(index.root, storage)) throw new Error('Task storage must be outside the repository.');
+    if (previous?.journal.undo?.state === 'running') throw new TaskConflict('An earlier task undo is incomplete. Resume undo before starting another edit task.');
     await index.refresh(signal);
     const id = randomUUID(); const directory = path.join(storage, 'tasks', id);
     const task = new EditTask(index, directory, hooks, { version: 1, id, root: index.root, head: await head(index.root), status: 'running', files: {}, changes: [] });
@@ -59,7 +60,7 @@ export class EditTask {
         if (!protectedRanges.length) protectedRanges.push({ start: 0, end: document.text.length });
       }
       const prior = previous?.journal.files[file];
-      const canInherit = prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
+      const canInherit = !previous?.journal.undo && prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
       task.journal.files[file] = { before: document.hash, current: document.hash, preexisting: canInherit ? prior!.preexisting : dirty.has(file), protected: canInherit ? prior!.protected.map(r => ({ ...r })) : protectedRanges };
     }
     check(signal);
@@ -77,9 +78,86 @@ export class EditTask {
   changes(): TaskChange[] { return this.journal.changes.map(change => ({ ...change })); }
   async snapshot(digest: string | null): Promise<string> {
     if (!digest) return '';
-    const bytes = await fs.readFile(path.join(this.directory, 'blobs', z.string().regex(/^[a-f0-9]{64}$/).parse(digest)));
-    if (hash(bytes) !== digest) throw new Error('Task snapshot integrity check failed.');
-    return decode(bytes).text;
+    return decode(await this.snapshotBytes(digest)).text;
+  }
+  private async snapshotBytes(digest: string): Promise<Buffer> {
+    const file = path.join(this.directory, 'blobs', z.string().regex(/^[a-f0-9]{64}$/).parse(digest));
+    if ((await fs.stat(file)).size > 256000) throw new TaskConflict('Task snapshot exceeds the file limit.');
+    const bytes = await fs.readFile(file);
+    if (hash(bytes) !== digest) throw new TaskConflict('Task snapshot integrity check failed.');
+    return bytes;
+  }
+  undoSummary(): string {
+    const undo = this.journal.undo;
+    if (!undo) return 'No task changes have been undone.';
+    return undo.state === 'complete' ? `Undo complete: ${undo.restored.length} path(s) restored to the task baseline. The Git index was not changed. Previous validation results no longer describe the working tree.` : `Undo incomplete: ${undo.restored.length} path(s) restored${undo.pending ? '; one restoration needs verification' : ''}. Resume undo after resolving conflicts. The Git index was not changed.`;
+  }
+  undoState(): 'running' | 'complete' | undefined { return this.journal.undo?.state; }
+  async undo(signal: AbortSignal): Promise<void> {
+    authorize('apply_patch', this.hooks.mode()); check(signal);
+    if (!this.reviewOnly && this.journal.status === 'running') throw new TaskConflict('Finish or cancel the active task before undoing it.');
+    if (this.journal.undo?.state === 'complete') throw new TaskConflict('This task has already been undone.');
+    if (this.journal.changes.some(change => change.state !== 'applied')) throw new TaskConflict('Unconfirmed edits require inspection before undo; no ambiguous reversal was applied.');
+    const changes = this.changes().filter(change => change.before !== change.after);
+    if (!changes.length) throw new TaskConflict('This task has no net changes to undo.');
+    const undo = this.journal.undo ?? { state: 'running' as const, restored: [], pending: null };
+    const restored = new Set(undo.restored);
+    if (undo.restored.some(file => !changes.some(change => change.path === file)) || (undo.pending && !changes.some(change => change.path === undo.pending))) throw new TaskConflict('Invalid undo journal; inspect task storage.');
+    const state = async (change: TaskChange): Promise<{ full: string; digest: string | null; mode: number }> => {
+      const full = await this.allowedPath(change.path);
+      try {
+        const stat = await fs.lstat(full);
+        if (!stat.isFile() || stat.nlink > 1) throw new TaskConflict(`Undo cannot replace a non-regular or hard-linked file: ${change.path}`);
+        return { full, digest: (await fileDocument(this.index.root, change.path)).hash, mode: stat.mode };
+      } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { full, digest: null, mode: 0o644 }; throw error; }
+    };
+    const preflight = async () => {
+      await this.guard('apply_patch', signal);
+      for (const change of changes) {
+        const current = await state(change);
+        const expected = restored.has(change.path) ? change.before : change.after;
+        // A recorded pending restoration may have completed just before process termination.
+        if (current.digest !== expected && !(undo.pending === change.path && current.digest === change.before)) throw new TaskConflict(`Undo stopped: ${change.path} changed after the task. Preserve or reconcile those edits before retrying.`);
+        if (change.before) await this.snapshotBytes(change.before);
+      }
+    };
+    await preflight();
+    for (const change of changes.filter(change => !restored.has(change.path))) {
+      await this.hooks.preview(change.path, await this.snapshot(change.after), await this.snapshot(change.before)); check(signal);
+    }
+    if (!await this.hooks.confirm(`Undo ${changes.length - restored.size} remaining task change(s)? Restore baseline content and remove task-created files.`, signal)) throw new TaskConflict('Undo was not approved.');
+    await preflight(); this.journal.undo = undo; await this.persist();
+    for (const change of changes) {
+      if (restored.has(change.path)) continue;
+      await this.guard('apply_patch', signal);
+      let current = await state(change);
+      if (undo.pending === change.path && current.digest === change.before) {
+        restored.add(change.path); undo.restored = [...restored]; undo.pending = null; await this.persist(); continue;
+      }
+      if (current.digest !== change.after) throw new TaskConflict(`Undo stopped: ${change.path} changed before restoration.`);
+      undo.pending = change.path; await this.persist();
+      if (change.before === null) {
+        await this.guard('delete_file', signal); current = await state(change);
+        if (current.digest !== change.after) throw new TaskConflict(`Undo stopped: ${change.path} changed before removal.`);
+        authorize('delete_file', this.hooks.mode()); check(signal); await fs.unlink(current.full);
+      } else {
+        const bytes = await this.snapshotBytes(change.before);
+        await fs.mkdir(path.dirname(current.full), { recursive: true });
+        await this.allowedPath(change.path);
+        const temporary = path.join(path.dirname(current.full), `.llm-runtime-${randomUUID()}.tmp`);
+        const handle = await fs.open(temporary, 'wx', current.mode);
+        try {
+          try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+          await this.guard('apply_patch', signal); current = await state(change);
+          if (current.digest !== change.after) throw new TaskConflict(`Undo stopped: ${change.path} changed before restoration.`);
+          authorize('apply_patch', this.hooks.mode()); check(signal);
+          if (change.after === null) await fs.link(temporary, current.full); else await fs.rename(temporary, current.full);
+        } finally { await fs.unlink(temporary).catch(() => {}); }
+      }
+      restored.add(change.path); undo.restored = [...restored]; undo.pending = null;
+      await this.persist(); this.index.invalidate(change.path);
+    }
+    undo.state = 'complete'; await this.persist();
   }
   async finish(status: z.infer<typeof journalSchema>['status']): Promise<void> { this.journal.status = status; await this.persist(); }
   summary(): string {

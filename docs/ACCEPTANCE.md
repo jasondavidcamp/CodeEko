@@ -50,6 +50,12 @@ Automated checks cover automatic completion validation, diagnostic redaction, th
 
 All 31 automated tests passed. The full isolated VS Code 1.138.0-insider host suite also passed: read-only retrieval, multi-file edits, native diff tabs, and real validation/repair. The host repair demonstration used eight model calls and two validation rounds.
 
+## Undo evidence — 0.4
+
+All 38 automated tests passed, including seven undo tests covering exact UTF-8/UTF-16LE restoration, patch/create/delete/move reversal, staged-work preservation, all-path preflight, approval-time changes, permission/dirty-buffer/HEAD checks, corrupt snapshots, unconfirmed edits, pending-journal recovery and cancellation after one restoration. The mock panel test exercised the Undo button and confirmation.
+
+The full isolated VS Code host suite passed again. Its live editing task was undone after native diff review; exact original source/test bytes and preexisting developer changes were restored, the created document was removed, and staged work remained unchanged. Validation/repair also passed in two rounds. Actual whole-application termination and manual native confirmation interaction remain separate pilot gates.
+
 ## Remaining manual pilot gate
 
 1. Build and install the VSIX in a clean Windows VS Code profile with access to your configured endpoint.
