@@ -1,8 +1,8 @@
 {
   "name": "llm-coding-agent-runtime",
-  "displayName": "LLM Coding Agent Runtime",
+  "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.38",
+  "version": "0.4.39",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -35,27 +35,27 @@
     "commands": [
       {
         "command": "llmRuntime.open",
-        "title": "LLM Runtime: Open Conversation"
+        "title": "EKOD: Open Conversation"
       },
       {
         "command": "llmRuntime.setKey",
-        "title": "LLM Runtime: Set API Key"
+        "title": "EKOD: Set API Key"
       },
       {
         "command": "llmRuntime.selectModel",
-        "title": "LLM Runtime: Select Model"
+        "title": "EKOD: Select Model"
       },
       {
         "command": "llmRuntime.exportStartupDiagnostics",
-        "title": "LLM Runtime: Export Startup Diagnostics"
+        "title": "EKOD: Export Startup Diagnostics"
       },
       {
         "command": "llmRuntime.openSettings",
-        "title": "LLM Runtime: Open Settings"
+        "title": "EKOD: Open Settings"
       }
     ],
     "configuration": {
-      "title": "LLM Coding Agent Runtime",
+      "title": "EKOD",
       "properties": {
         "llmRuntime.endpoint": {
           "type": "string",
@@ -132,7 +132,7 @@
       "secondarySidebar": [
         {
           "id": "llmRuntime",
-          "title": "LLM Coding Agent Runtime",
+          "title": "EKOD",
           "icon": "media/conversation.svg"
         }
       ]
@@ -143,7 +143,7 @@
           "type": "webview",
           "id": "llmRuntime.conversation",
           "name": "Conversation",
-          "contextualTitle": "LLM Coding Agent Runtime"
+          "contextualTitle": "EKOD"
         }
       ]
     }
@@ -156,7 +156,7 @@
     "test:live:validation": "npm run build && node dist/test/live/validation.js",
     "test:host": "npm run build && node dist/test/live/runHost.js",
     "test:recovery": "npm run build && node dist/test/live/runRecovery.js",
-    "package": "npm run build && vsce package --allow-missing-repository",
+    "package": "npm run build && vsce package --allow-missing-repository --out ekod.vsix",
     "vscode:prepublish": "npm run build",
     "test:live:read-recovery": "npm run build && node dist/test/live/readRecovery.js",
     "test:live:literal-recovery": "npm run build && node dist/test/live/literalRecovery.js",

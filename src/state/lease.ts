@@ -9,7 +9,7 @@ export async function acquireRepositoryLease(root: string): Promise<() => Promis
   const address = process.platform === 'win32' ? `\\\\.\\pipe\\llm-runtime-${id}` : path.join(os.tmpdir(), `llm-runtime-${id}.sock`);
   const server = net.createServer(socket => socket.destroy());
   await new Promise<void>((resolve, reject) => {
-    server.once('error', () => reject(new Error('This repository is already open in another LLM Runtime panel, or its local lease is unavailable. Close the other panel first.')));
+    server.once('error', () => reject(new Error('This repository is already open in another EKOD panel, or its local lease is unavailable. Close the other panel first.')));
     server.listen(address, resolve);
   });
   return () => new Promise<void>(resolve => server.close(() => resolve()));

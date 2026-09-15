@@ -31,7 +31,7 @@ async function client(context: vscode.ExtensionContext): Promise<GeminiClient> {
   const endpoint = config().get<string>('endpoint', '');
   if (!endpoint) throw new Error('Set llmRuntime.endpoint to your HTTPS API URL first.');
   const key = await context.secrets.get(keyName(endpoint));
-  if (!key) throw new Error('Use LLM Runtime: Set API Key before connecting.');
+  if (!key) throw new Error('Use EKOD: Set API Key before connecting.');
   return new GeminiClient(endpoint, key, config().get<number>('requestTimeout', 60000));
 }
 async function selectModel(context: vscode.ExtensionContext, signal?: AbortSignal): Promise<void> {
@@ -95,7 +95,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     // after the focus command has returned.
     const deadline = Date.now() + 10000;
     while (!initialization && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-    if (!initialization) { diagnostics.log('activation.timeout'); throw new Error('The conversation sidebar did not open. Try LLM Runtime: Open Conversation again.'); }
+    if (!initialization) { diagnostics.log('activation.timeout'); throw new Error('The conversation sidebar did not open. Try EKOD: Open Conversation again.'); }
     await initialization;
     return true;
   });

@@ -1,8 +1,8 @@
-# LLM Coding Agent Runtime Roadmap
+# EKOD Roadmap
 
 ## Product direction
 
-Create **LLM Coding Agent Runtime**, a repository-aware TypeScript VS Code extension that turns a text-only LLM API into a locally controlled coding agent by providing repository tools, permission enforcement, validation, repair loops, task memory, and native VS Code review.
+Create **EKOD**, a repository-aware TypeScript VS Code extension that turns a text-only LLM API into a locally controlled coding agent by providing repository tools, permission enforcement, validation, repair loops, task memory, and native VS Code review.
 
 The extension supplies repository awareness and deterministic local tools to a configurable text-only model endpoint.
 
@@ -10,7 +10,7 @@ The initial release targets Git-based PowerShell repositories and Windows PowerS
 
 ## Pilot outcome
 
-A developer opens a PowerShell repository in VS Code and asks, in ordinary conversation, “Change this code to add feature XYZ.” LLM Coding Agent Runtime then:
+A developer opens a PowerShell repository in VS Code and asks, in ordinary conversation, “Change this code to add feature XYZ.” EKOD then:
 
 1. Detects the open repository automatically.
 2. Understands the relevant code across the repository.
@@ -340,3 +340,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.37: Add a dedicated settings editor tab with section navigation, grouped controls, validated user-setting updates, secure API-key setup and diagnostic export. Verified host-side value checks and busy protection, browser controls and responsive layouts, and native tab reuse on VS Code 1.137.0.
 
 - [x] 0.4.38: Disable automatic diff tabs by default; add an Editor settings toggle for proposed-change and task-completion previews. Tests verify default-off editing, explicit review, and opt-in previews.
+
+- [x] 0.4.39: Rename the visible product, commands, settings page and documentation to EKOD; package as ekod.vsix. Preserve the installed extension identity and settings keys for data compatibility. Automated UI checks and native VS Code sidebar/settings checks passed.

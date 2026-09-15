@@ -65,7 +65,7 @@ export async function run(): Promise<void> {
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Sidebar provider must initialize.');
   await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Refocusing must reuse the sidebar.');
-  assert.equal(vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'LLM Coding Agent Runtime').length, 0, 'Conversation must not occupy an editor tab.');
+  assert.equal(vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'EKOD').length, 0, 'Conversation must not occupy an editor tab.');
   console.log(`EXTENSION HOST PASSED (VS Code ${vscode.version}): sidebar initialized and refocused without an editor tab.`);
   await verifyDirtyEditor();
   console.log('EXTENSION HOST PASSED: real unsaved editor buffer blocks edits and preserves disk and buffer contents.');
@@ -76,7 +76,7 @@ export async function run(): Promise<void> {
   console.log('EXTENSION HOST PASSED: exported startup diagnostics include a real webview render acknowledgement.');
   await vscode.commands.executeCommand('llmRuntime.openSettings');
   await vscode.commands.executeCommand('llmRuntime.openSettings');
-  const findSettings = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'LLM Runtime Settings');
+  const findSettings = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'EKOD Settings');
   const settingsDeadline = Date.now() + 5000;
   while (!findSettings().length && Date.now() < settingsDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   const settingsTabs = findSettings();
