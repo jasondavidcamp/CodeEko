@@ -51,6 +51,17 @@ export async function run(): Promise<void> {
   const startupDeadline = Date.now() + 10000;
   while (!extension.exports.isConversationVisible() && Date.now() < startupDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(extension.exports.isConversationVisible(), true, 'Conversation must appear automatically without invoking Open Conversation.');
+  // Check this launch before any explicit focus/refocus can mask restoration problems.
+  let startupEvents: { event: string; pid?: number }[] = [];
+  const readyDeadline = Date.now() + 15000;
+  while (Date.now() < readyDeadline) {
+    const report = await vscode.commands.executeCommand<{ launches: { event: string; pid?: number }[][] }>('llmRuntime.exportStartupDiagnostics');
+    startupEvents = report?.launches.find(launch => launch.some(event => event.event === 'activate' && event.pid === process.pid)) ?? [];
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+    if (startupEvents.some(event => event.event === 'state.ack')) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  assert.ok(startupEvents.some(event => event.event === 'state.ack'), 'Current launch must render automatically; previous launch acknowledgements cannot satisfy this check.');
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Sidebar provider must initialize.');
   await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Refocusing must reuse the sidebar.');
