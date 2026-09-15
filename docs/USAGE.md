@@ -47,7 +47,7 @@ From this development repository, run `npm run debug:replay -- "<absolute-path-t
 
 Conversation history, index metadata, validation reports, task journals, and raw file baseline/review snapshots are stored beneath VS Code's private per-user extension global storage, partitioned by a hash of the canonical Git root. No index or chat files are written to the inspected repository. History and snapshots are local plaintext under the user's OS account protections; API keys use SecretStorage. Snapshots can retain up to the 50 MB indexed baseline per task plus edits, with no automatic retention cleanup yet. Up to 100 named threads with 100 messages each are retained; each new task supplies at most 20 recent messages to the model. Interrupted tasks are marked interrupted when loaded and can receive a follow-up. Recorded diff snapshots survive reload and show the task's changes, not later external edits.
 
-To reset data, close all VS Code windows using EKOD and remove this extension's `globalStorage/jasondavidcamp.ekod` directory from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.
+To reset data, close all VS Code windows using EKOD and remove the EKOD extension folder under `globalStorage` (its folder name is the extension ID shown in VS Code Extensions) from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.
 
 Test requests include a repository file inventory to help reuse existing suites. The runtime sends compact validation feedback to the model and displays descriptive progress. Malformed model responses receive bounded, field-specific correction attempts; repeated failures stop without applying the rejected action.
 
@@ -75,7 +75,7 @@ Click the chat header settings gear to open **EKOD Settings** in an editor tab. 
 
 Automatic change-preview tabs are off by default. Enable **Editor → Automatically open change previews** in EKOD Settings (``ekod.autoOpenDiffs``) to open proposed-change and task-result diffs automatically. Explicit review still opens native diffs; existing editor tabs are not closed or rearranged.
 
-The public extension ID is `jasondavidcamp.ekod`. Commands and settings use the `ekod.*` namespace. Packages are named `ekod.vsix`.
+Commands and settings use the `ekod.*` namespace. Packages are named `ekod.vsix`.
 
 
 ## Commit history

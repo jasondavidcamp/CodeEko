@@ -10,7 +10,7 @@ README.md introduces the product and links to setup, usage and development guide
 
 ### Conversation and configuration
 
-- [x] Install as a self-contained VSIX with the `jasondavidcamp.ekod` identity.
+- [x] Install EKOD as a self-contained VS Code extension.
 - [x] Configure an HTTPS endpoint with no built-in default; store API keys in VS Code SecretStorage.
 - [x] Discover models and support a configured fallback.
 - [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
@@ -18,6 +18,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Keep conversation questions, permission choices and model selection in the pane.
 - [x] Provide a dedicated settings tab and automatic sidebar activation.
 - [x] Use the `ekod.*` namespace for settings, commands and views.
+- [x] Keep product documentation independent of publisher accounts and derive runtime/test identity from installation metadata.
 - [x] Keep automatic diff tabs off by default; provide an opt-in setting.
 
 ### Repository awareness and editing

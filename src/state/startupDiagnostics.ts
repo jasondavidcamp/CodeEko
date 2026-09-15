@@ -85,6 +85,11 @@ export class StartupDiagnostics {
 // Export categories and timestamps only. Raw VS Code logs may contain private data.
 async function hostSignatures(logUri?: string) {
   if (!logUri) return { available: false, entries: [] };
+  const extensionId = path.basename(logUri);
+  if (!/^[\w-]+\.[\w-]+$/.test(extensionId)) return { available: false, entries: [] };
+  const identity = extensionId.replaceAll('.', '\\.');
+  const activation = new RegExp('_doActivateExtension ' + identity + '(?![\\w.-])');
+  const extensionError = new RegExp('error.*' + identity + '(?![\\w.-])', 'i');
   const exthost = path.dirname(logUri), window = path.dirname(exthost), session = path.dirname(window);
   if (path.basename(exthost) !== 'exthost' || !/^window\d+$/.test(path.basename(window)) || !/^\d{8}T\d{6}$/.test(path.basename(session))) return { available: false, entries: [] };
   const entries: { at: string; category: string; source: string; launch: string }[] = [];
@@ -102,7 +107,7 @@ async function hostSignatures(logUri?: string) {
           const size = (await handle.stat()).size, bytes = Buffer.alloc(Math.min(size, 65536));
           const read = await handle.read(bytes, 0, bytes.length, Math.max(0, size - bytes.length));
           for (const line of bytes.subarray(0, read.bytesRead).toString('utf8').split('\n')) {
-            const category = /service.?worker/i.test(line) ? 'service-worker' : /error.*webview|webview.*error/i.test(line) ? 'webview-error' : /_doActivateExtension jasondavidcamp\.ekod/.test(line) ? (/onView/.test(line) ? 'activate-on-view' : /onStartupFinished/.test(line) ? 'activate-on-startup' : 'activate-other') : /error.*jasondavidcamp\.ekod/i.test(line) ? 'extension-error' : undefined;
+            const category = /service.?worker/i.test(line) ? 'service-worker' : /error.*webview|webview.*error/i.test(line) ? 'webview-error' : activation.test(line) ? (/onView/.test(line) ? 'activate-on-view' : /onStartupFinished/.test(line) ? 'activate-on-startup' : 'activate-other') : extensionError.test(line) ? 'extension-error' : undefined;
             if (category && entries.length < 200) entries.push({ at: /^\d{4}-\d{2}-\d{2} [\d:.]+/.exec(line)?.[0] ?? 'unknown', category, source, launch });
           }
         } catch { /* A source log may be unavailable or locked. */ }

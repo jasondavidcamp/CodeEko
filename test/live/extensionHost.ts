@@ -1,3 +1,4 @@
+import { extensionId } from '../identity';
 import assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { runLiveSmoke } from './smoke';
@@ -42,7 +43,7 @@ async function verifyDirtyEditor(): Promise<void> {
 
 // Invoked only by VS Code's --extensionTestsPath, never by npm test or a packaged VSIX.
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('jasondavidcamp.ekod');
+  const extension = vscode.extensions.getExtension(extensionId);
   assert.ok(extension, 'Development extension must be installed in the test host.');
   await extension.activate(); assert.ok(extension.isActive);
   const commands = await vscode.commands.getCommands(true);

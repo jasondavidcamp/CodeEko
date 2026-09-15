@@ -40,7 +40,7 @@ The initial target is Windows PowerShell 5.1 repositories and VS Code 1.106 or n
 
 ### Upgrading to 0.4.42
 
-Version 0.4.42 uses only EKOD identifiers. Configure your endpoint, model and preferences in EKOD Settings after upgrading from an earlier version. Chats and diagnostics are stored only in `globalStorage/jasondavidcamp.ekod`. Back up your existing extension data before upgrading; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
+Version 0.4.42 uses only EKOD identifiers. Configure your endpoint, model and preferences in EKOD Settings after upgrading from an earlier version. Chats and diagnostics are stored in EKOD’s private extension storage. Back up your existing extension data before upgrading; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
 
 
 ## Next steps

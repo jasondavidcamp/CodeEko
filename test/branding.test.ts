@@ -7,7 +7,7 @@ test('public extension identifiers consistently use EKOD', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
   assert.equal(manifest.name, 'ekod');
   assert.equal(manifest.displayName, 'EKOD');
-  assert.equal(manifest.publisher, 'jasondavidcamp');
+  assert.match(manifest.publisher, /^[a-z0-9][a-z0-9-]*$/i);
   for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.ok(key.startsWith('ekod.'), key);
   for (const command of manifest.contributes.commands) assert.ok(command.command.startsWith('ekod.'), command.command);
   for (const containers of Object.values(manifest.contributes.viewsContainers) as any[][]) {
