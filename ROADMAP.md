@@ -224,6 +224,7 @@ Goal: distribute a repeatable initial release.
 - [ ] Verify real Pester 4 execution on a workstation where publisher policy permits installation (current installation attempt was rejected; verification was not bypassed).
 - [x] Add recovery tests for VS Code termination after an applied edit and during active Pester validation.
 - [x] Enforce and verify child-process lifetime when the extension host dies without a coordinated process-tree shutdown (Windows Job Object, owner-pipe watcher, isolated host-only termination test).
+- [x] Force process termination at synthetic partial-write, replacement, deletion, move and create boundaries; preserve pending evidence, original bytes and staged work without replay or ambiguous undo.
 - [ ] Exercise termination during individual file replacement, deletion, and move operations on representative workstations.
 - [x] Document install, first-run authentication, permission modes, limitations, and uninstall/data cleanup.
 
@@ -265,7 +266,7 @@ Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task
 Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in analyzer rules, developer-selected Pester 4/5 tests, optional CurrentUser module installation, persisted results, cancellation and three-round repair limits are implemented. Live Gemini repaired a failing Pester test in two rounds while preserving test expectations and staged work. Missing or unapproved checks remain explicitly partial; test selection does not sandbox code.
 
 1. Demonstrate editing, native review and validation on a representative repository, including interactive approval and restart checks.
-2. Harden mid-write interruption recovery and baseline test-failure attribution.
+2. Extend interruption checks to representative workstations and improve baseline test-failure attribution.
 3. Validate Pester 4, enterprise module sources, certificate/proxy behavior and representative repository compatibility.
 4. Run the selected real multi-file feature as the full pilot acceptance test.
 
@@ -274,6 +275,8 @@ Undo evidence (0.4): exact baseline restoration across patch/create/delete/move,
 Restart evidence (0.4.1): a dedicated isolated VS Code process was terminated while a real Pester child was running after an applied edit. The child stopped. Restart recovered two threads and interrupted status, preserved the edit and developer work, reopened the native panel, avoided automatic replay and false validation success, and supported undo. Mid-write and manual representative-workstation checks remain open.
 
 Crash-lifetime evidence (0.4.3): native tests verify validator/descendant cleanup on completion, cancellation and forced validator exit while preserving an unrelated process. Guard tests cover early owner loss, an independent deadline and blocked initialization. The isolated VS Code recovery test kills the extension-host PID alone and confirms that Pester and its descendant stop before UI cleanup; restart and undo preserve developer work. Broker-launched processes are outside this lifetime mechanism; representative workstation policy and mid-write interruption remain open.
+
+File-interruption evidence (0.4.4): eleven synthetic Windows worker crash checkpoints verify pending snapshots, byte preservation, partial move states, no replay, preserved staged work and HEAD, and refusal of ambiguous undo. Pending writes now precede temporary-file content; applied creates have no remaining temporary hard link. A repeated edit retains the task-start baseline. Representative workstations and power loss remain unverified.
 
 ## Definition of pilot success
 

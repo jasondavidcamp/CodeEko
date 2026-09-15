@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { git } from '../src/repository/git';
@@ -36,6 +37,22 @@ async function read(tools: EditingTools, file = 'main.ps1'): Promise<string> {
   return (await tools.execute({ version: 1, tool: 'read_file', args: { path: file } }, signal()) as { hash: string }).hash;
 }
 const patch = (expectedHash: string, oldText = 'return 4', newText = 'return 8'): Action => ({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash, edits: [{ oldText, newText }] } });
+
+test('a conflict after intent is recorded preserves evidence and prevents further task mutations', async t => {
+  const f = await fixture(t); const { task, tools } = await f.start();
+  const original = await fs.readFile(path.join(f.root, 'main.ps1'));
+  const expected = await read(tools);
+  // Simulate an editor becoming dirty once the pending operation is recorded.
+  f.hooks.isDirty = () => JSON.parse(readFileSync(path.join(task.directory, 'task.json'), 'utf8')).changes.some((change: any) => change.state === 'prepared');
+  await assert.rejects(tools.execute(patch(expected), signal()), /unsaved/);
+  const evidence = await fs.readFile(path.join(task.directory, 'task.json'));
+  assert.deepEqual(await fs.readFile(path.join(f.root, 'main.ps1')), original);
+  assert.equal(task.changes()[0].state, 'prepared');
+  f.hooks.isDirty = () => false;
+  await assert.rejects(tools.execute({ version: 1, tool: 'create_file', args: { path: 'later.txt', content: 'must not execute' } }, signal()), /Unconfirmed edits/);
+  assert.deepEqual(await fs.readFile(path.join(task.directory, 'task.json')), evidence);
+  await assert.rejects(fs.stat(path.join(f.root, 'later.txt')));
+});
 
 test('guarded multi-file edits preserve staged and unstaged developer work and task attribution', async t => {
   const f = await fixture(t);

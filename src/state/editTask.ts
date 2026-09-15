@@ -209,6 +209,7 @@ export class EditTask {
   }
   async execute(action: Action, signal: AbortSignal): Promise<unknown> {
     if (this.reviewOnly || this.journal.status !== 'running') throw new TaskConflict('This task is closed. Start a follow-up task before editing.');
+    if (this.journal.changes.some(change => change.state === 'prepared')) throw new TaskConflict('Unconfirmed edits require inspection before further mutations; pending evidence was preserved.');
     authorize(action.tool, this.hooks.mode()); check(signal);
     if (!['apply_patch','create_file','move_file','delete_file'].includes(action.tool)) throw new Error('Not an editing action.');
     if (++this.operations > 12) throw new TaskConflict('Task reached the 12-operation editing limit. Review the current changes before continuing.');
@@ -311,15 +312,20 @@ export class EditTask {
     const temporary = path.join(path.dirname(full), `.llm-runtime-${randomUUID()}.tmp`);
     let fileMode = 0o644;
     if (expected) fileMode = (await this.current(file, expected, signal)).stat.mode;
+    // Persist intent and both snapshots before creating/writing a repository temp file.
+    await this.prepare(file, bytes, operation);
     const handle = await fs.open(temporary, 'wx', fileMode);
     try {
       try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
-      await this.prepare(file, bytes, operation);
       await this.guard(operation === 'create' ? 'create_file' : 'apply_patch', signal);
       if (expected) await this.current(file, expected, signal); else await this.allowedPath(file);
       authorize(operation === 'create' ? 'create_file' : 'apply_patch', this.hooks.mode()); check(signal);
       if (expected) await fs.rename(temporary, full);
-      else await fs.link(temporary, full); // Fails if any destination appeared; never replaces it.
+      else {
+        await fs.link(temporary, full); // Fails if any destination appeared; never replaces it.
+        // Do not record an applied create while its temporary hard-link still exists.
+        await fs.unlink(temporary);
+      }
       this.applied(file, hash(bytes)); await this.persist(); this.index.invalidate(file);
     } finally { await fs.unlink(temporary).catch(() => {}); }
   }

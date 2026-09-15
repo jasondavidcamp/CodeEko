@@ -66,6 +66,8 @@ Native lifetime tests additionally verify cleanup after completion, cancellation
 
 ## Remaining manual pilot gate
 
+File-interruption hardening (0.4.4): `npm test` forcibly kills isolated Node workers at eleven filesystem/journal boundaries, including a partially written temporary file and a move with two linked names. The workers run real repository operations with test-only filesystem interception; the runtime has no crash-control flags. Reload preserves pending evidence, baseline snapshots, BOM/newlines, HEAD and staged work; it neither replays changes nor guesses an undo. A recorded create has no temporary alias and can be undone after reload. Tests also verify that a conflict after recording intent blocks further mutations without replacing evidence. Representative workstation and power-loss cases remain open.
+
 Pester selection (0.4.2): deterministic tests cover selected-major discovery/execution, cache invalidation and failed optional installation reporting. The real Pester 5 adapter reports both passing and failing assertions. Real Pester 4 execution remains skipped: installation was rejected because its publisher certificate chain differed from the installed Pester 5 version. Publisher verification was preserved.
 
 Validation hardening (0.4.1): tests verify preexisting/new/unknown source finding attribution, refusal to repeat failed validation indefinitely, and early stopping when diagnostics remain identical after a repair. Baseline Pester execution is not inferred; its absence is reported explicitly.
