@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.37.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.38.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension asks you to choose the repository inside the conversation pane before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -103,4 +103,6 @@ Git status includes eligible tracked deletions, including already-staged deletio
 
 ## Settings page
 
-Click the chat header settings gear to open **LLM Runtime Settings** in an editor tab. Connection, Permissions, Validation and Diagnostics sections group existing settings with descriptions. Changes save to VS Code user settings automatically; validation errors appear in the page. Changes are blocked while a task is running. API-key setup uses secure input and SecretStorage. The in-chat model and permission pickers remain available. You can also run **LLM Runtime: Open Settings** from the Command Palette.
+Click the chat header settings gear to open **LLM Runtime Settings** in an editor tab. Connection, Editor, Permissions, Validation and Diagnostics sections group existing settings with descriptions. Changes save to VS Code user settings automatically; validation errors appear in the page. Changes are blocked while a task is running. API-key setup uses secure input and SecretStorage. The in-chat model and permission pickers remain available. You can also run **LLM Runtime: Open Settings** from the Command Palette.
+
+Automatic change-preview tabs are off by default. Enable **Editor → Automatically open change previews** in LLM Runtime Settings (``llmRuntime.autoOpenDiffs``) to open proposed-change and task-result diffs automatically. Explicit review still opens native diffs; existing editor tabs are not closed or rearranged.

@@ -166,7 +166,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const hooks: EditHooks = {
     mode,
     isDirty: file => vscode.workspace.textDocuments.some(document => document.uri.scheme === 'file' && document.uri.fsPath.toLowerCase() === file.toLowerCase() && document.isDirty),
-    preview: (file, before, after) => review.preview(file, before, after),
+    preview: async (file, before, after) => { if (config().get<boolean>('autoOpenDiffs', false)) await review.preview(file, before, after); },
     confirm: async (question, signal) => (await paneChoice(panel, question + ' Inspect the native diff before approving.', ['Approve this operation'], signal)) === 0
 
   };
@@ -284,7 +284,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
               if (task.changes().length) { thread.reviewTaskId = task.id; thread.undoTaskId = task.id; }
               if (task.committed()) thread.undoTaskId = undefined;
               await task.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed');
-              if (task.changes().length && !disposed) await review.open(task);
+              if (task.changes().length && !disposed && config().get<boolean>('autoOpenDiffs', false)) await review.open(task);
             }
           } finally { active.delete(root); thread.lastUsedAt = new Date().toISOString(); await store.save(); }
         }
