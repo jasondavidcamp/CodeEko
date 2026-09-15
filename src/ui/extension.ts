@@ -143,8 +143,8 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
       } else if (message.type === 'selectModel') {
         await selectModel(context);
       } else if (message.type === 'permissions') {
-        const selected = await vscode.window.showQuickPick(['Review', 'Workspace', 'Full access', 'Custom'], { title: 'Change permissions', placeHolder: `Current: ${mode()}. Review/Custom are read-only; Workspace/Full access allow guarded edits.` });
-        if (selected) await config().update('permissionMode', selected, vscode.ConfigurationTarget.Global);
+        if (!['Review', 'Workspace', 'Full access', 'Custom'].includes(message.mode)) throw new Error('Unsupported permission mode.');
+        await config().update('permissionMode', message.mode, vscode.ConfigurationTarget.Global);
       } else if (message.type === 'undo' && thread.undoTaskId) {
         const controller = new AbortController(); active.set(root, controller); update();
         let undoTask: EditTask | undefined;

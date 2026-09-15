@@ -5,7 +5,7 @@ import { conversationHtml } from '../src/ui/conversation';
 
 test('composer prevents duplicate sends, respects IME/newlines and preserves per-thread drafts', () => {
   const nodes = new Map<string, any>();
-  const node = () => ({ value: '', textContent: '', style: {}, children: [] as any[], scrollHeight: 100, scrollTop: 0, clientHeight: 100, append(...items: any[]) { this.children.push(...items); }, replaceChildren() { this.children = []; }, focus() {}, select() {}, showModal() {}, close() {}, querySelector() { return { focus() {} }; }, setAttribute(name: string, value: string) {} });
+  const node = () => ({ value: '', textContent: '', style: {}, children: [] as any[], scrollHeight: 100, scrollTop: 0, clientHeight: 100, append(...items: any[]) { this.children.push(...items); }, replaceChildren() { this.children = []; }, getBoundingClientRect() { return {left:20,top:600}; }, togglePopover() {}, hidePopover() {}, matches() { return false; }, focus() {}, select() {}, showModal() {}, close() {}, querySelector() { return { focus() {} }; }, setAttribute(name: string, value: string) {} });
   const get = (id: string) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   const sent: any[] = []; let receive!: (event: any) => void;
   const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(conversationHtml())![1];
@@ -22,7 +22,7 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   get('cancel').onclick(); assert.equal(sent.at(-1).type, 'cancel');
   state('one'); state('two'); assert.equal(get('input').value, '');
   get('input').value = 'Other draft'; get('input').oninput(); state('one'); assert.equal(get('input').value, 'Follow-up draft');
-  get('permissions').onclick(); assert.equal(sent.at(-1).type, 'permissions');
+  get('permissions').onclick(); get('permissionReview').onclick(); assert.equal(sent.at(-1).type, 'permissions'); assert.equal(sent.at(-1).mode, 'Review');
   get('model').onclick(); assert.equal(sent.at(-1).type, 'selectModel');
   get('settings').onclick(); assert.equal(sent.at(-1).type, 'settings');
   assert.equal(sent.find(m => m.type === 'send').newConversation, true);
