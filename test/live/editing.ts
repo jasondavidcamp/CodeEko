@@ -13,7 +13,7 @@ import { encode } from '../../src/repository/document';
 import { Action } from '../../src/protocol/actions';
 
 export async function runLiveEditing(review: (task: EditTask) => Promise<void> = async () => {}) {
-  const endpoint = process.env.LLM_RUNTIME_TEST_ENDPOINT; const key = process.env.LLM_RUNTIME_TEST_API_KEY; const modelId = process.env.LLM_RUNTIME_TEST_MODEL;
+  const endpoint = process.env.EKOD_TEST_ENDPOINT; const key = process.env.EKOD_TEST_API_KEY; const modelId = process.env.EKOD_TEST_MODEL;
   assert.ok(endpoint && key && modelId, 'Configure the live test environment.');
   const api = new GeminiClient(endpoint, key, 30000);
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-live-edit-'));

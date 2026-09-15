@@ -33,10 +33,10 @@ test('startup retention and per-launch event counts are bounded', async t => {
 });
 test('export reads relevant VS Code signatures without copying log text or paths', async t => {
   const directory = await fixture(t), session = path.join(directory, 'logs', '20260915T120000');
-  const logUri = path.join(session, 'window1', 'exthost', 'internal-pilot.llm-coding-agent-runtime');
+  const logUri = path.join(session, 'window1', 'exthost', 'jasondavidcamp.ekod');
   await fs.mkdir(logUri, { recursive: true });
   await fs.writeFile(path.join(session, 'window1', 'renderer.log'), '2026-09-15 12:00:01.000 [error] Could not register service worker private-secret endpoint.example\n');
-  await fs.writeFile(path.join(session, 'window1', 'exthost', 'exthost.log'), "2026-09-15 12:00:02.000 _doActivateExtension internal-pilot.llm-coding-agent-runtime activationEvent: 'onView:llmRuntime.conversation' private-secret\n");
+  await fs.writeFile(path.join(session, 'window1', 'exthost', 'exthost.log'), "2026-09-15 12:00:02.000 _doActivateExtension jasondavidcamp.ekod activationEvent: 'onView:ekod.conversation' private-secret\n");
   const diagnostics = new StartupDiagnostics(path.join(directory, 'storage')); diagnostics.log('activate');
   const report = await diagnostics.export(logUri);
   assert.equal(report.host.entries.length, 2); assert.ok(report.host.available);

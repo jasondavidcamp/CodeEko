@@ -2,347 +2,112 @@
 
 ## Product direction
 
-Create **EKOD**, a repository-aware TypeScript VS Code extension that turns a text-only LLM API into a locally controlled coding agent by providing repository tools, permission enforcement, validation, repair loops, task memory, and native VS Code review.
+EKOD is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows.
+
+README.md explains installation and use. AGENTS.md defines contributor working boundaries. This roadmap records implemented capabilities and remaining work. Checked items have automated or recorded live evidence; they do not imply every workstation configuration has been verified.
+
+## Implemented capabilities
+
+### Conversation and configuration
+
+- [x] Install as a self-contained VSIX with the `jasondavidcamp.ekod` identity.
+- [x] Configure an HTTPS endpoint with no built-in default; store API keys in VS Code SecretStorage.
+- [x] Discover models and support a configured fallback.
+- [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
+- [x] Rename, archive and restore conversations from the chat pane.
+- [x] Keep conversation questions, permission choices and model selection in the pane.
+- [x] Provide a dedicated settings tab and automatic sidebar activation.
+- [x] Use the `ekod.*` namespace for settings, commands and views.
+- [x] Keep automatic diff tabs off by default; provide an opt-in setting.
+
+### Repository awareness and editing
+
+- [x] Discover the workspace and Git root; resolve multi-root ambiguity in the pane.
+- [x] Index eligible files while excluding ignored, linked, generated, binary and sensitive paths.
+- [x] Search filenames, text and PowerShell symbols; support bounded individual and batch reads.
+- [x] Validate structured model actions before execution.
+- [x] Implement patch, create, move and delete operations with containment and stale-content checks.
+- [x] Preserve supported encodings, byte-order marks and line endings.
+- [x] Preserve dirty editor buffers and attribute task changes separately from preexisting work.
+- [x] Recover bounded read/hash and literal-target errors using fresh file evidence.
+- [x] Support explicit repeated-text replacements with full preflight.
+- [x] Inspect working-tree status and selected commit history, including tracked deletions and renames.
+- [x] Commit explicitly selected files when requested, preserving unrelated staged changes.
+- [x] Provide native diffs and task-scoped undo with ambiguous-reversal refusal.
+
+### Permissions and task control
+
+- [x] Review mode permits repository inspection without edits.
+- [x] Workspace mode confirms destructive operations in the chat pane.
+- [x] Full access permits supported repository edits and validation without operation confirmations.
+- [x] Retain path, stale-file, unsaved-buffer and operation-schema checks in every mode.
+- [x] Support cancellation, follow-ups and one executing task per repository.
+- [x] Bound model calls, context, output, tool duration and repair attempts.
+- [x] Report completed work and unresolved failures when a task stops.
+
+Full access currently covers supported repository tools and fixed validation commands. General shell execution and Git push are not implemented.
+
+### Validation and recovery
+
+- [x] Run Windows PowerShell 5.1 parsing and available PSScriptAnalyzer checks.
+- [x] Discover Pester versions and support explicit major-version selection.
+- [x] Automatically inspect and select eligible unit tests and local dependencies.
+- [x] Report unsupported or skipped suites as partial coverage.
+- [x] Provide optional current-user installation of missing validation modules.
+- [x] Feed failures back into bounded repair and stop repeated unchanged failures.
+- [x] Compare compatible pre-edit Pester 5 observations with later results.
+- [x] Preserve task evidence across synthetic interrupted-write, move and delete scenarios.
+- [x] Test extension-host termination during validation and cleanup of owned child processes.
+- [x] Recover interrupted tasks without automatically replaying edits or claiming validation success.
+- [x] Prevent delayed watcher notifications from falsely changing validation membership.
+
+### Diagnostics and distribution
+
+- [x] Persist bounded startup lifecycle diagnostics with webview handshake and bootstrap events.
+- [x] Export sanitized startup diagnostics independently of a functioning chat pane.
+- [x] Offer opt-in bounded rejected-response capture and offline schema replay.
+- [x] Document install, build, configuration, limitations and data cleanup.
+- [x] Publish an MIT-licensed experimental GitHub prerelease with a VSIX and SHA-256 checksum.
+
+## Next priorities
+
+1. **Startup reliability.** Reproduce and diagnose the intermittent chat initialization failure on an affected profile. Some users need a second VS Code restart; the cause remains unresolved.
+2. **End-to-end task reliability.** Exercise conversational corrections, test generation, cancellation, resume and undo across representative repositories.
+3. **Validation compatibility.** Broaden test-suite compatibility and verify Pester 4 on a configuration where it is available.
+4. **Performance.** Measure model calls, context growth and test-generation latency over repeated runs before tuning limits.
+5. **Distribution quality.** Add repeatable release automation and expand platform/configuration checks before a stable release.
+
+## Remaining acceptance checks
+
+- [ ] Reproduce the startup failure and demonstrate the fix over repeated full-application restarts.
+- [ ] Verify editing, validation, follow-ups and undo in representative repositories and installed profiles.
+- [ ] Expand recovery checks from synthetic interruption points to representative workstation conditions.
+- [ ] Verify real Pester 4 execution; current automated coverage skips it when unavailable.
+- [ ] Verify complex eligible-test selection and report partial coverage clearly.
+- [ ] Improve test-failure attribution when no compatible pre-edit observation exists.
+- [ ] Validate certificate trust, proxies, timeouts, API failures and model-list fallback across configurations.
+- [ ] Verify local commits under additional repository configurations and interruption scenarios.
+- [ ] Measure repeated live test-generation performance and duplicate-suite avoidance.
+- [ ] Improve durable task intent and validation context across long conversations.
+- [ ] Add response streaming and broader structured local diagnostics without recording credentials.
+- [ ] Automate release packaging, checksum generation and verification.
+
+## Deferred scope
+
+- General shell commands and broader network tools.
+- Git push and autonomous commits without a user request.
+- Concurrent tasks against one repository and multi-repository edits.
+- Integration tests or other environment-changing validation.
+- Additional programming languages.
+- Repository instruction-file support.
+- Embeddings until measured retrieval failures justify them.
+- Detailed model-request inspection and centralized policy management.
+- Marketplace distribution until release quality is established.
 
-The extension supplies repository awareness and deterministic local tools to a configurable text-only model endpoint.
+## Evidence and limits
 
-The initial release targets Git-based PowerShell repositories and Windows PowerShell 5.1. Installation should require only a locally installable VSIX and an individual Gemini API key.
+The initial public prerelease passed 118 tests with one unavailable Pester 4 check skipped, plus an isolated native VS Code 1.137.0 sidebar/settings check. Live model tests used synthetic PowerShell fixtures. Six repeated launches against one isolated profile passed but did not reproduce the intermittent startup failure. These results do not close the outstanding installed-profile, representative-repository or startup checks above.
 
-## Pilot outcome
+Detailed acceptance scenarios and validation behavior are documented in `docs/ACCEPTANCE.md` and `docs/VALIDATION.md`. Moves involve multiple filesystem operations and are not atomic as a whole. Unit-test selection is conservative inspection, not an execution sandbox. An experimental release is not evidence that all acceptance gates are complete.
 
-A developer opens a PowerShell repository in VS Code and asks, in ordinary conversation, “Change this code to add feature XYZ.” EKOD then:
-
-1. Detects the open repository automatically.
-2. Understands the relevant code across the repository.
-3. Asks a question only when ambiguity would materially change the result.
-4. Makes coordinated multi-file changes immediately in Full access mode.
-5. Creates or updates applicable Pester unit tests.
-6. Runs Windows PowerShell 5.1 parsing, PSScriptAnalyzer when available, and safe Pester unit tests automatically.
-7. Diagnoses and repairs validation failures, with a maximum of three edit-and-validation attempts.
-8. Leaves all changes uncommitted.
-9. Presents a plain-English summary in chat and opens code changes in VS Code’s native diff experience.
-10. Supports follow-up instructions, cancellation, and undo without losing preexisting developer work.
-
-## Target architecture
-
-### VS Code extension
-
-The extension becomes the desktop application and the sole component permitted to operate on the repository. It owns:
-
-- Conversational task UI.
-- Active workspace and Git-root discovery.
-- Repository file reads, writes, creates, renames, and deletes.
-- Git status, baseline capture, and change attribution.
-- Native diff and Source Control integration.
-- Windows PowerShell 5.1, Pester, PSScriptAnalyzer, Git, and other command execution.
-- Permission mode enforcement.
-- Progress reporting and cancellation.
-- Per-repository task history and local index storage.
-- Gemini endpoint communication and individual API-key storage through VS Code SecretStorage.
-
-### Agent core
-
-Implement the agent core in TypeScript within the extension package, using asynchronous workers where necessary to keep the extension host responsive. Use a bounded tool-using loop:
-
-1. Interpret the request.
-2. Select a local tool action.
-3. Validate the model’s JSON response against a strict schema.
-4. Execute the action through deterministic permission checks.
-5. Return a bounded result to Gemini.
-6. Repeat until the task is complete, blocked, cancelled, or reaches configured limits.
-
-Gemini does not receive direct tool access. It proposes structured actions; local TypeScript code validates and executes them.
-
-### Initial local tools
-
-- [x] `list_files`
-- [x] `search_text`
-- [x] `find_symbol`
-- [x] `read_file`
-- [x] `read_files`
-- [x] `apply_patch`
-- [x] `create_file`
-- [x] `delete_file`
-- [x] `move_file`
-- [x] `git_status`
-- [x] `git_diff_summary`
-- [ ] `run_command`
-- [x] `run_validation`
-- [x] `open_diff`
-- [x] `ask_user`
-- [x] `complete_task`
-
-Every tool accepts repository-relative paths. Path containment, symlink/junction checks, cancellation, output limits, and timeouts are enforced outside the model.
-
-## Permission modes
-
-The developer selects the mode. The selected mode must remain clearly visible.
-
-| Mode | Intended behavior |
-| --- | --- |
-| Review | Read and analyze the repository; propose work without changing files or running mutating commands. |
-| Workspace | Edit within the open repository and run approved local validation with controlled network access. |
-| Full access | Run general developer-selected or agent-selected commands and use broader system/network access, subject to destructive-action confirmation and audit logging. |
-| Custom | Configure file, command, and network permissions independently. Add after the primary modes are stable. |
-
-Permission mode does not replace product judgment. The agent proceeds with reversible assumptions supported by repository evidence and asks when ambiguity, conflict, authority, or destructive impact is material.
-
-## Phased implementation
-
-Checked items have implementation and automated/live evidence. Unchecked items include unfinished work and manual pilot gates. Synthetic fixture evidence does not close representative-repository or whole-application restart gates.
-
-### Phase 0 — Specify the behavioral contract
-
-Goal: establish a stable behavioral contract before implementation.
-
-- [ ] Turn the pilot outcome above into executable acceptance scenarios.
-- [x] Specify requirements for path safeguards, Git filtering, retrieval ranking, patch preflight, trust modes, telemetry, and repair bounds.
-- [x] Record current Gemini request/response behavior and JSON reliability tests.
-- [ ] Select strict JSON schemas for every model action and tool result.
-- [x] Define hard limits for turns, files read, context characters, command output, command duration, and repair attempts.
-
-Exit criteria:
-
-- [x] Acceptance scenarios and JSON protocol are documented.
-- [x] Existing safeguards have corresponding TypeScript requirements.
-- [x] No pilot requirement depends on a separately installed backend or runtime.
-
-### Phase 1 — Extension shell and direct Gemini chat
-
-Goal: install one VSIX and hold a persistent conversation with the configured endpoint.
-
-- [x] Scaffold the TypeScript VS Code extension and chat panel.
-- [x] Provide a user-configured HTTPS API endpoint setting with no built-in default.
-- [x] Store each developer’s API key through SecretStorage.
-- [x] Query `/v1/models`, show a model picker, remember the last selection, and provide a configured fallback.
-- [ ] Stream concise responses, progress, and errors.
-- [x] Detect the single open workspace and its Git root automatically.
-- [x] Ask the developer to select a repository for multi-root workspaces.
-- [x] Persist multiple named threads per repository.
-- [x] Allow only one executing task per repository.
-
-Exit criteria:
-
-- [ ] A developer installs the VSIX, enters a key, selects a returned model, and chats with Gemini.
-- [x] Threads survive VS Code restarts and remain associated with the correct repository (verified in an isolated Windows VS Code instance).
-- [x] No repository content is changed in this phase.
-
-### Phase 2 — Repository awareness and local indexing
-
-Goal: answer codebase questions accurately before enabling edits.
-
-- [x] Build a local manifest that honors Git ignore rules and excludes secrets, binaries, generated output, `.git`, and linked paths.
-- [x] Store the index in VS Code private per-user storage, outside the repository.
-- [x] Incrementally refresh it through file-system watchers and Git state changes.
-- [x] Extract PowerShell functions, classes, parameters, module manifests, exports, imports, dot-sourced scripts, and Pester relationships.
-- [x] Add deterministic text, filename, and symbol search before considering embeddings.
-- [x] Let the agent iteratively search and read relevant files instead of sending the whole repository.
-- [x] Cap and record context selected for each model request.
-
-Exit criteria:
-
-- [x] The agent can explain a feature that spans several PowerShell files and cite the relevant local files.
-- [x] Index updates are reflected without rebuilding the entire index.
-- [x] No index files appear in the Git working tree.
-
-### Phase 3 — Safe multi-file editing and native review
-
-Goal: make immediate repository changes while preserving developer work.
-
-- [x] Capture the starting Git status and content baseline for each task.
-- [x] Implement schema-validated patch/create/move/delete actions.
-- [x] Apply writes atomically per file with stale-content detection. Moves use two filesystem operations and are not atomic as a whole.
-- [x] Recover malformed literal patch targets through fresh reads within the shared two-correction budget, retaining terminal developer-edit conflicts.
-- [x] Recover missing/incorrect model read hashes with at most two fresh-read corrections while preserving terminal conflicts for actual external edits.
-- [x] Verify real VS Code unsaved-buffer protection and live missing-read recovery in the isolated extension host; interactive webview submission remains a separate pilot check.
-- [x] Preserve encodings, BOMs, and line endings important to Windows PowerShell repositories.
-- [x] Work alongside existing uncommitted changes.
-- [x] Stop and ask when edits overlap ambiguously or developer changes cannot be preserved confidently.
-- [x] Attribute preexisting changes separately from agent changes.
-- [x] Leave work uncommitted; never commit or push unless explicitly requested in a future scope.
-- [x] Open changed files in VS Code’s diff editor and Source Control view.
-- [x] Keep raw Git patches out of chat.
-
-Exit criteria:
-
-- [x] A natural-language feature request results in coordinated, uncommitted multi-file changes.
-- [x] Existing unrelated changes remain byte-for-byte intact.
-- [x] Chat provides only a plain-English summary; native VS Code views show code differences.
-
-### Phase 4 — Windows PowerShell 5.1 validation and repair
-
-Goal: complete changes with automatic, trustworthy local validation.
-
-- [x] Invoke the Windows PowerShell 5.1 parser directly from the extension.
-- [x] Detect PSScriptAnalyzer and Pester versions.
-- [x] Allow developer selection of Pester 4 or 5 without silently substituting another major; invalidate cached results when selection changes.
-- [x] Attempt current-user module installation when enabled in user settings; clearly report failure and reduced validation scope.
-- [x] Test access to PowerShell Gallery during module installation.
-- [ ] Support an internal/Nexus module source.
-- [x] Discover repository-defined Pester unit tests.
-- [x] Add or update Pester tests for changed behavior when appropriate.
-- [x] Automatically run parser checks, available static analysis, and unit tests selected through conservative PowerShell AST inspection of setup and local dependencies; report unsupported suites in chat without a manual picker.
-- [x] Do not automatically run integration tests or operations that affect IIS, services, Azure DevOps, databases, network resources, or other environments.
-- [x] Feed validation failures back into the agent for at most three total edit-and-validation attempts.
-- [x] Stop early on repeated unchanged validation or identical failure diagnostics after a repair.
-- [x] Compare parser/analyzer findings with task-start snapshots; explicitly label unknown failure origin when comparison is unavailable.
-- [x] Compare complete approved pre-edit Pester 5 observations with later results; report observed preexisting/new/changed/resolved failures and retain unknown origin when evidence is incompatible.
-- [ ] Compare test failures against an isolated, approved baseline test run to distinguish all preexisting test failures from regressions.
-- [x] Report every validation command, result, omission, and remaining failure in plain English.
-
-Exit criteria:
-
-- [x] The acceptance feature passes Windows PowerShell 5.1 parsing and the applicable Pester unit suite.
-- [x] A deliberately introduced failure triggers bounded diagnosis and repair.
-- [x] Unsafe/integration tests are not started automatically.
-
-### Phase 5 — Codex-like task control
-
-Goal: make iterative daily use reliable.
-
-- [x] Ask and answer clarification questions inside the chat pane, with cancellation and persisted question/answer history.
-- [x] Support natural follow-ups without slash commands.
-- [ ] Retain task intent, assumptions, tool results, agent-owned edits, and validation history.
-- [x] Implement safe cancellation of model calls, searches, edits, and child processes.
-- [x] On cancellation, report completed edits and validation state.
-- [x] Implement task-scoped undo that reverses only agent-attributed changes and refuses ambiguous reversals.
-- [x] Stream brief progress such as repository inspection, files being edited, and validation being run.
-- [x] Reveal the conversation automatically at startup in trusted single-folder workspaces, without a Command Palette step.
-- [x] Dock the conversation in the Secondary Side Bar with view activation, refocus and native editor diffs.
-- [x] Search all chat history, filter active/archived chats and display persisted last-activity times.
-- [x] Rename and archive chats from the conversation menu, persist archived history and support restoration.
-- [x] Add a Chats home screen, recent/full chat list, automatic first-message titles, settings and new-chat icons, and composer model/permission selectors.
-- [x] Streamline conversation layout with a fixed composer, keyboard send/newline, per-conversation in-panel drafts, scroll preservation and compact native-review controls.
-- [x] Add permission selection, with Full access optimized first and Review/Workspace polished next.
-- [x] Require explicit confirmation for destructive operations even in Full access.
-
-Exit criteria:
-
-- [ ] A developer can correct the agent conversationally, cancel it, resume the thread, and undo its last task without losing prior work.
-- [x] Permission changes affect the next action predictably and remain visible.
-
-### Phase 6 — Pilot hardening and distribution
-
-Goal: distribute a repeatable initial release.
-
-- [x] Package the extension as one locally installable VSIX.
-- [x] Keep runtime dependencies contained within the VSIX.
-- [ ] Add structured local logs for model calls, tools, commands, edits, validation, permissions, and errors without recording API keys.
-- [ ] Test on representative Windows developer configurations and network conditions.
-- [ ] Validate certificate trust, proxies, endpoint timeouts, API failures, and model-list fallback.
-- [x] Test Windows PowerShell 5.1 UTF-8/BOM/UTF-16LE handling and Pester 5 execution.
-- [x] Test missing modules, failed installation reporting and selected-major discovery.
-- [ ] Verify real Pester 4 execution on a workstation where publisher policy permits installation (current installation attempt was rejected; verification was not bypassed).
-- [x] Add recovery tests for VS Code termination after an applied edit and during active Pester validation.
-- [x] Enforce and verify child-process lifetime when the extension host dies without a coordinated process-tree shutdown (Windows Job Object, owner-pipe watcher, isolated host-only termination test).
-- [x] Force process termination at synthetic partial-write, replacement, deletion, move and create boundaries; preserve pending evidence, original bytes and staged work without replay or ambiguous undo.
-- [ ] Exercise termination during individual file replacement, deletion, and move operations on representative workstations.
-- [x] Document install, first-run authentication, permission modes, limitations, and uninstall/data cleanup.
-
-Exit criteria:
-
-- [ ] A developer can install the VSIX and complete the pilot scenario without separate infrastructure setup.
-- [ ] The pilot behaves consistently after VS Code restart, network interruption, validation failure, and cancellation.
-
-## Deferred work
-
-- TFVC workflows.
-- Multiple simultaneous tasks against one repository.
-- Multi-repository editing.
-- Automatic integration or environment-changing tests.
-- Automatic commits or pushes.
-- Embeddings/vector databases before measured retrieval failures justify them.
-- Repository `AGENTS.md`-style instructions.
-- Detailed developer-facing model-egress inspection.
-- Central administrator policy and audit aggregation.
-- Additional languages beyond the PowerShell pilot.
-
-## Recommended delivery slices
-
-- [x] **Read-only vertical slice:** VSIX installation → key/model selection → automatic workspace detection → repository search/read → grounded answer.
-- [x] **Editing vertical slice:** natural-language feature request → multi-file edit → native VS Code diffs → plain-English summary.
-- [x] **Validation vertical slice:** automatic PowerShell 5.1/Pester validation → bounded repair → final results.
-- [ ] **Daily-use slice:** threads → follow-ups → cancellation → undo → polished permission modes.
-
-Each slice should be demonstrated against the real pilot repository before adding the next layer.
-
-## Implementation status and next backlog
-
-Read-only slice evidence (2026-09-14): the extension shell, strict version-1 action schemas, SecretStorage integration, model discovery with manual fallback, repository filtering, lexical PowerShell indexing, bounded action loop, cancellation and persistent named threads are implemented. The HTTPS API endpoint is configured by the developer and has no built-in default.
-
-Live validation evidence (2026-09-14): a real public Gemini model passed the read-only explanation/follow-up suite over a synthetic five-file PowerShell module and test fixture. The same suite passed inside an isolated VS Code 1.138.0-insider Extension Development Host, alongside extension activation and conversation-panel lifecycle checks. Discovery, grounded citations, saved-thread reload, symbol refresh, cancellation and repository preservation passed.
-
-Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task baselines and attribution, destructive confirmation, encoding preservation, cancellation summaries and persistent native review are implemented. Live Gemini updated two PowerShell files and created documentation while preserving a developer comment and staged work. The real extension host opened three native diffs. See `docs/ACCEPTANCE.md` for exact evidence and remaining interactive/restart/representative-repository checks. Moves are not atomic as a whole. Validation followed in 0.3 and explicit task undo in 0.4; the full pilot is not yet complete.
-
-Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in analyzer rules, developer-selected Pester 4/5 tests, optional CurrentUser module installation, persisted results, cancellation and three-round repair limits are implemented. Live Gemini repaired a failing Pester test in two rounds while preserving test expectations and staged work. Missing or unapproved checks remain explicitly partial; test selection does not sandbox code.
-
-1. Demonstrate editing, native review and validation on a representative repository, including interactive approval and restart checks.
-2. Extend interruption checks to representative workstations and improve baseline test-failure attribution.
-3. Validate Pester 4, enterprise module sources, certificate/proxy behavior and representative repository compatibility.
-4. Run the selected real multi-file feature as the full pilot acceptance test.
-
-Undo evidence (0.4): exact baseline restoration across patch/create/delete/move, full preflight, later-edit refusal, native previews, cancellation and resumable undo journals passed automated tests. The complete suite passed 38 tests. The real VS Code host restored a live Gemini task's baseline while preserving staged work and a developer comment. Whole-application termination and manual interactive pilot checks remain open.
-
-Restart evidence (0.4.1): a dedicated isolated VS Code process was terminated while a real Pester child was running after an applied edit. The child stopped. Restart recovered two threads and interrupted status, preserved the edit and developer work, reopened the native panel, avoided automatic replay and false validation success, and supported undo. Mid-write and manual representative-workstation checks remain open.
-
-Crash-lifetime evidence (0.4.3): native tests verify validator/descendant cleanup on completion, cancellation and forced validator exit while preserving an unrelated process. Guard tests cover early owner loss, an independent deadline and blocked initialization. The isolated VS Code recovery test kills the extension-host PID alone and confirms that Pester and its descendant stop before UI cleanup; restart and undo preserve developer work. Broker-launched processes are outside this lifetime mechanism; representative workstation policy and mid-write interruption remain open.
-
-File-interruption evidence (0.4.4): eleven synthetic Windows worker crash checkpoints verify pending snapshots, byte preservation, partial move states, no replay, preserved staged work and HEAD, and refusal of ambiguous undo. Pending writes now precede temporary-file content; applied creates have no remaining temporary hard link. A repeated edit retains the task-start baseline. Representative workstations and power loss remain unverified.
-
-Observed test-baseline evidence (0.4.5): complete approved pre-edit Pester 5 runs can establish a task-local comparison without executing copied repositories or adding rounds. Stable case identities and unchanged test files distinguish observed preexisting, newly failing, changed and resolved failures. Stale, missing, skipped, truncated or ambiguous evidence stays unknown. Broader isolated-baseline execution and causal regression attribution remain open.
-
-## Definition of pilot success
-
-The pilot succeeds when the developer can install one VSIX, open the Git-based PowerShell repository, enter an ordinary feature request, and receive correct uncommitted multi-file changes with appropriate Pester updates and passing Windows PowerShell 5.1 validation. The developer reviews code only through native VS Code diffs, receives a concise narrative in chat, and can follow up, cancel, or undo without losing preexisting work.
-
-- [x] 0.4.20: Automatic unit-test selection replaces the native picker; inspect setup and literal local dependencies again after edits, and report skipped suites as partial coverage. Native PowerShell inspection and automatic-selection regression checks cover operational commands, dynamic execution and changed setup.
-- [ ] Verify automatic selection against representative complex repositories and confirm the installed chat experience after restart.
-
-- [x] 0.4.21: Replace the cryptic create-file baseline error with the affected filename, a plain-language explanation, next steps, and confirmation that the rejected attempt made no changes.
-
-- [x] 0.4.22: Supply file inventory for test requests, prefer batch reads and existing suites, compact model-facing validation reports, show descriptive progress, and provide field-specific bounded protocol recovery. A live Gemini fixture reused its suite and passed in one validation round (six calls, 24 seconds); timing is a single observation, not a latency guarantee.
-- [ ] Measure test-generation latency and duplicate-suite avoidance across representative repositories and repeated live runs.
-
-- [x] 0.4.23: Full access skips repository operation confirmations; Workspace approvals and ambiguous repository selection stay in-pane. Remove Custom from selectable modes and treat legacy Custom settings as Review. Audit native chat prompts and test dialog cancellation and stale replies.
-- [ ] Confirm multi-repository selection and Workspace approval placement in representative installed workspaces after restart.
-
-- [x] 0.4.24: Stop the agent immediately after an explicit third failed validation, preserve its failure reason ahead of the model-turn limit, and guide assertion-related Pester repair.
-
-- [x] 0.4.25: Explicitly requested local commits with a message and selected files; Full access executes directly, Workspace confirms in-pane, and unrelated staged files are preserved. No push or history rewriting.
-- [ ] Verify local commits against representative repository policies and interrupted Git operations; hook/signing/filter execution remains unsupported.
-
-- [x] 0.4.26: Full access permits edits overlapping preexisting repository changes; Workspace retains protection. Clean files and changed Git HEADs no longer inherit stale protection from earlier tasks.
-
-- [x] 0.4.27: Bind hash-omitting patches to the runtime’s latest file read and distinguish literal-target failures from version failures; retain external-edit and reread-after-write checks.
-
-- [x] 0.4.28: Automatically supply a policy-checked current file read after a rejected hash or literal patch, without replaying the edit or requiring another model read turn. Regression tests cover post-write refresh, preserved staged work, external-save refusal, cancellation and read limits. Live Gemini recovered an injected missing read and passed PowerShell 5.1 parsing, analysis and Pester in five model calls and two validation rounds.
-- [ ] Confirm recovery in the installed extension against the ongoing representative conversation after reload.
-
-- [x] 0.4.29: Return clean source text with separate line metadata, report rejected literal match counts, and support explicit bounded replace-all edits for repeated names. Preflight all replacements and retain version, overlap, encoding and output-size guards. A synthetic live Gemini six-character function/test update recovered a repeated-name rejection and passed automatic PowerShell validation in eight model calls and one validation round, preserving staged work.
-
-- [x] 0.4.30: Track read/patch corrections per unresolved file and reset only after a successful mutation to that file. A deterministic regression reproduces the recorded edit → test-patch recovery → test-move recovery → source-move sequence, fails with the previous global counter, and passes with the fix while preserving staged work and reaching completion validation. Reads, no-op edits and unrelated mutations cannot reset an unresolved failure; overall task limits remain unchanged.
-
-- [x] 0.4.31: Keep manifest membership stable when delayed watcher events invalidate cached file information. A regression reproduces a post-move notification causing a false validation-state mismatch; the fix includes the renamed source in parsing and reaches Pester. Same-size/same-timestamp edits refresh symbols, and genuine deletions still revoke reads.
-
-- [x] 0.4.32: Isolate format correction from task history and allow two bounded corrections, including consecutive malformed actions. A regression preserves failed-validation context without executing invalid edits. A live synthetic fixture repaired four assertion failures, preserved source and staged work, and passed Pester in two validation rounds and six model calls. Add opt-in, bounded, API-key-redacted rejected-response capture in private task storage and offline schema replay with no tool execution.
-
-- [x] 0.4.33: Replace the irregular settings glyph with a symmetrical outlined gear; visually checked at sidebar size.
-
-- [x] 0.4.34: Persist bounded startup lifecycle metadata across launches and export sanitized diagnostics independently of the chat pane. Instrument initialization stages, focus failures, visibility/disposal, initial-state acknowledgement, handshake timeouts and shutdown. Tests cover retention, redaction, stale acknowledgements and failure export; an isolated VS Code host verifies a real render acknowledgement.
-- [ ] Capture the representative workstation's failed first launch and successful second launch, then diagnose the remaining startup problem.
-
-- [x] 0.4.35: Add an independent early webview bootstrap, main-script entry signal, and early script/resource/promise/CSP error categories without raw error content. Regression coverage verifies instrumentation survives a main-script parse failure; an isolated VS Code host confirms both startup signals and the render acknowledgement.
-
-- [x] Add repeated startup coverage using one persistent isolated profile. Six consecutive launches passed on stable VS Code 1.137.0, requiring a current-launch render acknowledgement before explicit sidebar refocus. This did not reproduce the representative profile's failure; other extensions were disabled.
-
-- [x] 0.4.36: Show eligible tracked deletions and both rename paths in model-facing Git status; skip re-staging already-staged deletions while retaining them in the selected commit. Regression tests verify staged/unstaged deletions, renames, excluded paths and preservation of unrelated staged work.
-
-- [x] 0.4.37: Add a dedicated settings editor tab with section navigation, grouped controls, validated user-setting updates, secure API-key setup and diagnostic export. Verified host-side value checks and busy protection, browser controls and responsive layouts, and native tab reuse on VS Code 1.137.0.
-
-- [x] 0.4.38: Disable automatic diff tabs by default; add an Editor settings toggle for proposed-change and task-completion previews. Tests verify default-off editing, explicit review, and opt-in previews.
-
-- [x] 0.4.39: Rename the visible product, commands, settings page and documentation to EKOD; package as ekod.vsix. Preserve the installed extension identity and settings keys for data compatibility. Automated UI checks and native VS Code sidebar/settings checks passed.
-
-- [x] 0.4.40: Add read-only git_show_commit with pinned revision metadata and filtered bounded diffs. Distinguish commit history from task changes; regression coverage includes the latest-commit conversation, initial commits, deletions, unsafe revisions, and preserved staged/working-tree changes.
-
-- [x] 0.4.41: Prepare the initial MIT-licensed public prerelease as jasondavidcamp.ekod, with upgrade instructions, legacy history reuse, release notes and install/build guidance. Full suite: 118 passed, one unavailable Pester 4 check skipped; native VS Code 1.137.0 sidebar/settings check passed. The intermittent workstation startup problem remains open.
+Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4 check skipped, and the native VS Code 1.137.0 activation/sidebar/settings check passed. Current tracked files and the rebuilt VSIX were scanned for retired product identifiers and publication-sensitive references; none were found. Earlier published artifacts remain unchanged.

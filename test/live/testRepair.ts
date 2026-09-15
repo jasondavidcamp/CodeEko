@@ -13,7 +13,7 @@ import { createPowerShellRunner } from '../../src/validation/powershell';
 import { runAgent } from '../../src/agent/loop';
 
 async function run() {
-  const endpoint = process.env.LLM_RUNTIME_TEST_ENDPOINT, key = process.env.LLM_RUNTIME_TEST_API_KEY, model = process.env.LLM_RUNTIME_TEST_MODEL;
+  const endpoint = process.env.EKOD_TEST_ENDPOINT, key = process.env.EKOD_TEST_API_KEY, model = process.env.EKOD_TEST_MODEL;
   assert.ok(endpoint && key && model, 'Configure live test credentials in the environment.');
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-test-repair-'));
   const root = path.join(temp, 'repo'), storage = path.join(temp, 'storage');

@@ -6,7 +6,7 @@ import { EditTask } from '../state/editTask';
 export class NativeReview implements vscode.TextDocumentContentProvider, vscode.Disposable {
   private documents = new Map<string, string>();
   private registration: vscode.Disposable;
-  constructor(private scheme = 'llm-runtime-snapshot') { this.registration = vscode.workspace.registerTextDocumentContentProvider(scheme, this); }
+  constructor(private scheme = 'ekod-snapshot') { this.registration = vscode.workspace.registerTextDocumentContentProvider(scheme, this); }
   provideTextDocumentContent(uri: vscode.Uri): string {
     const text = this.documents.get(uri.toString());
     if (text === undefined) throw new Error('Review snapshot expired. Open the task review again.');

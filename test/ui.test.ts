@@ -24,9 +24,9 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, onDidDispose: (fn: () => void) => { disposeListeners.push(fn); return disposable; }, dispose: () => disposeListeners.forEach(fn => fn()) };
   let exported = ''; let failFocus = false;
   const mock = {
-    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'llmRuntime.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'llmRuntime.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
+    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'ekod.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'ekod.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
     workspace: { openTextDocument: async (options: any) => { exported = options.content; return {}; }, isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
-    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'llmRuntime.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
+    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'ekod.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
     Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
@@ -50,12 +50,12 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const context = { subscriptions: [], extension: { packageJSON: { version: 'test' } }, globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
   extension.activate(context as any);
   const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; panel.dispose(); extension.deactivate(); });
-  await commands.get('llmRuntime.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
+  await commands.get('ekod.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
   global.fetch = async () => new Response('failure', { status: 503 }); input = 'manual-model';
-  await commands.get('llmRuntime.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
-  await commands.get('llmRuntime.open')!(); assert.equal(errors.length, 0);
+  await commands.get('ekod.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
+  await commands.get('ekod.open')!(); assert.equal(errors.length, 0);
   settings.permissionMode = 'Custom'; await receive({ type: 'ready' }); assert.equal(sent.at(-1).mode, 'Review'); settings.permissionMode = 'Full access';
-  const originalHtml = panel.webview.html; await commands.get('llmRuntime.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
+  const originalHtml = panel.webview.html; await commands.get('ekod.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
   assert.ok(panel.webview.html.includes("default-src 'none'")); assert.ok(panel.webview.html.includes('textContent'));
   const script = [...panel.webview.html.matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)].map(match => match[1]).join("\n");
   assert.doesNotThrow(() => new vm.Script(script)); // Catches template-string/newline quoting regressions.
@@ -160,11 +160,11 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const token = sent.at(-1).startupToken;
   assert.equal(typeof token, 'string');
   await receive({ type: 'startupAck', token: 'stale' });
-  await commands.get('llmRuntime.exportStartupDiagnostics')!();
+  await commands.get('ekod.exportStartupDiagnostics')!();
   assert.ok(!exported.includes('state.ack'));
   await receive({ type: 'startupAck', token });
-  failFocus = true; await commands.get('llmRuntime.open')!();
-  await commands.get('llmRuntime.exportStartupDiagnostics')!();
+  failFocus = true; await commands.get('ekod.open')!();
+  await commands.get('ekod.exportStartupDiagnostics')!();
   for (const event of ['activate','resolve','stage.end','ready','state.sent','state.delivered','state.ack','focus.failed']) assert.ok(exported.includes(event), event);
   assert.ok(!exported.includes(root)); assert.ok(!exported.includes('private-startup-error')); assert.ok(!exported.includes('test-key'));
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));

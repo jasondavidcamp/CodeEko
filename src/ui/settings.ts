@@ -31,9 +31,9 @@ export class SettingsPage implements vscode.Disposable {
   constructor(private busy: () => boolean) {}
   open(): void {
     if (this.panel) { this.panel.reveal(); return; }
-    const panel = this.panel = vscode.window.createWebviewPanel('llmRuntime.settings', 'EKOD Settings', vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
+    const panel = this.panel = vscode.window.createWebviewPanel('ekod.settings', 'EKOD Settings', vscode.ViewColumn.Active, { enableScripts: true, localResourceRoots: [] });
     const send = (notice = '', failed = false) => {
-      const config = vscode.workspace.getConfiguration('llmRuntime');
+      const config = vscode.workspace.getConfiguration('ekod');
       const values = Object.fromEntries(settingsFields.map(field => [field.key, config.get(field.key, field.value)]));
       if (values.permissionMode === 'Custom') values.permissionMode = 'Review';
       void panel.webview.postMessage({ type: 'settings', values, notice, failed });
@@ -47,17 +47,17 @@ export class SettingsPage implements vscode.Disposable {
         if (message?.type === 'save') {
           if (this.busy()) throw new Error('Wait for the running task to finish before changing settings.');
           const setting = validateSetting(message.key, message.value);
-          await vscode.workspace.getConfiguration('llmRuntime').update(setting.key, setting.value, vscode.ConfigurationTarget.Global);
+          await vscode.workspace.getConfiguration('ekod').update(setting.key, setting.value, vscode.ConfigurationTarget.Global);
           send('Saved to your VS Code user settings.');
         } else if (message?.type === 'setKey') {
           if (this.busy()) throw new Error('Wait for the running task to finish before changing the API key.');
-          await vscode.commands.executeCommand('llmRuntime.setKey');
+          await vscode.commands.executeCommand('ekod.setKey');
           send('API key setup closed. Keys are stored through VS Code SecretStorage.');
-        } else if (message?.type === 'export') await vscode.commands.executeCommand('llmRuntime.exportStartupDiagnostics');
+        } else if (message?.type === 'export') await vscode.commands.executeCommand('ekod.exportStartupDiagnostics');
       } catch (error) { send(error instanceof Error && ['save', 'setKey'].includes(message?.type) ? error.message : 'The settings action could not finish.', true); }
       finally { saving = false; }
     });
-    const change = vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('llmRuntime')) send(); });
+    const change = vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration('ekod')) send(); });
     panel.onDidDispose(() => { listener.dispose(); change.dispose(); this.panel = undefined; });
     panel.webview.html = settingsHtml();
   }

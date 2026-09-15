@@ -13,16 +13,16 @@ import { Action } from '../../src/protocol/actions';
 
 // Explicit opt-in only. Credentials remain in memory and are never copied to the fixture.
 export async function runLiveSmoke() {
-  const endpoint = process.env.LLM_RUNTIME_TEST_ENDPOINT;
-  const key = process.env.LLM_RUNTIME_TEST_API_KEY;
-  const requestedModel = process.env.LLM_RUNTIME_TEST_MODEL;
-  assert.ok(endpoint && key && requestedModel, 'Set LLM_RUNTIME_TEST_ENDPOINT, LLM_RUNTIME_TEST_API_KEY and LLM_RUNTIME_TEST_MODEL.');
+  const endpoint = process.env.EKOD_TEST_ENDPOINT;
+  const key = process.env.EKOD_TEST_API_KEY;
+  const requestedModel = process.env.EKOD_TEST_MODEL;
+  assert.ok(endpoint && key && requestedModel, 'Set EKOD_TEST_ENDPOINT, EKOD_TEST_API_KEY and EKOD_TEST_MODEL.');
   const api = new GeminiClient(endpoint, key, 30000);
   const models = await api.models();
   assert.ok(models.includes(requestedModel), 'Requested test model must be returned by discovery.');
   console.log(`Live discovery passed (${models.length} models).`);
 
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-runtime-live-'));
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-live-'));
   const root = path.join(temp, 'repository'); const storage = path.join(temp, 'storage');
   await fs.mkdir(root); await git(root, ['init']);
   const files: Record<string, string> = {

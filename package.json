@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.41",
+  "version": "0.4.42",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -27,62 +27,62 @@
     "virtualWorkspaces": false
   },
   "activationEvents": [
-    "onCommand:llmRuntime.open",
-    "onView:llmRuntime.conversation",
+    "onCommand:ekod.open",
+    "onView:ekod.conversation",
     "onStartupFinished"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "llmRuntime.open",
+        "command": "ekod.open",
         "title": "EKOD: Open Conversation"
       },
       {
-        "command": "llmRuntime.setKey",
+        "command": "ekod.setKey",
         "title": "EKOD: Set API Key"
       },
       {
-        "command": "llmRuntime.selectModel",
+        "command": "ekod.selectModel",
         "title": "EKOD: Select Model"
       },
       {
-        "command": "llmRuntime.exportStartupDiagnostics",
+        "command": "ekod.exportStartupDiagnostics",
         "title": "EKOD: Export Startup Diagnostics"
       },
       {
-        "command": "llmRuntime.openSettings",
+        "command": "ekod.openSettings",
         "title": "EKOD: Open Settings"
       }
     ],
     "configuration": {
       "title": "EKOD",
       "properties": {
-        "llmRuntime.endpoint": {
+        "ekod.endpoint": {
           "type": "string",
           "default": "",
           "scope": "application",
           "description": "HTTPS API base URL (origin or /v1). Configure your endpoint before connecting."
         },
-        "llmRuntime.model": {
+        "ekod.model": {
           "type": "string",
           "default": "",
           "scope": "application",
           "description": "Selected model; also the fallback when discovery fails."
         },
-        "llmRuntime.requestTimeout": {
+        "ekod.requestTimeout": {
           "type": "number",
           "default": 60000,
           "minimum": 1000,
           "maximum": 300000,
           "scope": "application"
         },
-        "llmRuntime.debugRejectedResponses": {
+        "ekod.debugRejectedResponses": {
           "type": "boolean",
           "default": false,
           "scope": "application",
           "description": "Save up to three rejected model responses per task in private extension storage for debugging. The configured API key is redacted, but source code and other sensitive text may remain. Disabling stops new captures; existing diagnostic files remain until deleted."
         },
-        "llmRuntime.pesterVersion": {
+        "ekod.pesterVersion": {
           "type": "string",
           "enum": [
             "Auto",
@@ -93,7 +93,7 @@
           "scope": "application",
           "description": "Auto selects the newest installed supported Pester version. Choose 4 or 5 for a suite that requires that major version. Missing selected versions are reported rather than silently substituted."
         },
-        "llmRuntime.validationExecutionPolicy": {
+        "ekod.validationExecutionPolicy": {
           "type": "string",
           "enum": [
             "Inherit",
@@ -103,13 +103,13 @@
           "scope": "application",
           "description": "Inherit workstation execution policy by default. RemoteSigned applies only to validation child processes, permits local unsigned tests, and does not override Group Policy or change machine settings."
         },
-        "llmRuntime.installValidationModules": {
+        "ekod.installValidationModules": {
           "type": "boolean",
           "default": false,
           "scope": "application",
           "description": "Allow one CurrentUser installation attempt for missing selected Pester/PSScriptAnalyzer modules from PSGallery per task. Requires network access; failures are reported as reduced validation coverage."
         },
-        "llmRuntime.permissionMode": {
+        "ekod.permissionMode": {
           "type": "string",
           "enum": [
             "Review",
@@ -120,7 +120,7 @@
           "scope": "application",
           "description": "Review is read-only. Workspace confirms destructive edits. Full access allows guarded repository edits and validation without operation confirmations."
         },
-        "llmRuntime.autoOpenDiffs": {
+        "ekod.autoOpenDiffs": {
           "type": "boolean",
           "default": false,
           "scope": "application",
@@ -131,17 +131,17 @@
     "viewsContainers": {
       "secondarySidebar": [
         {
-          "id": "llmRuntime",
+          "id": "ekod",
           "title": "EKOD",
           "icon": "media/conversation.svg"
         }
       ]
     },
     "views": {
-      "llmRuntime": [
+      "ekod": [
         {
           "type": "webview",
-          "id": "llmRuntime.conversation",
+          "id": "ekod.conversation",
           "name": "Conversation",
           "contextualTitle": "EKOD"
         }

@@ -8,11 +8,11 @@ import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 async function main(): Promise<void> {
   const uiOnly = process.argv.includes('--ui-only');
   const launches = process.argv.includes('--repeat-startup') ? 6 : 1;
-  const executable = process.env.LLM_RUNTIME_VSCODE_EXECUTABLE ?? await downloadAndUnzipVSCode({
-    version: process.env.LLM_RUNTIME_VSCODE_VERSION ?? 'stable',
-    cachePath: path.join(os.tmpdir(), 'llm-runtime-vscode-cache')
+  const executable = process.env.EKOD_VSCODE_EXECUTABLE ?? await downloadAndUnzipVSCode({
+    version: process.env.EKOD_VSCODE_VERSION ?? 'stable',
+    cachePath: path.join(os.tmpdir(), 'ekod-vscode-cache')
   });
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-runtime-host-'));
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-host-'));
   const workspace = path.join(temp, 'workspace'); const userData = path.join(temp, 'profile');
   const project = path.resolve(__dirname, '../../..');
   await fs.mkdir(workspace); await git(workspace, ['init']);
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   await fs.mkdir(path.join(userData, 'User'), { recursive: true });
   await fs.writeFile(path.join(userData, 'User/settings.json'), JSON.stringify({ 'security.workspace.trust.enabled': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'update.mode': 'none' }));
   const report = path.join(temp, 'result.json');
-  const env = { ...process.env, LLM_RUNTIME_HOST_REPORT: report, LLM_RUNTIME_HOST_UI_ONLY: uiOnly ? '1' : '0' }; delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, EKOD_HOST_REPORT: report, EKOD_HOST_UI_ONLY: uiOnly ? '1' : '0' }; delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
   try {
     for (let launch = 1; launch <= launches; launch++) {
       await fs.rm(report, { force: true });

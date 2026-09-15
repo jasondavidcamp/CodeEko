@@ -1,12 +1,19 @@
 # Changelog
 
+## 0.4.42 — EKOD naming cleanup
+
+- Use `ekod.*` for every setting, command and view, and `EKOD_*` for development environment variables.
+- Use EKOD-only storage, temporary-file and native-diff identifiers.
+- Refresh the roadmap around public product capabilities and outstanding verification.
+- Upgrade: configure endpoint, model and preferences in EKOD Settings; back up existing extension data first.
+
+
 ## 0.4.41 — Initial public prerelease
 
 - Publish as EKOD under the jasondavidcamp.ekod extension identity and MIT license.
 - Repository-aware chat with persistent conversations, configurable permissions, guarded file edits, local commits and read-only commit inspection.
 - Automatic Windows PowerShell 5.1 syntax, static-analysis and eligible Pester unit-test validation with bounded repair.
 - Dedicated settings page and optional automatic diff tabs (off by default).
-- Retain existing settings and reuse private-installation history when present; the API key must be entered again under the new extension identity.
 
 ### Known limitations
 

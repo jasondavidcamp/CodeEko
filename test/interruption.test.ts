@@ -55,7 +55,7 @@ test('forced process death preserves evidence at repository mutation boundaries'
         assert.equal((await fs.stat(main)).ino, (await fs.stat(target)).ino);
         assert.equal((await fs.stat(main)).nlink, 2);
       }
-      const temporaries = beforeReload.filter(file => file.startsWith('.llm-runtime-'));
+      const temporaries = beforeReload.filter(file => file.startsWith('.ekod-'));
       if (scenario === 'partial-write') assert.equal((await fs.stat(path.join(root, temporaries[0]))).size, 16);
       if (scenario === 'create-linked') assert.equal((await fs.stat(target)).nlink, 2);
       if (applied) {

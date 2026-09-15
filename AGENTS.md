@@ -4,7 +4,7 @@
 
 Build a VS Code coding-agent runtime that turns a text-only LLM API into a repository-aware assistant with local tools, permissions, task memory, validation, and bounded repair.
 
-The established repository is `EKOD`. The public extension ID is `jasondavidcamp.ekod`; `llmRuntime.*` settings are retained as compatibility identifiers; use EKOD for all visible product names. Use the product name established in current metadata. Do not rename the package, commands, settings, or publisher as part of unrelated work.
+The established repository is `EKOD`. The public extension ID is `jasondavidcamp.ekod`; settings and commands use the `ekod.*` namespace. Use EKOD for all product identifiers. Use the product name established in current metadata. Do not rename the package, commands, settings, or publisher as part of unrelated work.
 
 Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant code before changing behavior. `README.md` is for humans using and developing the extension; `AGENTS.md` sets working boundaries; `ROADMAP.md` records direction, priorities, and verified progress. The roadmap describes delivery priorities; this file describes how to work. Distinguish intended features from implemented capabilities. If documents disagree materially, identify the disagreement instead of silently selecting a convenient interpretation.
 
@@ -13,7 +13,7 @@ Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant cod
 - Inspect first. Reuse existing patterns and make reasonable, reversible implementation choices without repeatedly asking permission.
 - Ask when missing business requirements, conflicting instructions, or overlapping developer edits would materially change the result.
 - Implement the requested scope through verification. Prefer working end-to-end increments over speculative frameworks or placeholder features.
-- Major refactoring is acceptable when required by the agreed architecture. Preserve useful behavior and regression coverage rather than translating the old Python classes literally.
+- Major refactoring is acceptable when required by the agreed architecture. Preserve useful behavior and regression coverage.
 - Keep changes focused. Do not perform unrelated cleanup or rename public identifiers without a task requiring it.
 - Treat current uncommitted work as developer-owned. Preserve it and ask if a conflict cannot be resolved confidently.
 - Leave changes uncommitted unless authorized. A standing user request to implement, verify, and commit coherent chunks is sufficient authorization for local commits. Push, publish, deploy, and create releases only when separately requested.
@@ -101,6 +101,6 @@ Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant cod
 
 ## Deferred scope
 
-Unless explicitly requested, defer TFVC, concurrent tasks against one repository, cross-repository editing, automatic commits/pushes, integration-test execution, advanced embeddings, central administration, and detailed egress-inspection UI.
+Unless explicitly requested, defer concurrent tasks against one repository, cross-repository editing, automatic commits/pushes, integration-test execution, advanced embeddings, central administration, and detailed egress-inspection UI.
 
 The product's ability to discover and obey instruction files in user repositories is also deferred. That does not reduce the applicability of this file to agents developing this project.

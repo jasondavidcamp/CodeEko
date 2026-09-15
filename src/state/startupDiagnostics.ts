@@ -102,7 +102,7 @@ async function hostSignatures(logUri?: string) {
           const size = (await handle.stat()).size, bytes = Buffer.alloc(Math.min(size, 65536));
           const read = await handle.read(bytes, 0, bytes.length, Math.max(0, size - bytes.length));
           for (const line of bytes.subarray(0, read.bytesRead).toString('utf8').split('\n')) {
-            const category = /service.?worker/i.test(line) ? 'service-worker' : /error.*webview|webview.*error/i.test(line) ? 'webview-error' : /_doActivateExtension (?:jasondavidcamp\.ekod|internal-pilot\.llm-coding-agent-runtime)/.test(line) ? (/onView/.test(line) ? 'activate-on-view' : /onStartupFinished/.test(line) ? 'activate-on-startup' : 'activate-other') : /error.*(?:jasondavidcamp\.ekod|llm-coding-agent-runtime)/i.test(line) ? 'extension-error' : undefined;
+            const category = /service.?worker/i.test(line) ? 'service-worker' : /error.*webview|webview.*error/i.test(line) ? 'webview-error' : /_doActivateExtension jasondavidcamp\.ekod/.test(line) ? (/onView/.test(line) ? 'activate-on-view' : /onStartupFinished/.test(line) ? 'activate-on-startup' : 'activate-other') : /error.*jasondavidcamp\.ekod/i.test(line) ? 'extension-error' : undefined;
             if (category && entries.length < 200) entries.push({ at: /^\d{4}-\d{2}-\d{2} [\d:.]+/.exec(line)?.[0] ?? 'unknown', category, source, launch });
           }
         } catch { /* A source log may be unavailable or locked. */ }

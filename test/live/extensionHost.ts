@@ -46,8 +46,8 @@ export async function run(): Promise<void> {
   assert.ok(extension, 'Development extension must be installed in the test host.');
   await extension.activate(); assert.ok(extension.isActive);
   const commands = await vscode.commands.getCommands(true);
-  for (const command of ['llmRuntime.open', 'llmRuntime.setKey', 'llmRuntime.selectModel']) assert.ok(commands.includes(command));
-  assert.equal(vscode.workspace.getConfiguration('llmRuntime').get('endpoint'), '', 'Fresh profile must have no endpoint default.');
+  for (const command of ['ekod.open', 'ekod.setKey', 'ekod.selectModel']) assert.ok(commands.includes(command));
+  assert.equal(vscode.workspace.getConfiguration('ekod').get('endpoint'), '', 'Fresh profile must have no endpoint default.');
   const startupDeadline = Date.now() + 10000;
   while (!extension.exports.isConversationVisible() && Date.now() < startupDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(extension.exports.isConversationVisible(), true, 'Conversation must appear automatically without invoking Open Conversation.');
@@ -55,39 +55,39 @@ export async function run(): Promise<void> {
   let startupEvents: { event: string; pid?: number }[] = [];
   const readyDeadline = Date.now() + 15000;
   while (Date.now() < readyDeadline) {
-    const report = await vscode.commands.executeCommand<{ launches: { event: string; pid?: number }[][] }>('llmRuntime.exportStartupDiagnostics');
+    const report = await vscode.commands.executeCommand<{ launches: { event: string; pid?: number }[][] }>('ekod.exportStartupDiagnostics');
     startupEvents = report?.launches.find(launch => launch.some(event => event.event === 'activate' && event.pid === process.pid)) ?? [];
     await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
     if (startupEvents.some(event => event.event === 'state.ack')) break;
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   assert.ok(startupEvents.some(event => event.event === 'state.ack'), 'Current launch must render automatically; previous launch acknowledgements cannot satisfy this check.');
-  assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Sidebar provider must initialize.');
+  assert.equal(await vscode.commands.executeCommand('ekod.open'), true, 'Sidebar provider must initialize.');
   await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
-  assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Refocusing must reuse the sidebar.');
+  assert.equal(await vscode.commands.executeCommand('ekod.open'), true, 'Refocusing must reuse the sidebar.');
   assert.equal(vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'EKOD').length, 0, 'Conversation must not occupy an editor tab.');
   console.log(`EXTENSION HOST PASSED (VS Code ${vscode.version}): sidebar initialized and refocused without an editor tab.`);
   await verifyDirtyEditor();
   console.log('EXTENSION HOST PASSED: real unsaved editor buffer blocks edits and preserves disk and buffer contents.');
-  const diagnostics = await vscode.commands.executeCommand<{ launches: { event: string }[][] }>('llmRuntime.exportStartupDiagnostics');
+  const diagnostics = await vscode.commands.executeCommand<{ launches: { event: string }[][] }>('ekod.exportStartupDiagnostics');
   assert.ok(diagnostics?.launches.flat().some(entry => entry.event === 'state.ack'), 'The real webview must acknowledge rendering its initial state.');
   for (const event of ['stage.end', 'webview.bootstrap', 'webview.main']) assert.ok(diagnostics?.launches.flat().some(entry => entry.event === event), event);
   await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   console.log('EXTENSION HOST PASSED: exported startup diagnostics include a real webview render acknowledgement.');
-  await vscode.commands.executeCommand('llmRuntime.openSettings');
-  await vscode.commands.executeCommand('llmRuntime.openSettings');
+  await vscode.commands.executeCommand('ekod.openSettings');
+  await vscode.commands.executeCommand('ekod.openSettings');
   const findSettings = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'EKOD Settings');
   const settingsDeadline = Date.now() + 5000;
   while (!findSettings().length && Date.now() < settingsDeadline) await new Promise(resolve => setTimeout(resolve, 50));
   const settingsTabs = findSettings();
   assert.equal(settingsTabs.length, 1, 'Settings must reuse one native editor tab.');
   await vscode.window.tabGroups.close(settingsTabs);
-  if (process.env.LLM_RUNTIME_HOST_UI_ONLY === '1') {
-    await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true }));
+  if (process.env.EKOD_HOST_UI_ONLY === '1') {
+    await fs.writeFile(process.env.EKOD_HOST_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true }));
     return;
   }
   const live = await runLiveSmoke();
-  const nativeReview = new NativeReview('llm-runtime-test-snapshot');
+  const nativeReview = new NativeReview('ekod-test-snapshot');
   let editing;
   try {
     editing = await runLiveEditing(task => nativeReview.open(task));
@@ -98,6 +98,6 @@ export async function run(): Promise<void> {
     await vscode.window.tabGroups.close(diffs());
   } finally { nativeReview.dispose(); }
   const validation = await runLiveValidation(true);
-  assert.ok(process.env.LLM_RUNTIME_HOST_REPORT, 'Test launcher must provide a result path.');
-  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true, nativeDiffsOpened: true, live, editing, validation }));
+  assert.ok(process.env.EKOD_HOST_REPORT, 'Test launcher must provide a result path.');
+  await fs.writeFile(process.env.EKOD_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, sidebarInitializedAndRefocused: true, dirtyBufferPreserved: true, nativeDiffsOpened: true, live, editing, validation }));
 }

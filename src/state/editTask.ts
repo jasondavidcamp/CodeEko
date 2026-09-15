@@ -153,7 +153,7 @@ export class EditTask {
         const bytes = await this.snapshotBytes(change.before);
         await fs.mkdir(path.dirname(current.full), { recursive: true });
         await this.allowedPath(change.path);
-        const temporary = path.join(path.dirname(current.full), `.llm-runtime-${randomUUID()}.tmp`);
+        const temporary = path.join(path.dirname(current.full), `.ekod-${randomUUID()}.tmp`);
         const handle = await fs.open(temporary, 'wx', current.mode);
         try {
           try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
@@ -254,7 +254,7 @@ export class EditTask {
     const digest = hash(bytes); await fs.writeFile(path.join(this.directory, 'blobs', digest), bytes, { mode: 0o600 }); return digest;
   }
   private async allowedPath(file: string): Promise<string> {
-    if (excluded(file) || /(^|\/)(\.git[^/]*|\.llm-runtime-[^/]*|\.vscode)(\/|$)/i.test(file)) throw new TaskConflict(`Editing protected configuration or excluded content is not allowed: ${file}`);
+    if (excluded(file) || /(^|\/)(\.git[^/]*|\.ekod-[^/]*|\.vscode)(\/|$)/i.test(file)) throw new TaskConflict(`Editing protected configuration or excluded content is not allowed: ${file}`);
     const full = await safePath(this.index.root, file, true);
     const ignored = (await git(this.index.root, ['ls-files', '-z', '--cached', '--others', '--ignored', '--exclude-standard', '--', file])).split('\0');
     if (ignored.includes(file)) throw new TaskConflict(`The path is ignored: ${file}`);
@@ -397,7 +397,7 @@ export class EditTask {
   }
   private async write(file: string, expected: string | null, bytes: Buffer, operation: 'patch' | 'create', signal: AbortSignal): Promise<void> {
     const full = await this.allowedPath(file); await fs.mkdir(path.dirname(full), { recursive: true }); await this.allowedPath(file);
-    const temporary = path.join(path.dirname(full), `.llm-runtime-${randomUUID()}.tmp`);
+    const temporary = path.join(path.dirname(full), `.ekod-${randomUUID()}.tmp`);
     let fileMode = 0o644;
     if (expected) fileMode = (await this.current(file, expected, signal)).stat.mode;
     // Persist intent and both snapshots before creating/writing a repository temp file.

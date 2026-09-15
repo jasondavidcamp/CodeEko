@@ -39,6 +39,6 @@ test('all rejected attempts are captured and a diagnostic write failure does not
 
 test('rejected response capture is opt-in and cannot be enabled by repository settings', async () => {
   const manifest = JSON.parse(await fs.readFile(path.join(__dirname, '../../package.json'), 'utf8'));
-  const setting = manifest.contributes.configuration.properties['llmRuntime.debugRejectedResponses'];
+  const setting = manifest.contributes.configuration.properties['ekod.debugRejectedResponses'];
   assert.equal(setting.default, false); assert.equal(setting.scope, 'application');
 });
