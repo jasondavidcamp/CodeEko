@@ -85,7 +85,7 @@ test('agent iterates evidence, rejects unsafe actions, and stops at hard limits'
   const answer = await runAgent({ complete: async () => ++count === 1 ? '{"version":1,"tool":"list_files","args":{}}' : '{"version":1,"tool":"complete_task","args":{"summary":"See main.ps1:1"}}' }, 'm', [{ role: 'user', content: 'Explain' }], { execute: async () => ({ files: ['main.ps1'] }) }, () => 'Full access', new AbortController().signal, () => {});
   assert.equal(answer, 'See main.ps1:1'); assert.equal(count, 2);
   await assert.rejects(runAgent({ complete: async () => '{"version":1,"tool":"run_command","args":{}}' }, 'm', [], { execute: async () => { throw new Error('Must not execute'); } }, () => 'Full access', new AbortController().signal, () => {}));
-  await assert.rejects(runAgent({ complete: async () => '{"version":1,"tool":"list_files","args":{}}' }, 'm', [], { execute: async () => ({}) }, () => 'Review', new AbortController().signal, () => {}), /20-action/);
+  await assert.rejects(runAgent({ complete: async () => '{"version":1,"tool":"list_files","args":{}}' }, 'm', [], { execute: async () => ({}) }, () => 'Review', new AbortController().signal, () => {}), /20 model turns/);
 });
 test('named threads persist independently, interrupted tasks recover, corrupt data is preserved', async t => {
   const { root, storage } = await fixture(t); const dir = repositoryStorage(storage, root); const store = new ThreadStore(dir);

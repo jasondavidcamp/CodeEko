@@ -360,3 +360,27 @@ Describe 'value' { It 'works' { Get-Value | Should -Be 1 } }`);
   assert.equal((pester?.detail as any).total, 1);
   assert.equal(report.status, 'partial', 'excluded integration suite is explicitly omitted');
 });
+
+
+test('explicit third failed validation ends the agent immediately with the validation reason', async () => {
+  let calls = 0;
+  const validation = { run: async () => ({ round: 3, status: 'failed', steps: [] }) };
+  const tools = new EditingTools({} as any, {} as any, () => 'Full access', async () => {}, validation as any);
+  await assert.rejects(runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'run_validation', args: {} }); } }, 'fake', [], tools, () => 'Full access', signal(), () => {}), /Validation still fails after three rounds/);
+  assert.equal(calls, 1, 'no more model requests after the repair budget is exhausted');
+});
+
+
+test('Pester parameter-set failures provide assertion-specific repair guidance', async t => {
+  const f = await fixture(t);
+  const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
+    if (operation === 'inspect') return available;
+    if (operation === 'pester') return { total: 1, passed: 0, failed: 1, skipped: 0, result: 'Failed', failures: [{ name: 'empty input', message: 'Parameter set cannot be resolved using the specified named parameters.' }], containerErrors: [] };
+    return clean;
+  });
+  const report = await validation.run(signal());
+  const detail = report.steps.find(step => step.command.startsWith('Invoke-Pester'))!.detail as any;
+  assert.match(detail.repairHint, /test assertion|test and check Should syntax/);
+  assert.match(detail.repairHint, /@\(\$result\).Count/);
+  assert.equal(report.status, 'failed');
+});

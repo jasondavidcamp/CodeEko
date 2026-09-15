@@ -159,7 +159,7 @@ export class TaskValidation {
             result.failures = result.failures.map(f => ({ ...f, path: f.path ? relative(f.path) : undefined }));
             observedTests = { round: report.round, version: available!.modules.Pester!, hashes: Object.fromEntries(this.selected!.map(file => [file, snapshot.hashes.get(file)!])), result };
             const detail = compareTests(observedTests, this.testBaseline, snapshot.startingState);
-            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...detail, version: available!.modules.Pester, paths: this.selected } };
+            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...detail, version: available!.modules.Pester, paths: this.selected, ...(result.failures.some(f => /parameter set cannot be resolved/i.test(f.message ?? '')) ? { repairHint: 'A parameter-set error can originate in the test assertion. Read the failing test and check Should syntax for the detected Pester version before changing the function. For empty results use @($result).Count | Should -Be 0. Preserve the intended behavior and verify sample data.' } : {}) } };
           });
         } else report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: candidates.length ? 'No test files eligible for execution.' : 'No eligible unit-test candidates discovered.' });
       }

@@ -19,7 +19,9 @@ export class EditingTools {
     }
     if (action.tool === 'run_validation') {
       if (!this.validation) throw new TaskConflict('Validation is not configured for this session.');
-      return this.validation.run(signal);
+      const report = await this.validation.run(signal);
+      if (report.status === 'failed' && report.round >= 3) throw new TaskConflict('Validation still fails after three rounds. I stopped further repair attempts and kept the completed edits. The remaining failures are listed below.');
+      return report;
     }
     if (action.tool === 'git_diff_summary') return { changes: this.task.changes(), note: 'Task baseline includes preexisting developer edits; no raw Git patch is returned.' };
     if (action.tool === 'open_diff') { await this.review(this.task, action.args.path); return { opened: true }; }

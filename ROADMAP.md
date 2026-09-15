@@ -305,3 +305,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.23: Full access skips repository operation confirmations; Workspace approvals and ambiguous repository selection stay in-pane. Remove Custom from selectable modes and treat legacy Custom settings as Review. Audit native chat prompts and test dialog cancellation and stale replies.
 - [ ] Confirm multi-repository selection and Workspace approval placement in representative installed workspaces after restart.
+
+- [x] 0.4.24: Stop the agent immediately after an explicit third failed validation, preserve its failure reason ahead of the model-turn limit, and guide assertion-related Pester repair.

@@ -57,7 +57,7 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
     const serialized = JSON.stringify(result);
     messages.push({ role: 'assistant', content: raw }, { role: 'user', content: JSON.stringify({ version: 1, tool: action.tool, result: serialized.length <= limits.resultCharacters ? result : { truncated: true, text: serialized.slice(0, limits.resultCharacters) } }) });
   }
-  throw new Error('Task reached the 20-action limit. Narrow the request and try again.');
+  throw new Error('I stopped after 20 model turns without completing the task. Completed edits are retained; review the remaining validation results before continuing.');
 }
 
 
