@@ -101,7 +101,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
   const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
-  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.map(t => ({ id: t.id, name: t.name })), thread, busy });
+  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
   const ask = async (question: string, signal: AbortSignal): Promise<string> => {
     const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
     try { signal.throwIfAborted(); const answer = await vscode.window.showInputBox({ title: 'Agent question', prompt: question, ignoreFocusOut: true }, token.token); if (answer === undefined) { active.get(root)?.abort(); throw new Error('Cancelled.'); } return answer.slice(0, 8000); }
@@ -124,7 +124,14 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     if (busy) return;
     busy = true;
     try {
-      if (message.type === 'undo' && thread.undoTaskId) {
+      if (message.type === 'settings') {
+        await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:internal-pilot.llm-coding-agent-runtime');
+      } else if (message.type === 'selectModel') {
+        await selectModel(context);
+      } else if (message.type === 'permissions') {
+        const selected = await vscode.window.showQuickPick(['Review', 'Workspace', 'Full access', 'Custom'], { title: 'Change permissions', placeHolder: `Current: ${mode()}. Review/Custom are read-only; Workspace/Full access allow guarded edits.` });
+        if (selected) await config().update('permissionMode', selected, vscode.ConfigurationTarget.Global);
+      } else if (message.type === 'undo' && thread.undoTaskId) {
         const controller = new AbortController(); active.set(root, controller); update();
         let undoTask: EditTask | undefined;
         try {
@@ -142,12 +149,13 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
       } else if (message.type === 'sourceControl') {
         await vscode.commands.executeCommand('workbench.view.scm');
       } else if (message.type === 'new') {
-        const name = await vscode.window.showInputBox({ title: 'Name this conversation', value: 'New conversation' });
-        if (name) { thread = store.create(name); await store.save(); }
+        if (thread.messages.length) { thread = store.create('New conversation'); await store.save(); }
       } else if (message.type === 'switch' && typeof message.id === 'string') {
         thread = store.threads.find(t => t.id === message.id) ?? thread;
       } else if (message.type === 'send' && typeof message.text === 'string' && message.text.trim() && message.text.length <= 8000) {
         if (active.has(root)) throw new Error('A task is already running for this repository.');
+        if (message.newConversation === true && thread.messages.length) thread = store.create('New conversation');
+        if (!thread.messages.length) thread.name = message.text.trim().replace(/\s+/g, ' ').slice(0, 70);
         const controller = new AbortController(); active.set(root, controller);
         let task: EditTask | undefined;
         let validation: TaskValidation | undefined;

@@ -5,14 +5,16 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.9.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.10.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
 6. Run **LLM Runtime: Select Model**. This queries `/v1/models` and persists the chosen ID. If discovery fails, the picker offers manual entry prefilled with the saved model; cancellation preserves that selection.
-7. Run **LLM Runtime: Open Conversation**, name a conversation, and ask a normal question such as “Explain how these PowerShell functions load configuration; cite files and lines.” Use **Stop** to cancel a request or tool loop. Switching sidebar tabs or hiding the sidebar keeps the task running; disposing the view or closing the window cancels it.
+7. Use the automatically opened **Chats** view and ask a normal question such as “Explain how these PowerShell functions load configuration; cite files and lines.” Use **Stop** to cancel a request or tool loop. Switching sidebar tabs or hiding the sidebar keeps the task running; disposing the view or closing the window cancels it.
 
 `llmRuntime.requestTimeout` defaults to 60 seconds. `llmRuntime.permissionMode` defaults to Full access and is always visible in the panel. **Workspace and Full access enable repository edits; Review and Custom remain read-only.** No mode enables general commands. Endpoint/model/timeout/permission settings are application-scoped so repository settings cannot redirect credentials or elevate permissions.
+
+The **Chats** home screen lists your three newest conversations; use the history icon or **View all** for the full list. Type in the home composer to start a chat; its first message becomes the title. Click an existing chat to continue it, or the new-chat icon to return home. The gear opens extension settings, the model button opens endpoint model selection, and the shield opens permission choices. Model and permission changes are disabled during a task.
 
 In a trusted, single-folder workspace, the conversation appears automatically at startup in the **Secondary Side Bar** on the right, alongside other chat extensions, with the composer at the bottom. Use **LLM Runtime: Open Conversation** to bring it forward. To dock it elsewhere, right-click its view title and use **Move View**, or drag the view to your preferred sidebar. Native code diffs continue to open in editor tabs. Press **Enter** to send or **Shift+Enter** for a new line; use **Stop** during a task. You can draft a follow-up while the agent works, and drafts remain separate when switching conversations within the open panel. The **•••** menu contains native review, undo and Source Control. Scrolling up preserves your reading position; **Jump to latest** returns to the newest message. Messages support bold and inline code as safe text formatting, without rendering HTML or executable links.
 

@@ -37,7 +37,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   try { extension = require('../src/ui/extension'); } finally { Module._load = originalLoad; }
   const context = { subscriptions: [], globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
   extension.activate(context as any);
-  const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; extension.deactivate(); });
+  const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; panel.dispose(); extension.deactivate(); });
   await commands.get('llmRuntime.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
   global.fetch = async () => new Response('failure', { status: 503 }); input = 'manual-model';
   await commands.get('llmRuntime.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
@@ -78,7 +78,12 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   approveUndo = true; await receive({ type: 'undo' });
   assert.equal(await fs.readFile(path.join(root, 'pilot.ps1'), 'utf8'), 'function Get-Pilot {}');
   assert.equal(sent.at(-1).thread.undoTaskId, undefined); assert.match(sent.at(-1).thread.messages.at(-1).content, /Undo complete/);
-  input = 'Second topic'; await receive({ type: 'new' }); assert.equal(sent.at(-1).threads.length, 2);
+  await receive({ type: 'permissions' }); assert.equal(settings.permissionMode, 'Review');
+  const firstId = sent.at(-1).thread.id;
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"New chat response"}}' } }] }));
+  await receive({ type: 'send', text: 'Second topic', newConversation: true });
+  assert.notEqual(sent.at(-1).thread.id, firstId); assert.equal(sent.at(-1).thread.name, 'Second topic');
+  assert.equal(sent.at(-1).threads.length, 2); assert.equal(sent.at(-1).thread.messages.filter((m: any) => m.role === 'user').length, 1);
   const persisted = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await persisted.load(); assert.equal(persisted.threads.length, 2);
   const text = await fs.readFile(path.join(repositoryStorage(storage, await fs.realpath(root)), 'threads.json'), 'utf8'); assert.ok(!text.includes('test-key'));
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));

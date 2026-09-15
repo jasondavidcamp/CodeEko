@@ -207,6 +207,7 @@ Goal: make iterative daily use reliable.
 - [x] Stream brief progress such as repository inspection, files being edited, and validation being run.
 - [x] Reveal the conversation automatically at startup in trusted single-folder workspaces, without a Command Palette step.
 - [x] Dock the conversation in the Secondary Side Bar with view activation, refocus and native editor diffs.
+- [x] Add a Chats home screen, recent/full chat list, automatic first-message titles, settings and new-chat icons, and composer model/permission selectors.
 - [x] Streamline conversation layout with a fixed composer, keyboard send/newline, per-conversation in-panel drafts, scroll preservation and compact native-review controls.
 - [x] Add permission selection, with Full access optimized first and Review/Workspace polished next.
 - [x] Require explicit confirmation for destructive operations even in Full access.
