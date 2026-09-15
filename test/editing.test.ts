@@ -242,3 +242,67 @@ test('Full access deletes, moves and erases without confirmation while preservin
   await assert.rejects(tools.execute({ version: 1, tool: 'delete_file', args: { path: 'moved.ps1', expectedHash: current } }, signal()));
   assert.equal(await fs.readFile(path.join(f.root, 'moved.ps1'), 'utf8'), 'external edit');
 });
+
+
+test('local commit includes only selected whole files and preserves unrelated staged work', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await git(f.root, ['config','user.name','Test']); await git(f.root, ['config','user.email','test@example.invalid']);
+  await fs.writeFile(path.join(f.root, 'other.ps1'), 'unrelated staged work'); await git(f.root, ['add','other.ps1']);
+  const staged = await git(f.root, ['diff','--cached','--','other.ps1']);
+  await fs.writeFile(path.join(f.root, 'new.ps1'), 'function Get-New { 1 }');
+  const { task } = await f.start();
+  const result = await task.commit('Add new function', ['new.ps1'], true, signal());
+  assert.match(result.hash, /^[a-f0-9]{40,64}$/);
+  assert.equal((await git(f.root, ['show','--format=','--name-only','HEAD'])).trim(), 'new.ps1');
+  assert.equal(await git(f.root, ['diff','--cached','--','other.ps1']), staged);
+  assert.equal(f.counts().confirmations, 0); assert.ok(task.committed());
+  assert.doesNotMatch(task.summary(), /Changes remain uncommitted/);
+  await assert.rejects(task.commit('Duplicate', ['new.ps1'], true, signal()), /already attempted/);
+});
+
+test('commit requires explicit intent, honors modes and Workspace cancellation, and rejects unsafe configuration', async t => {
+  const f = await fixture(t);
+  await git(f.root, ['config','user.name','Test']); await git(f.root, ['config','user.email','test@example.invalid']);
+  const { task } = await f.start();
+  await assert.rejects(task.commit('No request', ['main.ps1'], false, signal()), /explicit request/);
+  f.mode('Review'); await assert.rejects(task.commit('Read only', ['main.ps1'], true, signal()), /denied/);
+  f.mode('Workspace'); await assert.rejects(task.commit('Declined', ['main.ps1'], true, signal()), /cancelled/);
+  assert.equal(f.counts().confirmations, 1);
+  f.mode('Full access'); await git(f.root, ['config','commit.gpgsign','true']);
+  await assert.rejects(task.commit('Signing', ['main.ps1'], true, signal()), /signing/);
+  assert.equal((await git(f.root, ['status','--porcelain'])).trim(), '');
+});
+
+test('commit rejects changed buffers, external edits, and excluded paths before staging', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await git(f.root, ['config','user.name','Test']); await git(f.root, ['config','user.email','test@example.invalid']);
+  const { task } = await f.start();
+  f.dirty(true); await assert.rejects(task.commit('Dirty', ['main.ps1'], true, signal()), /unsaved/); f.dirty(false);
+  await fs.appendFile(path.join(f.root, 'main.ps1'), '# external');
+  await assert.rejects(task.commit('External', ['main.ps1'], true, signal()), /outside this task/);
+  await assert.rejects(task.commit('Outside', ['../outside.ps1'], true, signal()));
+  assert.equal((await git(f.root, ['diff','--cached'])).trim(), '');
+});
+
+
+test('commit blocks index/reference hooks and selected filters before changing the index', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  const { task } = await f.start();
+  await fs.writeFile(path.join(f.root, '.git/hooks/post-index-change'), 'must not execute');
+  await assert.rejects(task.commit('Hook', ['main.ps1'], true, signal()), /hooks/);
+  await fs.unlink(path.join(f.root, '.git/hooks/post-index-change'));
+  await fs.writeFile(path.join(f.root, '.gitattributes'), '*.ps1 filter=example');
+  await assert.rejects(task.commit('Filter', ['main.ps1'], true, signal()), /filters/);
+  assert.equal((await git(f.root, ['diff','--cached'])).trim(), '');
+});
+
+
+test('Workspace can commit a selected deletion after in-pane approval', async t => {
+  const f = await fixture(t); f.approve(true);
+  await git(f.root, ['config','user.name','Test']); await git(f.root, ['config','user.email','test@example.invalid']);
+  const { task, tools } = await f.start();
+  await tools.execute({ version: 1, tool: 'delete_file', args: { path: 'other.ps1', expectedHash: await read(tools, 'other.ps1') } }, signal());
+  await task.commit('Remove unused file', ['other.ps1'], true, signal());
+  assert.equal(f.counts().confirmations, 2);
+  assert.match(await git(f.root, ['show','--format=','--name-status','HEAD']), /D\s+other.ps1/);
+});

@@ -1,11 +1,11 @@
 # LLM Coding Agent Runtime
 
-A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.4 adds task-scoped undo to guarded multi-file editing, native VS Code diffs, and bounded PowerShell validation/repair. Changes remain uncommitted.
+A TypeScript VS Code extension that supplies local repository tools to a configured, text-only, OpenAI-compatible Gemini endpoint. Version 0.4 adds task-scoped undo to guarded multi-file editing, native VS Code diffs, and bounded PowerShell validation/repair. Changes remain uncommitted unless you explicitly request a local commit.
 
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.24.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.25.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension asks you to choose the repository inside the conversation pane before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -73,3 +73,12 @@ To reset data, close all VS Code windows using LLM Runtime and remove this exten
 Test requests include a repository file inventory to help reuse existing suites. The runtime sends compact validation feedback to the model and displays descriptive progress. Malformed model responses receive bounded, field-specific correction attempts; repeated failures stop without applying the rejected action.
 
 An explicit third failed validation now stops repair immediately with the validation reason, retaining completed edits. The model-turn limit is reported as an unfinished run rather than a request to narrow an already small task. Pester parameter-set failures include guidance to inspect assertion syntax before modifying production parameters.
+
+
+## Local commits
+
+Ask “commit these changes with the message …” or “commit the code with that commit message.” The latest message must explicitly request a commit; “go” alone does not authorize one. The agent selects individual repository files and an explicit message. Full access commits directly; Workspace shows an in-pane confirmation; Review cannot commit. A successful commit ends the task and reports its hash. Nothing is pushed, and amend/reset/history rewriting are not exposed.
+
+Commits include the complete working-tree contents of the selected files, including selected deletions, rather than selected hunks. Unselected staged files remain staged and are not included. Pending edits, dirty buffers, external changes, unresolved conflicts and active merge/rebase operations block committing. Edits made during the current task must pass required validation before commit; a separate commit-only request does not rerun historical validation automatically. Git identity must already be configured.
+
+Repositories with active commit hooks, a custom hooks path, commit signing, or filters applied to selected files must use native Git; the runtime does not bypass or execute those configured programs. Files are staged before committing. If Git fails or cancellation interrupts it, selected files may remain staged or a commit may already exist. Inspect Source Control and history before retrying; there is no automatic index rollback or replay. External Git/file activity can still race checks. Commit metadata is recorded privately; task undo is cleared after commit.

@@ -10,7 +10,7 @@ import { runAgent } from '../agent/loop';
 import { acquireRepositoryLease } from '../state/lease';
 import { contained, TaskConflict } from '../policy/boundary';
 import { EditTask, EditHooks } from '../state/editTask';
-import { EditingTools } from '../tools/editing';
+import { EditingTools, explicitCommitRequest } from '../tools/editing';
 import { NativeReview } from './review';
 import { TaskValidation } from '../validation/task';
 import { createPowerShellRunner } from '../validation/powershell';
@@ -222,7 +222,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             pesterMajor: () => { const selected = config().get<string>('pesterVersion', 'Auto'); return selected === '4' ? 4 : selected === '5' ? 5 : undefined; },
             progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
           }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')));
-          const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation);
+          const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation, explicitCommitRequest(message.text));
           const summary = await runAgent(api, model, thread.messages, tools, mode, controller.signal, text => {
             thread.activity.push({ at: new Date().toISOString(), event: text });
             thread.activity = thread.activity.slice(-500);
@@ -237,6 +237,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
           try {
             if (task) {
               if (task.changes().length) { thread.reviewTaskId = task.id; thread.undoTaskId = task.id; }
+              if (task.committed()) thread.undoTaskId = undefined;
               await task.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed');
               if (task.changes().length && !disposed) await review.open(task);
             }

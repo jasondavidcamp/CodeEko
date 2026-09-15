@@ -5,7 +5,7 @@ import { ReadOnlyTools } from './readOnly';
 import { TaskValidation } from '../validation/task';
 
 export class EditingTools {
-  constructor(private reads: ReadOnlyTools, readonly task: EditTask, private mode: () => string, private review: (task: EditTask, file?: string) => Promise<void>, readonly validation?: TaskValidation) {}
+  constructor(private reads: ReadOnlyTools, readonly task: EditTask, private mode: () => string, private review: (task: EditTask, file?: string) => Promise<void>, readonly validation?: TaskValidation, private commitRequested = false) {}
   async initialContext(signal: AbortSignal): Promise<unknown> {
     return this.reads.execute({ version: 1, tool: 'list_files', args: {} }, signal);
   }
@@ -16,6 +16,12 @@ export class EditingTools {
       this.validation?.assertCanEdit();
       try { const result = await this.task.execute(action, signal); if ((result as { applied?: boolean }).applied) this.validation?.invalidate(); return result; }
       catch (error) { check(signal); if (error instanceof TaskConflict) throw error; throw new TaskConflict('The edit could not finish safely. Review the recorded task changes before retrying.'); }
+    }
+    if (action.tool === 'git_commit') {
+      if (!this.commitRequested) throw new TaskConflict('Ask explicitly to commit in your latest message before using local commits.');
+      const report = await this.validation?.beforeComplete(signal);
+      if (report?.status === 'failed') throw new TaskConflict('Validation is failing. Resolve the reported failures before committing these edits.');
+      return this.task.commit(action.args.message, action.args.paths, this.commitRequested, signal);
     }
     if (action.tool === 'run_validation') {
       if (!this.validation) throw new TaskConflict('Validation is not configured for this session.');
@@ -34,4 +40,8 @@ export class EditingTools {
     }
     return result;
   }
+}
+
+export function explicitCommitRequest(text: string): boolean {
+  return /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:go ahead and\s+)?commit(?:\s+(?:it|the|these|this|my|our|all|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text.trim()) && !/\b(?:do not|don't|never|without)\s+commit(?:\s+(?:it|the|these|this|my|our|all|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text);
 }

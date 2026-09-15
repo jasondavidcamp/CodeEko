@@ -307,3 +307,6 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [ ] Confirm multi-repository selection and Workspace approval placement in representative installed workspaces after restart.
 
 - [x] 0.4.24: Stop the agent immediately after an explicit third failed validation, preserve its failure reason ahead of the model-turn limit, and guide assertion-related Pester repair.
+
+- [x] 0.4.25: Explicitly requested local commits with a message and selected files; Full access executes directly, Workspace confirms in-pane, and unrelated staged files are preserved. No push or history rewriting.
+- [ ] Verify local commits against representative repository policies and interrupted Git operations; hook/signing/filter execution remains unsupported.

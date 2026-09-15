@@ -11,7 +11,7 @@ import { Action } from '../protocol/actions';
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const fileState = z.object({ before: digest, current: digest.nullable(), preexisting: z.boolean(), protected: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().nonnegative() })) });
 const changeSchema = z.object({ path: z.string(), before: digest.nullable(), after: digest.nullable(), preexisting: z.boolean(), operation: z.enum(['patch','create','delete','move']), state: z.enum(['prepared','applied']) });
-const journalSchema = z.object({ version: z.literal(1), id: z.string().uuid(), root: z.string(), head: z.string().nullable(), status: z.enum(['running','complete','cancelled','failed','blocked']), files: z.record(fileState), changes: z.array(changeSchema).max(24), undo: z.object({ state: z.enum(['running','complete']), restored: z.array(z.string()).max(24), pending: z.string().nullable() }).optional() });
+const journalSchema = z.object({ version: z.literal(1), id: z.string().uuid(), root: z.string(), head: z.string().nullable(), status: z.enum(['running','complete','cancelled','failed','blocked']), files: z.record(fileState), changes: z.array(changeSchema).max(24), commit: z.object({ state: z.enum(['prepared','complete']), paths: z.array(z.string()), hash: z.string().optional() }).optional(), undo: z.object({ state: z.enum(['running','complete']), restored: z.array(z.string()).max(24), pending: z.string().nullable() }).optional() });
 export type TaskChange = z.infer<typeof changeSchema>;
 export interface EditHooks {
   mode(): string;
@@ -169,10 +169,76 @@ export class EditTask {
     undo.state = 'complete'; await this.persist();
   }
   async finish(status: z.infer<typeof journalSchema>['status']): Promise<void> { this.journal.status = status; await this.persist(); }
+  committed(): boolean { return this.journal.commit?.state === 'complete'; }
   summary(): string {
+    if (this.journal.commit) return this.committed() ? `Local commit ${this.journal.commit.hash?.slice(0, 12)} created for ${this.journal.commit.paths.length} selected file(s). Other files were not included; review Source Control for remaining changes.` : 'A commit was attempted. Inspect Git history and Source Control before retrying; selected files may remain staged.';
     const changes = this.changes(); if (!changes.length) return 'No repository files were changed.';
     const applied = changes.filter(c => c.state === 'applied'); const pending = changes.filter(c => c.state === 'prepared');
     return `${applied.length} file change(s) recorded${pending.length ? `; ${pending.length} operation(s) need inspection after interruption` : ''}. Changes remain uncommitted. Review the task diffs.`;
+  }
+  async commit(message: string, paths: string[], requested: boolean, signal: AbortSignal): Promise<{ hash: string; paths: string[] }> {
+    authorize('git_commit', this.hooks.mode()); check(signal);
+    if (!requested) throw new TaskConflict('A local commit needs an explicit request in your latest message, such as "commit these changes".');
+    if (this.journal.commit) throw new TaskConflict('A commit was already attempted in this task. Inspect Git history and Source Control before retrying.');
+    if (this.journal.changes.some(c => c.state !== 'applied')) throw new TaskConflict('Resolve interrupted edits before committing.');
+    if (new Set(paths.map(p => p.toLowerCase())).size !== paths.length) throw new TaskConflict('Choose each commit path only once.');
+    const root = this.index.root;
+    await this.guard('git_commit', signal);
+    // Do not silently bypass configured commit checks or run arbitrary hook/signing code.
+    const attributes = (await git(root, ['check-attr','-z','filter','--',...paths], signal)).split('\0');
+    const filtered = attributes.some((value, index) => index % 3 === 2 && value !== 'unspecified' && value !== 'unset');
+    const hooksPath = await git(root, ['config','--get','core.hooksPath'], signal, true);
+    const signing = await git(root, ['config','--bool','--get','commit.gpgsign'], signal, true);
+    if (filtered || hooksPath.trim() || signing.trim() === 'true') throw new TaskConflict('This repository uses Git filters, custom hooks, or commit signing. Commit through native Git so those configured checks are preserved.');
+    const hooksDirectory = path.resolve(root, (await git(root, ['rev-parse','--git-path','hooks'], signal)).trim());
+    const hooks = await fs.readdir(hooksDirectory).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return []; throw error; });
+    if (hooks.some(name => !name.endsWith('.sample') && !name.startsWith('.'))) throw new TaskConflict('Repository commit hooks require native Git; the extension will not bypass or execute them.');
+    const gitDirectory = path.resolve(root, (await git(root, ['rev-parse','--git-dir'], signal)).trim());
+    for (const marker of ['MERGE_HEAD','CHERRY_PICK_HEAD','REVERT_HEAD','rebase-merge','rebase-apply']) {
+      if (await fs.stat(path.join(gitDirectory, marker)).then(() => true, (e: NodeJS.ErrnoException) => { if (e.code === 'ENOENT') return false; throw e; })) throw new TaskConflict('Finish the active Git merge, rebase or cherry-pick before committing here.');
+    }
+    if ((await git(root, ['ls-files','--unmerged'], signal)).trim()) throw new TaskConflict('Resolve Git conflicts before committing.');
+    try { await git(root, ['var','GIT_AUTHOR_IDENT'], signal); await git(root, ['var','GIT_COMMITTER_IDENT'], signal); }
+    catch { throw new TaskConflict('Configure your Git user.name and user.email before committing.'); }
+    const inspect = async () => {
+      await this.guard('git_commit', signal);
+      const versions: (string | null)[] = [];
+      for (const file of paths) {
+        const full = await this.allowedPath(file);
+        const stat = await fs.lstat(full).catch((e: NodeJS.ErrnoException) => { if (e.code === 'ENOENT') return undefined; throw e; });
+        if (stat) {
+          if (!stat.isFile() || stat.nlink > 1) throw new TaskConflict('Commit paths must be individual, unlinked files.');
+          const current = (await fileDocument(root, file)).hash;
+          if (this.journal.files[file] && this.journal.files[file].current !== current) throw new TaskConflict(`${file} changed outside this task. Review the changes before committing.`);
+          versions.push(current);
+        } else {
+          if (this.journal.files[file]?.current) throw new TaskConflict(`${file} was deleted outside this task. Review the changes before committing.`);
+          const indexed = (await git(root, ['ls-files','--error-unmatch','--',file], signal, true)).trim();
+          const tracked = this.journal.head ? (await git(root, ['ls-tree','-r','--name-only',this.journal.head,'--',file], signal)).trim() : '';
+          if (!indexed && tracked !== file) throw new TaskConflict(`Commit path does not exist: ${file}`);
+          versions.push(null);
+        }
+      }
+      return JSON.stringify(versions);
+    };
+    const versions = await inspect();
+    if (this.hooks.mode() !== 'Full access' && !await this.hooks.confirm(`Create local commit "${message}" with these whole files?\n${paths.join('\n')}\nOther staged files will not be included.`, signal)) throw new TaskConflict('Commit cancelled.');
+    if (await inspect() !== versions) throw new TaskConflict('Selected files changed while preparing the commit. Review them and retry.');
+    const messageFile = path.join(this.directory, 'commit-message.txt');
+    await fs.writeFile(messageFile, message, { mode: 0o600 });
+    this.journal.commit = { state: 'prepared', paths }; await this.persist();
+    try {
+      // Stage only named files so new files are known to --only. Failure retains
+      // staging for inspection; never reset a developer's index as rollback.
+      await git(root, ['add','--all','--',...paths], signal);
+      if (await inspect() !== versions) throw new TaskConflict('Selected files changed before commit.');
+      await git(root, ['-c','gc.auto=0','-c','maintenance.auto=false','commit','--only','--file',messageFile,'--',...paths], signal);
+      const committed = (await git(root, ['rev-parse','HEAD'])).trim();
+      this.journal.commit = { state: 'complete', paths, hash: committed }; await this.persist();
+      return { hash: committed, paths };
+    } catch {
+      throw new TaskConflict('The commit attempt did not finish cleanly. Selected files may remain staged, or the commit may already exist. Inspect Git history and Source Control before retrying; no automatic rollback was attempted.');
+    }
   }
   private async persist(): Promise<void> {
     const temporary = path.join(this.directory, `task.${randomUUID()}.tmp`);

@@ -127,6 +127,17 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   await receive({ type: 'restore' }); assert.equal(sent.at(-1).thread.archived, false);
   const persisted = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await persisted.load(); assert.equal(persisted.threads.length, 2);
   const text = await fs.readFile(path.join(repositoryStorage(storage, await fs.realpath(root)), 'threads.json'), 'utf8'); assert.ok(!text.includes('test-key'));
+  await receive({ type: 'permissions', mode: 'Full access' });
+  await git(root, ['config','user.name','Test']); await git(root, ['config','user.email','test@example.invalid']);
+  await fs.appendFile(path.join(root, 'pilot.ps1'), '\n# selected commit change');
+  const beforeCommit = await git(root, ['rev-parse','HEAD']);
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ version: 1, tool: 'git_commit', args: { message: 'Document pilot', paths: ['pilot.ps1'] } }) } }] }));
+  await receive({ type: 'send', text: 'What changed?' });
+  assert.equal(await git(root, ['rev-parse','HEAD']), beforeCommit, 'model cannot grant commit authorization');
+  await receive({ type: 'send', text: 'commit the code with that commit message' });
+  assert.notEqual(await git(root, ['rev-parse','HEAD']), beforeCommit);
+  assert.match(sent.at(-1).thread.messages.at(-1).content, /Created local commit/);
+  assert.equal(sent.at(-1).thread.undoTaskId, undefined);
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));
 });
 

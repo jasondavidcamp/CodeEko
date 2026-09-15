@@ -53,6 +53,11 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
       }
     }
     check(signal);
+    if (action.tool === 'git_commit') {
+      const committed = result as { hash: string; paths: string[] };
+      if (typeof committed.hash !== 'string') throw new TaskConflict('The commit result needs inspection in Git history.');
+      return `Created local commit ${committed.hash.slice(0, 12)}: ${action.args.message}. Included ${committed.paths.length} file(s). Nothing was pushed.`;
+    }
     if (action.tool === 'run_validation') result = compactValidation(result);
     const serialized = JSON.stringify(result);
     messages.push({ role: 'assistant', content: raw }, { role: 'user', content: JSON.stringify({ version: 1, tool: action.tool, result: serialized.length <= limits.resultCharacters ? result : { truncated: true, text: serialized.slice(0, limits.resultCharacters) } }) });

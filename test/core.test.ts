@@ -181,3 +181,20 @@ test('test inventory supplies source paths as well as existing suites without a 
   assert.deepEqual(await tools.initialContext(new AbortController().signal), { files: ['Get-Value.ps1', 'tests/Value.Tests.ps1'] });
   assert.deepEqual(request, { version: 1, tool: 'list_files', args: {} });
 });
+
+
+test('commit request detection rejects discussion and negation; schema rejects push and extra options', async () => {
+  const { explicitCommitRequest } = await import('../src/tools/editing');
+  for (const text of ['commit it', 'commit the code with that commit message', 'please commit these changes', 'can you commit this?']) assert.ok(explicitCommitRequest(text));
+  for (const text of ['explain git commit', 'do not commit', 'commit message suggestion', 'go', 'create a function']) assert.equal(explicitCommitRequest(text), false);
+  assert.throws(() => parseAction(JSON.stringify({ version: 1, tool: 'git_commit', args: { message: 'x', paths: ['main.ps1'], push: true } })));
+  assert.throws(() => parseAction(JSON.stringify({ version: 1, tool: 'git_commit', args: { message: '', paths: [] } })));
+});
+
+
+test('successful local commit finishes without another model request', async () => {
+  let calls = 0;
+  const answer = await runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'git_commit', args: { message: 'Add tests', paths: ['tests/Value.Tests.ps1'] } }); } }, 'fake', [], { execute: async () => ({ hash: 'a'.repeat(40), paths: ['tests/Value.Tests.ps1'] }) }, () => 'Full access', new AbortController().signal, () => {});
+  assert.equal(calls, 1); assert.match(answer, /Created local commit/); assert.match(answer, /Nothing was pushed/);
+  assert.throws(() => authorize('git_commit', 'Review'));
+});
