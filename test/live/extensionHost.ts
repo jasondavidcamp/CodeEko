@@ -48,6 +48,9 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const command of ['llmRuntime.open', 'llmRuntime.setKey', 'llmRuntime.selectModel']) assert.ok(commands.includes(command));
   assert.equal(vscode.workspace.getConfiguration('llmRuntime').get('endpoint'), '', 'Fresh profile must have no endpoint default.');
+  const startupDeadline = Date.now() + 10000;
+  while (!extension.exports.isConversationVisible() && Date.now() < startupDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(extension.exports.isConversationVisible(), true, 'Conversation must appear automatically without invoking Open Conversation.');
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Sidebar provider must initialize.');
   await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
   assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Refocusing must reuse the sidebar.');

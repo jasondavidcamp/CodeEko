@@ -40,7 +40,7 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
   if (chosen?.trim()) await config().update('model', chosen.trim(), vscode.ConfigurationTarget.Global);
   } finally { signal?.removeEventListener('abort', abort); token.dispose(); }
 }
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
   command('llmRuntime.setKey', async () => {
@@ -52,8 +52,10 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   command('llmRuntime.selectModel', () => selectModel(context));
   let initialization: Promise<void> | undefined;
+  let sidebar: vscode.WebviewView | undefined;
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('llmRuntime.conversation', {
     resolveWebviewView: view => {
+      sidebar = view;
       context.subscriptions.push(view.onDidDispose(() => { initialization = undefined; }));
       initialization = open(context, review, view);
       return initialization;
@@ -69,6 +71,13 @@ export function activate(context: vscode.ExtensionContext): void {
     await initialization;
     return true;
   });
+  // Reveal once per window startup; subsequent user navigation stays untouched.
+  // Ambiguous workspaces retain the explicit repository-selection flow.
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (vscode.workspace.isTrusted && folders.length === 1 && folders[0].uri.scheme === 'file') {
+    void vscode.commands.executeCommand('llmRuntime.conversation.focus', { preserveFocus: true }).then(undefined, () => {});
+  }
+  return { isConversationVisible: () => sidebar?.visible === true };
 }
 async function open(context: vscode.ExtensionContext, review: NativeReview, panel: vscode.WebviewView): Promise<void> {
   let disposed = false;
