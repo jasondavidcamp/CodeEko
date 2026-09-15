@@ -7,7 +7,7 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/jasondavidcamp/llm-coding-agent-runtime.git"
+    "url": "https://github.com/jasondavidcamp/EKOD.git"
   },
   "license": "UNLICENSED",
   "engines": {
