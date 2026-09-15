@@ -206,3 +206,21 @@ test('a single empty-text insertion initializes an empty tracked file', async t 
   await tools.execute(patch(await read(tools), '', 'function Get-Count { 4 }'), signal());
   assert.equal(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), 'function Get-Count { 4 }');
 });
+
+
+test('invalid literal patch recovers within the read correction budget and retains follow-up intent', async t => {
+  const f = await fixture(t); const { task, tools } = await f.start(); let calls = 0;
+  const history = [{ role: 'user' as const, content: 'Change the return value to eight; preserve my notes.' }, { role: 'assistant' as const, content: 'The previous edit overlapped developer work.' }, { role: 'user' as const, content: 'go' }];
+  await runAgent({ complete: async (_model, messages) => {
+    calls++;
+    assert.ok(messages.some(m => m.content === history[0].content));
+    if (calls === 1 || calls === 3) {
+      if (calls === 3) { assert.match(messages.at(-1)!.content, /patch_target_required/); assert.equal(task.changes().length, 0); }
+      return JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } });
+    }
+    if (calls === 2 || calls === 4) return JSON.stringify(patch(JSON.parse(messages.at(-1)!.content).result.hash, calls === 2 ? 'return 999' : 'return 4', 'return 8'));
+    return JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Updated.' } });
+  } }, 'mock', history, tools, f.hooks.mode, signal(), () => {});
+  assert.equal(calls, 5); assert.equal(task.changes().length, 1);
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 8/);
+});

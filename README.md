@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.18.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.19.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -24,7 +24,7 @@ For legacy test suites, set `llmRuntime.pesterVersion` to `4` or `5`. `Auto` use
 
 For a before/after test comparison, ask the agent to run validation before editing. Approve the trusted test files as usual. With complete Pester 5 results, later validation distinguishes previously observed failures, newly failing tests, changed failures and observed resolutions. The pre-edit run counts toward the same three-round limit. Without comparable evidence, origin stays unknown; newly failing tests are possible regressions, not proof that the edit caused them.
 
-If the model skips a file read or copies the wrong hash, version 0.4.6 asks it to read again and allows up to two corrections within the existing action budget. This applies only while on-disk content still matches the task's recorded state. External edits, dirty buffers, unsafe paths and ambiguous overlaps still stop the task.
+If the model skips a file read, copies the wrong hash, or proposes missing/ambiguous patch text, the runtime asks it to reread and allows at most two corrections total within the existing action budget. A short follow-up such as “go” retains the original request and preservation constraints; it does not override a developer-edit conflict. This applies only while on-disk content still matches the task's recorded state. External edits, dirty buffers, unsafe paths and ambiguous overlaps still stop the task.
 
 ## Repository documents
 

@@ -1,5 +1,5 @@
 import { Message } from '../api/client';
-import { authorize, check, TaskConflict, ReadRequired } from '../policy/boundary';
+import { authorize, check, TaskConflict, ReadRequired, PatchTargetRequired } from '../policy/boundary';
 import { parseAction, taskProtocol, Action } from '../protocol/actions';
 export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal): Promise<string> }
 export interface ToolExecutor { execute(action: Action, signal: AbortSignal): Promise<unknown>; beforeComplete?(signal: AbortSignal): Promise<unknown | undefined> }
@@ -38,7 +38,7 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
       if (error instanceof ReadRequired) {
         if (++readCorrections > 2) throw new TaskConflict('Stopped after two read/hash corrections. No edit was applied for the rejected attempts.');
         progress(`A fresh read of ${error.file} is required before retrying the edit (${readCorrections}/2).`);
-        result = { error: 'read_required', path: error.file, instruction: 'No edit was applied. Call read_file for this path now, then copy its exact returned hash into expectedHash. Earlier conversation summaries and validation results do not count as a file read.' };
+        result = error instanceof PatchTargetRequired ? { error: 'patch_target_required', path: error.file, instruction: 'No edit was applied. Your oldText is missing or not unique. Read the file again; copy an exact unique substring without line-number prefixes. Preserve all preexisting developer edits. If adding a function, use an unaffected unique insertion anchor or a separate appropriate file. Do not repeat the rejected patch.' } : { error: 'read_required', path: error.file, instruction: 'No edit was applied. Call read_file for this path now, then copy its exact returned hash into expectedHash. Earlier conversation summaries and validation results do not count as a file read.' };
       } else {
         if (error instanceof TaskConflict) throw error;
         result = { error: 'Tool could not complete within repository policy. Re-read the file and check the exact arguments. No successful mutation is implied by this error.' };

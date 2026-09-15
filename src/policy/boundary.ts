@@ -27,4 +27,7 @@ export class TaskConflict extends Error {}
 export class ReadRequired extends TaskConflict {
   constructor(readonly file: string) { super(`Read ${file} again before editing; its task/read hash is stale or missing. No edit was applied.`); }
 }
+export class PatchTargetRequired extends ReadRequired {
+  constructor(file: string) { super(file); this.message = `Patch text is missing or ambiguous in ${file}. Use a smaller, unique replacement after reading the file.`; }
+}
 export function check(signal?: AbortSignal): void { signal?.throwIfAborted(); }

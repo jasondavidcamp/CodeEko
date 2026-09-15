@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { RepositoryIndex, excluded, fileDocument } from '../indexing';
 import { git } from '../repository/git';
 import { decode, encode, hash } from '../repository/document';
-import { authorize, check, contained, safePath, TaskConflict, ReadRequired } from '../policy/boundary';
+import { authorize, check, contained, safePath, TaskConflict, ReadRequired, PatchTargetRequired } from '../policy/boundary';
 import { Action } from '../protocol/actions';
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
@@ -236,7 +236,7 @@ export class EditTask {
       const edits = action.args.edits.map(edit => {
         const oldText = edit.oldText.replaceAll('\r\n', '\n'); const newText = edit.newText.replaceAll('\r\n', '\n');
         const start = text.indexOf(oldText);
-        if (start < 0 || (oldText ? text.indexOf(oldText, start + 1) !== -1 : text.length > 0 || action.args.edits.length !== 1)) throw new TaskConflict(`Patch text is missing or ambiguous in ${file}. Use a smaller, unique replacement after reading the file.`);
+        if (start < 0 || (oldText ? text.indexOf(oldText, start + 1) !== -1 : text.length > 0 || action.args.edits.length !== 1)) throw new PatchTargetRequired(file);
         return { start, end: start + oldText.length, newText };
       }).sort((a, b) => a.start - b.start);
       for (let i = 0; i < edits.length; i++) {
