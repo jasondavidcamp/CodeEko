@@ -7,6 +7,7 @@ import { RepositoryIndex } from '../indexing';
 import { ThreadStore, Thread, repositoryStorage, lastChatActivity } from '../state/threads';
 import { ReadOnlyTools } from '../tools/readOnly';
 import { runAgent } from '../agent/loop';
+import { rejectionRecorder } from '../agent/rejections';
 import { acquireRepositoryLease } from '../state/lease';
 import { contained, TaskConflict } from '../policy/boundary';
 import { EditTask, EditHooks } from '../state/editTask';
@@ -223,10 +224,15 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
           }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')));
           const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation, explicitCommitRequest(message.text));
+          let diagnostics: ReturnType<typeof rejectionRecorder> | undefined;
           const summary = await runAgent(api, model, thread.messages, tools, mode, controller.signal, text => {
             thread.activity.push({ at: new Date().toISOString(), event: text });
             thread.activity = thread.activity.slice(-500);
             send({ type: 'progress', text });
+          }, async response => {
+            if (!config().get<boolean>('debugRejectedResponses', false)) return;
+            diagnostics ??= rejectionRecorder(task!.directory, String(context.extension.packageJSON.version), model, mode, text => api.redact(text));
+            await diagnostics(response);
           });
           thread.messages.push({ role: 'assistant', content: (summary + outcome(task, validation)).slice(0, 16000) }); thread.status = 'complete';
         } catch (e) {

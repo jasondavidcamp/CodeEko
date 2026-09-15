@@ -46,7 +46,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const choiceAbort = new AbortController();
   const cancelledChoice = extension.paneChoice(choicePanel as any, 'Choose repository', ['repo'], choiceAbort.signal);
   choiceAbort.abort(); await assert.rejects(cancelledChoice, /Cancelled/); assert.equal(choiceListeners.size, 0);
-  const context = { subscriptions: [], globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
+  const context = { subscriptions: [], extension: { packageJSON: { version: 'test' } }, globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
   extension.activate(context as any);
   const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; panel.dispose(); extension.deactivate(); });
   await commands.get('llmRuntime.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
@@ -138,6 +138,19 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.notEqual(await git(root, ['rev-parse','HEAD']), beforeCommit);
   assert.match(sent.at(-1).thread.messages.at(-1).content, /Created local commit/);
   assert.equal(sent.at(-1).thread.undoTaskId, undefined);
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: 'invalid response test-key' } }] }));
+  await receive({ type: 'send', text: 'Hello' });
+  const taskLog = () => path.join(repositoryStorage(storage, root), 'tasks', sent.at(-1).thread.taskId, 'rejected-responses.jsonl');
+  await assert.rejects(fs.stat(taskLog()), /ENOENT/);
+  settings.debugRejectedResponses = true; let rejectedCalls = 0;
+  global.fetch = async () => {
+    if (++rejectedCalls === 2) settings.debugRejectedResponses = false;
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'invalid response test-key' } }] }));
+  };
+  await receive({ type: 'send', text: 'Hello again' });
+  const captured = await fs.readFile(taskLog(), 'utf8');
+  assert.equal(captured.trim().split('\n').length, 1, 'turning off capture applies before the next rejection');
+  assert.ok(!captured.includes('test-key')); assert.match(captured, /REDACTED/);
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));
 });
 

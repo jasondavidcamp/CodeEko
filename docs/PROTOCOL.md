@@ -2,7 +2,7 @@
 
 Every model response must be one raw JSON object with exactly `version`, `tool`, `args`. Additional properties are rejected at both levels. Markdown fences, arrays, multiple objects, unknown tools and non-1 versions fail closed. No model response is executed directly. Authoritative schemas are in `src/protocol/actions.ts`.
 
-Up to two isolated invalid responses may receive field-specific correction feedback inside the existing 20-turn and context budgets. Two consecutive invalid replies, a third invalid reply overall, or a response exceeding 20,000 characters stops the task. Invalid actions are never executed or coerced. The chat explains that the rejected response made no changes and earlier edits remain.
+Up to two format-only correction requests are allowed inside the existing 20-turn and context budgets, including consecutive malformed replies. The correction uses a small isolated request with the protocol, schema hint and rejected response; successful actions resume the original task context. A third invalid reply overall or a response exceeding 20,000 characters stops the task. Invalid actions are never executed or coerced. The chat explains that the rejected response made no changes and earlier edits remain.
 
 ```json
 {"version":1,"tool":"read_file","args":{"path":"src/Example.ps1","startLine":1,"endLine":80}}

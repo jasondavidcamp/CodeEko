@@ -129,7 +129,7 @@ test('one protocol correction can recover a missing version without executing in
   assert.equal(answer, 'Done'); assert.equal(calls, 3); assert.equal(executions, 1);
   calls = 0;
   await assert.rejects(runAgent({ complete: async () => { calls++; return '{"tool":"list_files","args":{}}'; } }, 'm', [], { execute: async () => { throw new Error('Invalid action executed'); } }, () => 'Review', new AbortController().signal, () => {}), /repeatedly sent an unusable response/);
-  assert.equal(calls, 2);
+  assert.equal(calls, 3);
 });
 
 test('repeated missing reads stop after two corrections inside the existing action budget', async () => {
@@ -224,6 +224,26 @@ test('isolated format mistakes receive specific feedback without replaying tools
   assert.equal(answer, 'Done'); assert.equal(executions, 1); assert.equal(calls, 4);
   assert.ok(progress.includes('Reading main.ps1…'));
   assert.ok(progress.every(p => !/context characters|\d+\/20/.test(p)));
+});
+
+test('two malformed repair actions after failed validation recover without executing invalid edits', async () => {
+  let calls = 0; const executed: string[] = [];
+  const patch = { version: 1, tool: 'apply_patch', args: { path: 'tests/Names.Tests.ps1', edits: [{ oldText: 'Should -BeEmpty', newText: 'Should -BeNullOrEmpty' }] } };
+  const replies = [
+    { version: 1, tool: 'run_validation', args: {} },
+    { tool: patch.tool, args: patch.args },
+    { ...patch, explanation: 'Correct the assertion' }, patch,
+    { version: 1, tool: 'complete_task', args: { summary: 'Repaired.' } }
+  ];
+  const answer = await runAgent({ complete: async (_model, messages) => {
+    if (calls === 3) { assert.equal(messages.length, 2); assert.match(messages[0].content, /format/i); }
+    if (calls === 4) assert.ok(messages.some(message => message.content.includes('Parameter set cannot be resolved')));
+    return JSON.stringify(replies[calls++]);
+  } }, 'mock', [{ role: 'user', content: 'Fix the generated tests for six-character names.' }], { execute: async action => {
+    executed.push(action.tool);
+    return action.tool === 'run_validation' ? { status: 'failed', steps: [{ command: 'Pester', status: 'failed', detail: { failures: [{ message: 'Parameter set cannot be resolved' }] } }] } : { applied: true };
+  } }, () => 'Full access', new AbortController().signal, () => {});
+  assert.equal(answer, 'Repaired.'); assert.deepEqual(executed, ['run_validation', 'apply_patch']); assert.equal(calls, 5);
 });
 
 test('validation context drops passing-case inventory but preserves repair evidence and original report', async () => {

@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.31",
+  "version": "0.4.32",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -67,6 +67,12 @@
           "minimum": 1000,
           "maximum": 300000,
           "scope": "application"
+        },
+        "llmRuntime.debugRejectedResponses": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Save up to three rejected model responses per task in private extension storage for debugging. The configured API key is redacted, but source code and other sensitive text may remain. Disabling stops new captures; existing diagnostic files remain until deleted."
         },
         "llmRuntime.pesterVersion": {
           "type": "string",
@@ -139,7 +145,9 @@
     "package": "npm run build && vsce package --allow-missing-repository",
     "vscode:prepublish": "npm run build",
     "test:live:read-recovery": "npm run build && node dist/test/live/readRecovery.js",
-    "test:live:literal-recovery": "npm run build && node dist/test/live/literalRecovery.js"
+    "test:live:literal-recovery": "npm run build && node dist/test/live/literalRecovery.js",
+    "test:live:test-repair": "npm run build && node dist/test/live/testRepair.js",
+    "debug:replay": "npm run build && node dist/test/replayRejected.js"
   },
   "dependencies": {
     "zod": "^3.24.0"
