@@ -205,6 +205,7 @@ Goal: make iterative daily use reliable.
 - [x] On cancellation, report completed edits and validation state.
 - [x] Implement task-scoped undo that reverses only agent-attributed changes and refuses ambiguous reversals.
 - [x] Stream brief progress such as repository inspection, files being edited, and validation being run.
+- [x] Streamline conversation layout with a fixed composer, keyboard send/newline, per-conversation in-panel drafts, scroll preservation and compact native-review controls.
 - [x] Add permission selection, with Full access optimized first and Review/Workspace polished next.
 - [x] Require explicit confirmation for destructive operations even in Full access.
 

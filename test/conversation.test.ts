@@ -1,0 +1,28 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as vm from 'node:vm';
+import { conversationHtml } from '../src/ui/conversation';
+
+test('composer prevents duplicate sends, respects IME/newlines and preserves per-thread drafts', () => {
+  const nodes = new Map<string, any>();
+  const node = () => ({ value: '', textContent: '', style: {}, children: [] as any[], scrollHeight: 100, scrollTop: 0, clientHeight: 100, append(...items: any[]) { this.children.push(...items); }, replaceChildren() { this.children = []; }, focus() {} });
+  const get = (id: string) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
+  const sent: any[] = []; let receive!: (event: any) => void;
+  const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(conversationHtml())![1];
+  vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: any) => sent.push(message) }), document: { getElementById: get, createElement: node }, window: { addEventListener: (_: string, callback: typeof receive) => { receive = callback; } } });
+  const state = (id: string, busy = false) => receive({ data: { type: 'state', root: 'repo', mode: 'Review', busy, threads: [{ id, name: id }], thread: { id, status: 'idle', messages: [{ role: 'assistant', content: '**Safe** `code` <img src=x onerror=alert(1)>' }] } } });
+  state('one'); get('input').value = 'Repair this'; get('input').oninput();
+  let prevented = 0;
+  const key = (extra: object) => get('input').onkeydown({ key: 'Enter', preventDefault: () => { prevented++; }, ...extra });
+  key({ shiftKey: true }); key({ isComposing: true }); key({ keyCode: 229 });
+  assert.equal(sent.filter(m => m.type === 'send').length, 0); assert.equal(prevented, 0);
+  key({}); key({}); assert.equal(sent.filter(m => m.type === 'send').length, 1); assert.equal(get('input').value, '');
+  get('input').value = 'Follow-up draft'; get('input').oninput(); state('one', true);
+  assert.equal(get('input').value, 'Follow-up draft'); assert.equal(get('cancel').hidden, false);
+  get('cancel').onclick(); assert.equal(sent.at(-1).type, 'cancel');
+  state('one'); state('two'); assert.equal(get('input').value, '');
+  get('input').value = 'Other draft'; get('input').oninput(); state('one'); assert.equal(get('input').value, 'Follow-up draft');
+  const body = get('messages').children[0].children[1];
+  assert.equal(body.children.map((item: any) => item.textContent).join(''), 'Safe code <img src=x onerror=alert(1)>');
+  assert.equal(get('boundary').textContent, 'Review · Read-only');
+});

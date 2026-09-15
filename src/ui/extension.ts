@@ -1,5 +1,6 @@
+import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { GeminiClient, apiBase } from '../api/client';
 import { resolveRepository } from '../repository/git';
 import { RepositoryIndex } from '../indexing';
@@ -67,13 +68,13 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
   let thread = store.threads.at(-1) ?? store.create('New conversation');
   const index = new RepositoryIndex(root, storage);
   const panel = vscode.window.createWebviewPanel('llmRuntime', 'LLM Coding Agent Runtime', vscode.ViewColumn.Beside, { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true });
-  panels.set(root, panel); panel.webview.html = html();
+  panels.set(root, panel); panel.webview.html = conversationHtml();
   let busy = false; let disposed = false;
   const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
   const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
-  const update = () => send({ type: 'state', root, mode: mode(), threads: store.threads.map(t => ({ id: t.id, name: t.name })), thread, busy });
+  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.map(t => ({ id: t.id, name: t.name })), thread, busy });
   const ask = async (question: string, signal: AbortSignal): Promise<string> => {
     const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
     try { signal.throwIfAborted(); const answer = await vscode.window.showInputBox({ title: 'Agent question', prompt: question, ignoreFocusOut: true }, token.token); if (answer === undefined) { active.get(root)?.abort(); throw new Error('Cancelled.'); } return answer.slice(0, 8000); }
@@ -177,14 +178,3 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
   context.subscriptions.push(panel);
 }
 export function deactivate(): void { for (const controller of active.values()) controller.abort(); }
-function html(): string {
-  const nonce = randomBytes(16).toString('hex');
-  return `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}'"><meta name="viewport" content="width=device-width, initial-scale=1"><style nonce="${nonce}">
-body{font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px;max-width:900px;margin:auto}textarea{width:100%;min-height:90px;box-sizing:border-box;background:var(--vscode-input-background);color:var(--vscode-input-foreground)}button,select{margin:8px 8px 8px 0;padding:6px}article{white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--vscode-panel-border);padding:12px 0}#status,#boundary{opacity:.8}label{display:block;margin-top:16px}</style></head><body>
-<h2>LLM Coding Agent Runtime</h2><p id="boundary"></p><label for="threads">Conversation</label><select id="threads"></select><button id="new">New conversation</button><button id="review">Review task changes</button><button id="undo">Undo task changes</button><button id="sourceControl">Source Control</button><main id="messages" aria-live="polite"></main><p id="status" role="status"></p><label for="input">Message</label><textarea id="input" maxlength="8000" placeholder="Ask about or change this repository…"></textarea><button id="send">Send</button><button id="cancel">Cancel task</button>
-<script nonce="${nonce}">const vscode=acquireVsCodeApi();const el=id=>document.getElementById(id);let busy=false;
-el('send').onclick=()=>{if(!busy&&el('input').value.trim()){vscode.postMessage({type:'send',text:el('input').value});el('input').value='';}};
-el('cancel').onclick=()=>vscode.postMessage({type:'cancel'});el('new').onclick=()=>vscode.postMessage({type:'new'});el('threads').onchange=()=>vscode.postMessage({type:'switch',id:el('threads').value});
-el('review').onclick=()=>vscode.postMessage({type:'review'});el('undo').onclick=()=>vscode.postMessage({type:'undo'});el('sourceControl').onclick=()=>vscode.postMessage({type:'sourceControl'});
-window.addEventListener('message',event=>{const m=event.data;if(m.type==='progress'){el('status').textContent=m.text;return;}if(m.type!=='state')return;busy=m.busy;el('boundary').textContent=m.root+' • '+m.mode+' • '+(['Workspace','Full access'].includes(m.mode)?'Editing enabled':'Read-only');el('threads').replaceChildren();for(const t of m.threads){const o=document.createElement('option');o.value=t.id;o.textContent=t.name;o.selected=t.id===m.thread.id;el('threads').append(o);}el('messages').replaceChildren();for(const msg of m.thread.messages){const a=document.createElement('article');a.textContent=(msg.role==='user'?'You':'Agent')+'\\n'+msg.content;el('messages').append(a);}for(const id of ['send','new','threads','sourceControl'])el(id).disabled=busy;el('review').disabled=busy||!m.thread.reviewTaskId;el('undo').disabled=busy||!m.thread.undoTaskId;el('cancel').disabled=!busy;if(!busy)el('status').textContent=m.thread.status;});vscode.postMessage({type:'ready'});</script></body></html>`;
-}
