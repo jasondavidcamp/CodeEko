@@ -85,7 +85,7 @@ export class EditTask {
   summary(): string {
     const changes = this.changes(); if (!changes.length) return 'No repository files were changed.';
     const applied = changes.filter(c => c.state === 'applied'); const pending = changes.filter(c => c.state === 'prepared');
-    return `${applied.length} file change(s) recorded${pending.length ? `; ${pending.length} operation(s) need inspection after interruption` : ''}. Changes remain uncommitted. Review the task diffs. Validation has not run.`;
+    return `${applied.length} file change(s) recorded${pending.length ? `; ${pending.length} operation(s) need inspection after interruption` : ''}. Changes remain uncommitted. Review the task diffs.`;
   }
   private async persist(): Promise<void> {
     const temporary = path.join(this.directory, `task.${randomUUID()}.tmp`);

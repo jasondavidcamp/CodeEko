@@ -2,7 +2,7 @@ import { Message } from '../api/client';
 import { authorize, check, TaskConflict } from '../policy/boundary';
 import { parseAction, taskProtocol, Action } from '../protocol/actions';
 export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal): Promise<string> }
-export interface ToolExecutor { execute(action: Action, signal: AbortSignal): Promise<unknown> }
+export interface ToolExecutor { execute(action: Action, signal: AbortSignal): Promise<unknown>; beforeComplete?(signal: AbortSignal): Promise<unknown | undefined> }
 export const limits = { turns: 20, contextCharacters: 60000, resultCharacters: 14000, totalReadFiles: 30 };
 export async function runAgent(model: Model, selectedModel: string, history: Message[], tools: ToolExecutor, mode: () => string, signal: AbortSignal, progress: (text: string) => void): Promise<string> {
   const messages: Message[] = [{ role: 'system', content: taskProtocol(mode()) }, ...history.slice(-20)]; let readCount = 0; let protocolCorrections = 0;
@@ -22,7 +22,13 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
       continue;
     }
     authorize(action.tool, mode());
-    if (action.tool === 'complete_task') return (action.args as { summary: string }).summary;
+    if (action.tool === 'complete_task') {
+      const validation = await tools.beforeComplete?.(signal); check(signal);
+      if (validation === undefined) return action.args.summary;
+      progress('Validation found failures. Requesting a bounded repair.');
+      messages.push({ role: 'assistant', content: raw }, { role: 'user', content: JSON.stringify({ version: 1, tool: 'run_validation', result: validation }).slice(0, limits.resultCharacters) + '\nCompletion is blocked by validation failures. Read the relevant files and make a focused repair. Do not weaken tests to conceal incorrect behavior. At most three validation rounds are allowed.' });
+      continue;
+    }
     readCount += action.tool === 'read_files' ? (action.args as { paths: string[] }).paths.length : action.tool === 'read_file' ? 1 : 0;
     if (readCount > limits.totalReadFiles) throw new Error('Task file-read limit reached.');
     progress(`Running ${action.tool.replaceAll('_', ' ')}.`);

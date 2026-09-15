@@ -2,7 +2,7 @@
 
 ## Automated
 
-Run `npm test`. The suite uses isolated temporary Git repositories and mock HTTPS responses. It never runs the pilot repository's scripts, Pester tests, integrations or environment-changing operations.
+Run `npm test`. The suite uses isolated temporary Git repositories and mock HTTPS responses. It never runs an external project’s scripts or integrations. Windows-only tests run explicitly authored synthetic Pester fixtures with process-only RemoteSigned.
 
 - Traversal, sibling paths, absolute paths, alternate streams and Windows junctions are denied.
 - Unknown/malformed/oversized or extra-field actions cannot execute; mutation is denied in Review and Custom, with general commands denied in every mode.
@@ -41,6 +41,14 @@ The 0.2 automated suite covers exact multi-file patches, creation, confirmed del
 `npm run test:live:editing` passed against `models/gemini-2.5-flash` in seven model calls. The isolated VS Code 1.138.0-insider host then passed both live suites: four read-only calls and seven editing calls. The editing task changed a PowerShell multiplier from 7 to 9, updated the Pester expectation from 28 to 36, and created `docs/CHANGE.md`. Exact byte assertions verified that an existing developer comment, UTF-8 BOM/CRLF encoding, staged index and HEAD were preserved. All three changes remained uncommitted. Saved review snapshots reloaded successfully, and three actual native text-diff tabs opened in the host.
 
 This demonstrates editing and review on a synthetic fixture, not execution of its Pester tests. Whole-application crash recovery, interactive destructive-operation approval, visual/keyboard review, and representative repository testing remain manual gates. Atomic replacement does not eliminate external-process races; interrupted moves require inspection. Automatic validation and undo remain future work.
+
+## Validation evidence — 0.3
+
+Live Gemini repaired a real failing Pester assertion in two validation rounds and seven model calls. PowerShell 5.1.26100.9444 parsing, PSScriptAnalyzer 1.25.0, and Pester 5.7.1 passed afterward. Test expectations, staged developer work and HEAD remained unchanged; the implementation and documentation changes remained uncommitted. CurrentUser analyzer installation succeeded. The default AllSigned policy was respected by the production runner; synthetic execution tests used process-only RemoteSigned.
+
+Automated checks cover automatic completion validation, diagnostic redaction, three-round exhaustion, invalid test selection, stale results, missing tools, declined tests, real parsing without execution, real failing Pester tests and active-process cancellation. See VALIDATION.md for execution limits and outstanding manual approval/policy checks.
+
+All 31 automated tests passed. The full isolated VS Code 1.138.0-insider host suite also passed: read-only retrieval, multi-file edits, native diff tabs, and real validation/repair. The host repair demonstration used eight model calls and two validation rounds.
 
 ## Remaining manual pilot gate
 

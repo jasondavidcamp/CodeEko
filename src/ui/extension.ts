@@ -11,6 +11,8 @@ import { contained, TaskConflict } from '../policy/boundary';
 import { EditTask, EditHooks } from '../state/editTask';
 import { EditingTools } from '../tools/editing';
 import { NativeReview } from './review';
+import { TaskValidation } from '../validation/task';
+import { createPowerShellRunner } from '../validation/powershell';
 import * as path from 'node:path';
 const active = new Map<string, AbortController>();
 const panels = new Map<string, vscode.WebviewPanel>();
@@ -107,6 +109,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
         if (active.has(root)) throw new Error('A task is already running for this repository.');
         const controller = new AbortController(); active.set(root, controller);
         let task: EditTask | undefined;
+        let validation: TaskValidation | undefined;
         thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
         try {
           await store.save();
@@ -117,17 +120,30 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
           send({ type: 'progress', text: 'Capturing task baseline and preexisting changes.' });
           task = await EditTask.capture(index, storage, hooks, controller.signal, previous);
           thread.taskId = task.id; await store.save();
-          const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file));
+          validation = new TaskValidation(task, {
+            mode, isDirty: hooks.isDirty, redact: text => api.redact(text),
+            installMissing: () => config().get<boolean>('installValidationModules', false),
+            progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
+            selectTests: async (candidates, signal) => {
+              const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
+              try {
+                signal.throwIfAborted();
+                const selected = await vscode.window.showQuickPick(candidates, { canPickMany: true, title: 'Select trusted unit tests for up to three validation rounds', placeHolder: 'Selected scripts and their dependencies execute with your account permissions. Select none to skip Pester.', ignoreFocusOut: true }, token.token);
+                return selected ?? [];
+              } finally { signal.removeEventListener('abort', abort); token.dispose(); }
+            }
+          }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')));
+          const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation);
           const summary = await runAgent(api, model, thread.messages, tools, mode, controller.signal, text => {
             thread.activity.push({ at: new Date().toISOString(), event: text });
             thread.activity = thread.activity.slice(-500);
             send({ type: 'progress', text });
           });
-          thread.messages.push({ role: 'assistant', content: (summary + (task.changes().length ? '\n\n' + task.summary() : '')).slice(0, 16000) }); thread.status = 'complete';
+          thread.messages.push({ role: 'assistant', content: (summary + '\n\n' + task.summary() + '\n' + validation.summary()).slice(0, 16000) }); thread.status = 'complete';
         } catch (e) {
           thread.status = controller.signal.aborted ? 'cancelled' : e instanceof TaskConflict ? 'blocked' : 'failed';
           const reason = controller.signal.aborted ? 'Task cancelled.' : e instanceof Error ? e.message : 'Task failed.';
-          thread.messages.push({ role: 'assistant', content: `${reason}\n\n${task?.summary() ?? 'No repository files were changed.'}` });
+          thread.messages.push({ role: 'assistant', content: `${reason}\n\n${task?.summary() ?? 'No repository files were changed.'}\n${validation?.summary() ?? 'Validation has not run.'}` });
         } finally {
           try {
             if (task) {

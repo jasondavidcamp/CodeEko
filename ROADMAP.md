@@ -249,13 +249,14 @@ Read-only slice evidence (2026-09-14): the extension shell, strict version-1 act
 
 Live validation evidence (2026-09-14): a real public Gemini model passed the read-only explanation/follow-up suite over a synthetic five-file PowerShell module and test fixture. The same suite passed inside an isolated VS Code 1.138.0-insider Extension Development Host, alongside extension activation and conversation-panel lifecycle checks. Discovery, grounded citations, saved-thread reload, symbol refresh, cancellation and repository preservation passed.
 
-Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task baselines and attribution, destructive confirmation, encoding preservation, cancellation summaries and persistent native review are implemented. Live Gemini updated two PowerShell files and created documentation while preserving a developer comment and staged work. The real extension host opened three native diffs. See `docs/ACCEPTANCE.md` for exact evidence and remaining interactive/restart/representative-repository checks. Moves are not atomic as a whole, and there is no automatic recovery or undo. The next implementation slice is Phase 4 validation and bounded repair; the full pilot is not yet complete.
+Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task baselines and attribution, destructive confirmation, encoding preservation, cancellation summaries and persistent native review are implemented. Live Gemini updated two PowerShell files and created documentation while preserving a developer comment and staged work. The real extension host opened three native diffs. See `docs/ACCEPTANCE.md` for exact evidence and remaining interactive/restart/representative-repository checks. Moves are not atomic as a whole, and there is no automatic recovery or undo. Phase 4 validation and bounded repair are implemented in 0.3 as described below; the full pilot is not yet complete.
 
-1. Demonstrate editing and native review on a representative repository, including interactive approval and restart checks.
-2. Add Windows PowerShell 5.1 parsing, PSScriptAnalyzer detection and safe Pester discovery/execution.
-3. Add the three-attempt repair loop and explicit validation results.
-4. Add task-scoped undo and interruption recovery hardening.
-5. Run the selected real multi-file feature as the full pilot acceptance test.
+Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in analyzer rules, developer-selected Pester 4/5 tests, optional CurrentUser module installation, persisted results, cancellation and three-round repair limits are implemented. Live Gemini repaired a failing Pester test in two rounds while preserving test expectations and staged work. Missing or unapproved checks remain explicitly partial; test selection does not sandbox code.
+
+1. Demonstrate editing, native review and validation on a representative repository, including interactive approval and restart checks.
+2. Add task-scoped undo and interruption recovery hardening.
+3. Validate Pester 4, enterprise module sources, certificate/proxy behavior and representative repository compatibility.
+4. Run the selected real multi-file feature as the full pilot acceptance test.
 
 ## Definition of pilot success
 

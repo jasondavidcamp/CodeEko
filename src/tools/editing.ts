@@ -2,14 +2,21 @@ import { Action } from '../protocol/actions';
 import { authorize, mutations, check, TaskConflict } from '../policy/boundary';
 import { EditTask } from '../state/editTask';
 import { ReadOnlyTools } from './readOnly';
+import { TaskValidation } from '../validation/task';
 
 export class EditingTools {
-  constructor(private reads: ReadOnlyTools, readonly task: EditTask, private mode: () => string, private review: (task: EditTask, file?: string) => Promise<void>) {}
+  constructor(private reads: ReadOnlyTools, readonly task: EditTask, private mode: () => string, private review: (task: EditTask, file?: string) => Promise<void>, readonly validation?: TaskValidation) {}
+  async beforeComplete(signal: AbortSignal): Promise<unknown | undefined> { return this.validation?.beforeComplete(signal); }
   async execute(action: Action, signal: AbortSignal): Promise<unknown> {
     authorize(action.tool, this.mode()); check(signal);
     if (mutations.has(action.tool)) {
-      try { return await this.task.execute(action, signal); }
+      this.validation?.assertCanEdit();
+      try { const result = await this.task.execute(action, signal); if ((result as { applied?: boolean }).applied) this.validation?.invalidate(); return result; }
       catch (error) { check(signal); if (error instanceof TaskConflict) throw error; throw new TaskConflict('The edit could not finish safely. Review the recorded task changes before retrying.'); }
+    }
+    if (action.tool === 'run_validation') {
+      if (!this.validation) throw new TaskConflict('Validation is not configured for this session.');
+      return this.validation.run(signal);
     }
     if (action.tool === 'git_diff_summary') return { changes: this.task.changes(), note: 'Task baseline includes preexisting developer edits; no raw Git patch is returned.' };
     if (action.tool === 'open_diff') { await this.review(this.task, action.args.path); return { opened: true }; }

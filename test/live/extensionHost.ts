@@ -4,6 +4,7 @@ import { runLiveSmoke } from './smoke';
 import * as fs from 'node:fs/promises';
 import { runLiveEditing } from './editing';
 import { NativeReview } from '../../src/ui/review';
+import { runLiveValidation } from './validation';
 
 // Invoked only by VS Code's --extensionTestsPath, never by npm test or a packaged VSIX.
 export async function run(): Promise<void> {
@@ -33,6 +34,7 @@ export async function run(): Promise<void> {
     assert.ok(diffs().length >= 3, 'Native task diffs must open for all edited files.');
     await vscode.window.tabGroups.close(diffs());
   } finally { nativeReview.dispose(); }
+  const validation = await runLiveValidation();
   assert.ok(process.env.LLM_RUNTIME_HOST_REPORT, 'Test launcher must provide a result path.');
-  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, nativeDiffsOpened: true, live, editing }));
+  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, nativeDiffsOpened: true, live, editing, validation }));
 }
