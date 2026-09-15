@@ -26,6 +26,9 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   get('model').onclick(); assert.equal(sent.at(-1).type, 'selectModel');
   get('settings').onclick(); assert.equal(sent.at(-1).type, 'settings');
   assert.equal(sent.find(m => m.type === 'send').newConversation, true);
+  get('rename').onclick(); assert.equal(sent.at(-1).type, 'rename');
+  get('archive').onclick(); assert.equal(sent.at(-1).type, 'archive');
+  get('restore').onclick(); assert.equal(sent.at(-1).type, 'restore');
   get('new').onclick(); assert.equal(get('empty').hidden, false);
   const body = get('messages').children[0].children[1];
   assert.equal(body.children.map((item: any) => item.textContent).join(''), 'Safe code <img src=x onerror=alert(1)>');
