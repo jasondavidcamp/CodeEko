@@ -40,6 +40,8 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 
 ## Current limits
 
+`npm run test:recovery` runs a separate opt-in Windows test without API credentials: it terminates only its own isolated VS Code instance during synthetic Pester validation, restarts that profile, and checks thread recovery, no automatic replay, and undo. It requires supported Pester and uses process-only RemoteSigned for its fixture.
+
 - Live progress is streamed at action boundaries; individual model JSON responses are buffered, bounded, parsed, and validated before execution. Token-level SSE streaming is not implemented.
 - PowerShell indexing uses conservative lexical patterns, not the PowerShell AST. It extracts function/class names, typed parameters, manifest fields, import/export/dot-source lines and Pester descriptions. Complex multiline syntax and dynamic dependencies may be missed; use text search and read the source to confirm. UTF-8 and UTF-16LE BOM are supported; legacy ANSI and UTF-16BE files are excluded.
 - Files over 256 KB, ignored content, likely sensitive configuration, binaries, generated directories, and linked paths are excluded. This is a conservative filename policy, not a general secret detector. Do not put credentials into chat or source files intended for model context.

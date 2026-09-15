@@ -56,6 +56,12 @@ All 38 automated tests passed, including seven undo tests covering exact UTF-8/U
 
 The full isolated VS Code host suite passed again. Its live editing task was undone after native diff review; exact original source/test bytes and preexisting developer changes were restored, the created document was removed, and staged work remained unchanged. Validation/repair also passed in two rounds. Actual whole-application termination and manual native confirmation interaction remain separate pilot gates.
 
+## Actual restart recovery — 0.4.1
+
+`npm run test:recovery` passed in VS Code 1.138.0-insider. Its launcher terminated the isolated instance while a real synthetic Pester test was running after an applied repository edit. The owned validation child was verified stopped. Reopening the same profile recovered two named threads, interrupted status and the applied edit. The native conversation panel reopened, no mutation replayed automatically, no interrupted validation was reported as passed, and undo restored the baseline while preserving staged developer work.
+
+The test seeds state through the runtime's real task/thread classes, rather than typing a feature request into the webview. It uses no API credential, modifies only its synthetic repository/profile, and does not simulate power loss during a filesystem write. Those remaining interactive and mid-write cases remain manual/hardening gates.
+
 ## Remaining manual pilot gate
 
 Validation hardening (0.4.1): tests verify preexisting/new/unknown source finding attribution, refusal to repeat failed validation indefinitely, and early stopping when diagnostics remain identical after a repair. Baseline Pester execution is not inferred; its absence is reported explicitly.

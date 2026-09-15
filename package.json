@@ -104,6 +104,7 @@
     "test:live:editing": "npm run build && node dist/test/live/editing.js",
     "test:live:validation": "npm run build && node dist/test/live/validation.js",
     "test:host": "npm run build && node dist/test/live/runHost.js",
+    "test:recovery": "npm run build && node dist/test/live/runRecovery.js",
     "package": "npm run build && vsce package --allow-missing-repository",
     "vscode:prepublish": "npm run build"
   },

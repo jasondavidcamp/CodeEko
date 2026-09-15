@@ -124,7 +124,7 @@ Goal: install one VSIX and hold a persistent conversation with the configured en
 Exit criteria:
 
 - [ ] A developer installs the VSIX, enters a key, selects a returned model, and chats with Gemini.
-- [ ] Threads survive VS Code restarts and remain associated with the correct repository.
+- [x] Threads survive VS Code restarts and remain associated with the correct repository (verified in an isolated Windows VS Code instance).
 - [x] No repository content is changed in this phase.
 
 ### Phase 2 — Repository awareness and local indexing
@@ -219,7 +219,8 @@ Goal: distribute a repeatable initial release.
 - [ ] Test on representative Windows developer configurations and network conditions.
 - [ ] Validate certificate trust, proxies, endpoint timeouts, API failures, and model-list fallback.
 - [ ] Test PowerShell 5.1 encoding, module, and Pester-version variations.
-- [ ] Add recovery tests for VS Code termination during editing or validation.
+- [x] Add recovery tests for VS Code termination after an applied edit and during active Pester validation.
+- [ ] Exercise termination during individual file replacement, deletion, and move operations on representative workstations.
 - [x] Document install, first-run authentication, permission modes, limitations, and uninstall/data cleanup.
 
 Exit criteria:
@@ -260,11 +261,13 @@ Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task
 Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in analyzer rules, developer-selected Pester 4/5 tests, optional CurrentUser module installation, persisted results, cancellation and three-round repair limits are implemented. Live Gemini repaired a failing Pester test in two rounds while preserving test expectations and staged work. Missing or unapproved checks remain explicitly partial; test selection does not sandbox code.
 
 1. Demonstrate editing, native review and validation on a representative repository, including interactive approval and restart checks.
-2. Harden whole-application interruption recovery and baseline test-failure attribution.
+2. Harden mid-write interruption recovery and baseline test-failure attribution.
 3. Validate Pester 4, enterprise module sources, certificate/proxy behavior and representative repository compatibility.
 4. Run the selected real multi-file feature as the full pilot acceptance test.
 
 Undo evidence (0.4): exact baseline restoration across patch/create/delete/move, full preflight, later-edit refusal, native previews, cancellation and resumable undo journals passed automated tests. The complete suite passed 38 tests. The real VS Code host restored a live Gemini task's baseline while preserving staged work and a developer comment. Whole-application termination and manual interactive pilot checks remain open.
+
+Restart evidence (0.4.1): a dedicated isolated VS Code process was terminated while a real Pester child was running after an applied edit. The child stopped. Restart recovered two threads and interrupted status, preserved the edit and developer work, reopened the native panel, avoided automatic replay and false validation success, and supported undo. Mid-write and manual representative-workstation checks remain open.
 
 ## Definition of pilot success
 
