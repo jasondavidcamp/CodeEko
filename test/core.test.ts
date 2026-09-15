@@ -61,7 +61,7 @@ test('index honors ignored tracked/untracked, sensitive, binary, generated and l
 test('model discovery validates response and normalizes endpoint; chat uses strict JSON mode', async () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   const transport: typeof fetch = async (input, init) => { calls.push({ url: String(input), init }); return new Response(JSON.stringify(String(input).endsWith('/models') ? { data: [{ id: 'b' },{ id: 'a' },{ id: 'a' }] } : { choices: [{ message: { content: '{"version":1,"tool":"git_status","args":{}}' } }] })); };
-  const api = new GeminiClient('https://approved.example/v1/', 'private-key', 1000, transport);
+  const api = new GeminiClient('https://approved.example/v1/', 'private-key', 1000, transport, 'Standard');
   assert.deepEqual(await api.models(), ['a','b']); await api.complete('a', []);
   assert.equal(calls[0].url, 'https://approved.example/v1/models'); assert.equal(calls[0].init?.redirect, 'error');
   assert.equal(JSON.parse(calls[1].init?.body as string).response_format.type, 'json_object');

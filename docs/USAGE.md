@@ -2,7 +2,7 @@
 
 ## Endpoint compatibility
 
-`ekod.compatibilityMode` defaults to `Standard` (system messages and JSON mode). Select `User message` in Connection settings for endpoints that need the instructions in user content or do not support JSON mode. The extension sends one user message with runtime instructions and JSON-encoded conversation records; it does not change the endpoint, model, credentials, action schema or permission checks.
+`ekod.compatibilityMode` defaults to `User message`. Select `Standard` in Connection settings for endpoints that support system messages and JSON mode. Existing explicit selections are preserved. The extension sends one user message with runtime instructions and JSON-encoded conversation records; it does not change the endpoint, model, credentials, action schema or permission checks.
 
 Empty model replies retry the original request within the same two-correction budget. Format corrections retain the original request and tool evidence, without adding rejected actions to accepted conversation history. Repeated failures still stop without executing the rejected actions.
 

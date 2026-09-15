@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.45",
+  "version": "0.4.46",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -129,12 +129,12 @@
         "ekod.compatibilityMode": {
           "type": "string",
           "enum": [
-            "Standard",
-            "User message"
+            "User message",
+            "Standard"
           ],
-          "default": "Standard",
+          "default": "User message",
           "scope": "application",
-          "description": "Standard uses system messages and JSON mode. User message embeds instructions and context in a user message without response_format. Action validation and permissions are unchanged."
+          "description": "User message (default) embeds instructions and context in a user message without response_format. Standard uses system messages and JSON mode. Action validation and permissions are unchanged."
         }
       }
     },

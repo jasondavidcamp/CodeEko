@@ -18,7 +18,7 @@ test('user-message compatibility answers through an endpoint that drops system i
     assert.match(request.messages[0].content, /"tool":"complete_task"/);
     assert.match(request.messages[0].content, /hello/);
     return reply(done('Hello!'));
-  }, 'User message');
+  });
   const result = await runAgent(client, 'test-model', history, { execute: async () => { throw new Error('Greeting must not execute tools'); } }, () => 'Full access', new AbortController().signal, () => {});
   assert.equal(result, 'Hello!'); assert.equal(calls, 1);
   assert.deepEqual(history, [{ role: 'user', content: 'hello' }]);
@@ -60,9 +60,9 @@ test('empty responses stop after three calls without executing tools', async () 
   assert.equal(calls, 3);
 });
 
-test('endpoint compatibility defaults to Standard and is application scoped', () => {
+test('endpoint compatibility defaults to User message and is application scoped', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
   const field = manifest.contributes.configuration.properties['ekod.compatibilityMode'];
-  assert.equal(field.default, 'Standard'); assert.equal(field.scope, 'application');
-  assert.deepEqual(field.enum, ['Standard', 'User message']);
+  assert.equal(field.default, 'User message'); assert.equal(field.scope, 'application');
+  assert.deepEqual(field.enum, ['User message', 'Standard']);
 });

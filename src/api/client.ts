@@ -8,7 +8,7 @@ export function apiBase(endpoint: string): string {
 }
 export type CompatibilityMode = 'Standard' | 'User message';
 export class GeminiClient {
-  constructor(private endpoint: string, private key: string, private timeout: number, private transport: typeof fetch = fetch, private compatibilityMode: CompatibilityMode = 'Standard') {}
+  constructor(private endpoint: string, private key: string, private timeout: number, private transport: typeof fetch = fetch, private compatibilityMode: CompatibilityMode = 'User message') {}
   redact(text: string): string { return this.key ? text.split(this.key).join('[REDACTED API KEY]') : text; }
   private async request(route: string, body?: unknown, signal?: AbortSignal): Promise<any> {
     const controller = new AbortController();

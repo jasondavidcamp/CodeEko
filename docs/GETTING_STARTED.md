@@ -40,7 +40,7 @@ The initial target is Windows PowerShell 5.1 repositories and VS Code 1.106 or n
 
 ## Endpoint compatibility
 
-If an endpoint ignores system instructions or returns empty responses, open **EKOD Settings → Connection → Endpoint compatibility** and select **User message**. This sends instructions and conversation context in one user message and omits the JSON-mode request parameter. Standard remains the default. Both modes require valid action JSON and enforce the same permissions. Start a new chat and try a greeting, then a read-only question.
+**User message** is the default endpoint compatibility mode. It sends instructions and conversation context in one user message and omits the JSON-mode request parameter. For endpoints that support system messages and JSON mode, select **Standard** under **EKOD Settings → Connection → Endpoint compatibility**. Existing explicit selections are preserved. Both modes require valid action JSON and enforce the same permissions. Start a new chat and try a greeting, then a read-only question.
 
 ## Updating EKOD
 

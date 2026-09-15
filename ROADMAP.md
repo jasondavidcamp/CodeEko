@@ -13,7 +13,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Install EKOD as a self-contained VS Code extension.
 - [x] Configure an HTTPS endpoint with no built-in default; store API keys in VS Code SecretStorage.
 - [x] Discover models and support a configured fallback.
-- [x] Provide a User message compatibility option for endpoints that do not support system instructions or JSON mode.
+- [x] Default to User message compatibility for endpoints that do not support system instructions or JSON mode.
 - [x] Retain original task context through empty-response retries and format correction.
 - [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
 - [x] Rename, archive and restore conversations from the chat pane.

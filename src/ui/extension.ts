@@ -34,7 +34,7 @@ async function client(context: vscode.ExtensionContext): Promise<GeminiClient> {
   if (!endpoint) throw new Error('Set ekod.endpoint to your HTTPS API URL first.');
   const key = await context.secrets.get(keyName(endpoint));
   if (!key) throw new Error('Use EKOD: Set API Key before connecting.');
-  return new GeminiClient(endpoint, key, config().get<number>('requestTimeout', 60000), fetch, config().get<string>('compatibilityMode', 'Standard') === 'User message' ? 'User message' : 'Standard');
+  return new GeminiClient(endpoint, key, config().get<number>('requestTimeout', 60000), fetch, config().get<string>('compatibilityMode', 'User message') === 'Standard' ? 'Standard' : 'User message');
 }
 async function selectModel(context: vscode.ExtensionContext, signal?: AbortSignal): Promise<void> {
   const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel();
