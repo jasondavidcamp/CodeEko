@@ -11,7 +11,7 @@
 - Use `ekod.*` for every setting, command and view, and `EKOD_*` for development environment variables.
 - Use EKOD-only storage, temporary-file and native-diff identifiers.
 - Refresh the roadmap around public product capabilities and outstanding verification.
-- Upgrade: configure endpoint, model and preferences in EKOD Settings; back up existing extension data first.
+- Upgrade: configure endpoint, model and preferences in EKOD Settings; back up existing extension data first. Chats and diagnostics now use EKOD’s private extension storage; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
 
 
 ## 0.4.41 — Initial public prerelease

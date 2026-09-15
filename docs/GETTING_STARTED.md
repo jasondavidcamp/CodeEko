@@ -38,10 +38,16 @@ VS Code installs extensions for the current user; no administrator installation 
 
 The initial target is Windows PowerShell 5.1 repositories and VS Code 1.106 or newer. An origin/base endpoint gets `/v1` appended; explicit version paths are preserved.
 
-### Upgrading to 0.4.42
+## Updating EKOD
 
-Version 0.4.42 uses only EKOD identifiers. Configure your endpoint, model and preferences in EKOD Settings after upgrading from an earlier version. Chats and diagnostics are stored in EKOD’s private extension storage. Back up your existing extension data before upgrading; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
+From your existing clone, pull the latest code and rerun the installer:
 
+```powershell
+git pull --ff-only
+.\scripts\Install-Ekod.ps1
+```
+
+Reload VS Code after installation. Check the [changelog](../CHANGELOG.md) for any migration steps before updating.
 
 ## Next steps
 
