@@ -14,6 +14,40 @@ $ProgressPreference = 'SilentlyContinue'
 if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'Windows PowerShell 5.1 required' }
 `;
 const scripts = {
+  inspectTests: String.raw`
+$results = @()
+foreach ($file in $request.files) {
+  $tokens = $null; $errors = $null
+  $ast = [System.Management.Automation.Language.Parser]::ParseInput([string]$file.text, [ref]$tokens, [ref]$errors)
+  $blocked = @(); $commands = @(); $functions = @()
+  if ($errors.Count) { $blocked += 'PowerShell syntax could not be inspected.' }
+  if ($file.text -match '(?im)^\s*#requires\b') { $blocked += 'Runtime requirements need manual inspection.' }
+  foreach ($node in $ast.FindAll({ param($n) $true }, $true)) {
+    $kind = $node.GetType().Name
+    if ($kind -in @('InvokeMemberExpressionAst','UsingStatementAst','TypeDefinitionAst','FileRedirectionAst','MergingRedirectionAst')) {
+      $blocked += 'Methods, types, module loading or redirection require manual inspection.'
+    }
+    if ($kind -in @('TypeExpressionAst','TypeConstraintAst','ConvertExpressionAst','AttributeAst')) {
+      $typeName = if ($kind -eq 'ConvertExpressionAst') { $node.Type.TypeName.FullName } else { $node.TypeName.FullName }
+      if ($typeName -notmatch '^(string|int|int32|long|int64|double|decimal|bool|boolean|char|array|object|hashtable)(\[\])?$' -and !($kind -eq 'AttributeAst' -and $typeName -in @('Parameter','CmdletBinding','ValidateNotNullOrEmpty','ValidateRange','ValidateSet'))) { $blocked += 'Unsupported type or attribute.' }
+    }
+    if ($kind -eq 'VariableExpressionAst' -and $node.VariablePath.UserPath -match '^(env|global|function|alias):') { $blocked += 'External or global state access.' }
+    if ($kind -eq 'AssignmentStatementAst' -and $node.Left.Extent.Text -match '(?i)\$(PSScriptRoot|PSCommandPath)\b') { $blocked += 'Script location cannot be reassigned during inspection.' }
+    if ($kind -eq 'ParameterAst' -and $node.Name.VariablePath.UserPath -match '^(PSScriptRoot|PSCommandPath)$') { $blocked += 'Script location cannot be shadowed by a parameter.' }
+    if ($kind -eq 'FunctionDefinitionAst') { $functions += [string]$node.Name }
+    if ($kind -eq 'CommandAst') {
+      $dot = [string]$node.InvocationOperator -eq 'Dot'
+      $name = $node.GetCommandName()
+      if ($name -eq 'ForEach-Object' -and !@($node.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.ScriptBlockExpressionAst] }).Count) { $blocked += 'ForEach-Object member invocation requires manual inspection.' }
+      if (!$dot -and [string]$node.InvocationOperator -ne 'Unknown') { $name = $null }
+      $commands += @{ name = $name; dot = $dot; target = [string]$node.CommandElements[0].Extent.Text }
+      if ($node.Extent.Text -match '(?i)-(Tag|Tags)\s+.*(integration|e2e|acceptance|deployment|system)') { $blocked += 'Integration or operational test tag.' }
+    }
+  }
+  $results += @{ path = $file.path; blocked = @($blocked | Select-Object -Unique); functions = $functions; commands = $commands }
+}
+@{ files = $results } | ConvertTo-Json -Compress -Depth 8
+`,
   inspect: String.raw`
 $modules = @{}
 foreach ($name in @('Pester','PSScriptAnalyzer')) {

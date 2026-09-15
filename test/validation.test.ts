@@ -76,7 +76,7 @@ test('missing validators and declined tests are explicit partial results; Pester
   });
   const result = await validation.run(signal());
   assert.equal(result.status, 'partial'); assert.equal(pesterCalls, 0);
-  assert.match(validation.summary(), /No test files approved/);
+  assert.match(validation.summary(), /No test files eligible/);
 });
 test('selection cannot inject paths, stale results are rejected, and cancellation is propagated', async t => {
   const f = await fixture(t);
@@ -295,4 +295,68 @@ test('failed optional module installation is reported as reduced coverage, never
   const result = await validation.run(signal()); assert.equal(result.status, 'partial');
   const installation = result.steps.find(step => step.command.startsWith('Install'))!;
   assert.equal(installation.status, 'skipped'); assert.match(String(installation.detail), /Publisher verification/);
+});
+
+
+test('automatic selection inspects setup and transitive source without executing it', { skip: process.platform !== 'win32' }, async () => {
+  const { selectUnitTests } = await import('../src/validation/selection');
+  const files = [
+    { path: 'main.ps1', text: 'function Get-Value { param([int]$Count) return $Count * 9 }' },
+    { path: 'tests/Value.Tests.ps1', text: `. (Join-Path $PSScriptRoot '../main.ps1')
+Describe 'value' { It 'works' { Get-Value 4 | Should -Be 36 } }` },
+    { path: 'tests/Simple.Tests.ps1', text: `Describe 'simple' { It 'works' { 1 | Should -Be 1 } }` },
+    { path: 'tests/Integration.Tests.ps1', text: `Describe 'integration' { It 'works' { 1 | Should -Be 1 } }` },
+    { path: 'tests/Setup.Tests.ps1', text: `BeforeAll { Start-Service example }
+Describe 'looks unit' { It 'works' { 1 | Should -Be 1 } }` },
+    { path: 'tests/Dynamic.Tests.ps1', text: `& $command` },
+    { path: 'tests/External.Tests.ps1', text: `. (Join-Path $PSScriptRoot '../../outside.ps1')` },
+    { path: 'tests/Method.Tests.ps1', text: `[IO.File]::WriteAllText('tripwire', 'bad')` },
+    { path: 'tests/Module.Tests.ps1', text: `Import-Module Operational` },
+    { path: 'tests/Tagged.Tests.ps1', text: `Describe 'suite' -Tag Integration { It 'works' { 1 | Should -Be 1 } }` },
+    { path: 'tests/Dependency.Tests.ps1', text: `. (Join-Path $PSScriptRoot '../unsafe.ps1')` },
+    { path: 'tests/Root.Tests.ps1', text: `$PSScriptRoot = 'elsewhere'; . (Join-Path $PSScriptRoot '../main.ps1')` },
+    { path: 'tests/Member.Tests.ps1', text: `$value | ForEach-Object Delete` },
+    { path: 'unsafe.ps1', text: 'function Get-Other { Invoke-RestMethod https://example.invalid }' }
+  ];
+  const result = await selectUnitTests(files, runPowerShell, signal());
+  assert.deepEqual(result.selected, ['tests/Value.Tests.ps1', 'tests/Simple.Tests.ps1']);
+  assert.equal(result.skipped.length, 10);
+  assert.match(result.skipped.find(f => f.path.includes('Dependency'))!.reason, /invoke-restmethod/);
+});
+
+test('production validation automatically selects tests and reinspects edits each round without a picker', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t); const progress: string[] = []; let executions = 0;
+  const validation = new TaskValidation(f.task, { ...f.validationHooks, selectTests: undefined, progress: text => progress.push(text) }, async (operation, payload, abort) => {
+    if (operation === 'inspectTests') return runPowerShell(operation, payload, abort);
+    if (operation === 'inspect') return available;
+    if (operation === 'pester') {
+      executions++;
+      assert.deepEqual((payload as any).paths, [path.join(f.root, 'tests/Value.Tests.ps1')]);
+      return { total: 1, passed: 1, failed: 0, skipped: 0, result: 'Passed', failures: [], containerErrors: [] };
+    }
+    return clean;
+  });
+  const first = await validation.run(signal());
+  assert.equal(executions, 1);
+  assert.ok(first.steps.some(s => s.command.startsWith('Invoke-Pester') && s.status === 'passed'));
+  assert.ok(progress.some(p => p.includes('automatically selected')));
+  await fs.appendFile(path.join(f.root, 'tests/Value.Tests.ps1'), '\nStart-Service example');
+  await validation.run(signal());
+  assert.equal(executions, 1, 'changed setup loses eligibility before execution');
+  assert.match(validation.summary(), /start-service/);
+});
+
+
+test('native Pester runs automatically selected local unit tests without human selection', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t);
+  const available = await runPowerShell('inspect', {}, signal()) as any;
+  if (!available.modules.Pester) { t.skip('Pester unavailable'); return; }
+  await fs.writeFile(path.join(f.root, 'tests/Value.Tests.ps1'), `BeforeAll { . (Join-Path $PSScriptRoot '../main.ps1') }
+Describe 'value' { It 'works' { Get-Value | Should -Be 1 } }`);
+  const validation = new TaskValidation(f.task, { ...f.validationHooks, selectTests: undefined }, createPowerShellRunner('RemoteSigned'));
+  const report = await validation.run(signal());
+  const pester = report.steps.find(s => s.command.startsWith('Invoke-Pester'));
+  assert.equal(pester?.status, 'passed', validation.summary());
+  assert.equal((pester?.detail as any).total, 1);
+  assert.equal(report.status, 'partial', 'excluded integration suite is explicitly omitted');
 });

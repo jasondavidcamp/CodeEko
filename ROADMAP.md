@@ -181,7 +181,7 @@ Goal: complete changes with automatic, trustworthy local validation.
 - [ ] Support an internal/Nexus module source.
 - [x] Discover repository-defined Pester unit tests.
 - [x] Add or update Pester tests for changed behavior when appropriate.
-- [x] Automatically run parser checks, available static analysis, and developer-selected unit tests. Selection is required because test names alone cannot establish safety.
+- [x] Automatically run parser checks, available static analysis, and unit tests selected through conservative PowerShell AST inspection of setup and local dependencies; report unsupported suites in chat without a manual picker.
 - [x] Do not automatically run integration tests or operations that affect IIS, services, Azure DevOps, databases, network resources, or other environments.
 - [x] Feed validation failures back into the agent for at most three total edit-and-validation attempts.
 - [x] Stop early on repeated unchanged validation or identical failure diagnostics after a repair.
@@ -294,3 +294,6 @@ Observed test-baseline evidence (0.4.5): complete approved pre-edit Pester 5 run
 ## Definition of pilot success
 
 The pilot succeeds when the developer can install one VSIX, open the Git-based PowerShell repository, enter an ordinary feature request, and receive correct uncommitted multi-file changes with appropriate Pester updates and passing Windows PowerShell 5.1 validation. The developer reviews code only through native VS Code diffs, receives a concise narrative in chat, and can follow up, cancel, or undo without losing preexisting work.
+
+- [x] 0.4.20: Automatic unit-test selection replaces the native picker; inspect setup and literal local dependencies again after edits, and report skipped suites as partial coverage. Native PowerShell inspection and automatic-selection regression checks cover operational commands, dynamic execution and changed setup.
+- [ ] Verify automatic selection against representative complex repositories and confirm the installed chat experience after restart.

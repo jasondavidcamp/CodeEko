@@ -219,14 +219,6 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             installMissing: () => config().get<boolean>('installValidationModules', false),
             pesterMajor: () => { const selected = config().get<string>('pesterVersion', 'Auto'); return selected === '4' ? 4 : selected === '5' ? 5 : undefined; },
             progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
-            selectTests: async (candidates, signal) => {
-              const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
-              try {
-                signal.throwIfAborted();
-                const selected = await vscode.window.showQuickPick(candidates, { canPickMany: true, title: 'Select trusted unit tests for up to three validation rounds', placeHolder: 'Selected scripts and their dependencies execute with your account permissions. Select none to skip Pester.', ignoreFocusOut: true }, token.token);
-                return selected ?? [];
-              } finally { signal.removeEventListener('abort', abort); token.dispose(); }
-            }
           }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')));
           const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation);
           const summary = await runAgent(api, model, thread.messages, tools, mode, controller.signal, text => {

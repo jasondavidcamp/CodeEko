@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { EditTask } from '../state/editTask';
 import { authorize, check, safePath, TaskConflict } from '../policy/boundary';
 import { PowerShellRunner, runPowerShell } from './powershell';
+import { selectUnitTests, unitCandidates } from './selection';
 import { git } from '../repository/git';
 import { compareTests, completeObservation, TestObservation, testResults } from './testBaseline';
 
@@ -19,7 +20,8 @@ export interface ValidationReport {
 export interface ValidationHooks {
   mode(): string;
   isDirty(file: string): boolean;
-  selectTests(candidates: string[], signal: AbortSignal): Promise<string[]>;
+  /** Test harness override; production always uses source inspection. */
+  selectTests?(candidates: string[], signal: AbortSignal): Promise<string[]>;
   installMissing(): boolean;
   pesterMajor?(): 4 | 5 | undefined;
   progress(message: string): void;
@@ -128,13 +130,27 @@ export class TaskValidation {
       } else if (!available.modules.Pester) {
         report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: 'Supported Pester 4 or 5 is unavailable.' });
       } else {
-        const candidates = snapshot.files.map(file => file.path).filter(name => /\.Tests\.ps1$/i.test(name) && !/(^|[/.\-_])(integration|e2e|acceptance|deployment|system)([/.\-_]|$)/i.test(name));
-        if (this.selected === undefined) this.selected = candidates.length ? await this.hooks.selectTests(candidates, signal) : [];
+        const candidates = unitCandidates(snapshot.files);
+        if (this.hooks.selectTests) {
+          if (this.selected === undefined) this.selected = candidates.length ? await this.hooks.selectTests(candidates, signal) : [];
+        } else {
+          this.hooks.progress('Inspecting unit tests and local dependencies.');
+          try {
+            const selection = await selectUnitTests(snapshot.files, this.runner, signal);
+            this.selected = selection.selected;
+            for (const omitted of selection.skipped) report.steps.push({ command: `Unit test ${omitted.path}`, status: 'skipped', detail: omitted.reason });
+            this.hooks.progress(this.selected.length ? `Running ${this.selected.length} automatically selected unit-test file(s): ${this.selected.slice(0, 5).join(', ')}.` : 'No unit tests eligible for automatic execution.');
+          } catch (error) {
+            check(signal);
+            this.selected = [];
+            report.steps.push({ command: 'Unit-test inspection', status: 'skipped', detail: this.hooks.redact(error instanceof Error ? error.message : 'Inspection unavailable.') });
+          }
+        }
         check(signal);
         if (this.selected.some(name => !candidates.includes(name) || /[\[\]]/.test(name))) throw new TaskConflict('Approved test files changed eligibility or contain unsupported wildcard characters. Start a new task to select tests again.');
         if (this.selected.length) {
           if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository changed while selecting validation. Retry with the current files.');
-          await step('Invoke-Pester (developer-selected files)', async () => {
+          await step('Invoke-Pester (selected unit tests)', async () => {
             const paths = await Promise.all(this.selected!.map(name => safePath(this.task.index.root, name)));
             const result = testResults.parse(await this.runner('pester', { paths, version: available!.modules.Pester }, signal));
             // Only identities belonging to the approved files can be compared.
@@ -145,7 +161,7 @@ export class TaskValidation {
             const detail = compareTests(observedTests, this.testBaseline, snapshot.startingState);
             return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...detail, version: available!.modules.Pester, paths: this.selected } };
           });
-        } else report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: candidates.length ? 'No test files approved for execution.' : 'No eligible unit-test candidates discovered.' });
+        } else report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: candidates.length ? 'No test files eligible for execution.' : 'No eligible unit-test candidates discovered.' });
       }
       if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository content or validation settings changed during validation. Results are stale; inspect test side effects or external edits.');
       report.status = report.steps.some(item => item.status === 'failed') ? 'failed' : report.steps.some(item => item.status === 'skipped') ? 'partial' : 'passed';

@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.19.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.20.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -22,7 +22,7 @@ Ask for a focused code change to use editing. The agent reads files before propo
 
 For legacy test suites, set `llmRuntime.pesterVersion` to `4` or `5`. `Auto` uses the newest installed supported version. A missing selected major is reported; another major is never substituted silently. Optional module installation preserves publisher verification and reports blocked installations as reduced coverage.
 
-For a before/after test comparison, ask the agent to run validation before editing. Approve the trusted test files as usual. With complete Pester 5 results, later validation distinguishes previously observed failures, newly failing tests, changed failures and observed resolutions. The pre-edit run counts toward the same three-round limit. Without comparable evidence, origin stays unknown; newly failing tests are possible regressions, not proof that the edit caused them.
+For a before/after test comparison, ask the agent to run validation before editing. The runtime selects eligible unit tests automatically. With complete Pester 5 results, later validation distinguishes previously observed failures, newly failing tests, changed failures and observed resolutions. The pre-edit run counts toward the same three-round limit. Without comparable evidence, origin stays unknown; newly failing tests are possible regressions, not proof that the edit caused them.
 
 If the model skips a file read, copies the wrong hash, or proposes missing/ambiguous patch text, the runtime asks it to reread and allows at most two corrections total within the existing action budget. A short follow-up such as “go” retains the original request and preservation constraints; it does not override a developer-edit conflict. This applies only while on-disk content still matches the task's recorded state. External edits, dirty buffers, unsafe paths and ambiguous overlaps still stop the task.
 
@@ -42,7 +42,7 @@ npm test
 npm run package
 ```
 
-Press F5 to launch an Extension Development Host. Packaging produces a single VSIX containing compiled JavaScript and Zod (the only runtime library). TypeScript, VS Code types and `vsce` are development dependencies. Git runs as fixed argument arrays with no shell, a 15-second timeout, disabled fsmonitor, optional locks disabled, and a 4 MiB output cap. Fixed validation commands and developer-selected Pester tests are supported; general command execution is unavailable. See [Validation](docs/VALIDATION.md) for selection, module installation, execution policy and process limits.
+Press F5 to launch an Extension Development Host. Packaging produces a single VSIX containing compiled JavaScript and Zod (the only runtime library). TypeScript, VS Code types and `vsce` are development dependencies. Git runs as fixed argument arrays with no shell, a 15-second timeout, disabled fsmonitor, optional locks disabled, and a 4 MiB output cap. Fixed validation commands and automatically inspected Pester tests are supported; general command execution is unavailable. See [Validation](docs/VALIDATION.md) for selection, module installation, execution policy and process limits.
 
 Developer references are included in `docs/ARCHITECTURE.md`, `docs/PROTOCOL.md`, and `docs/ACCEPTANCE.md`. The roadmap remains the long-term product direction.
 
@@ -60,7 +60,7 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 - Edits preserve UTF-8/UTF-8 BOM/UTF-16LE BOM and uniform line endings. New PowerShell files use UTF-8 BOM and CRLF. Mixed line endings, hard-linked mutation targets, case-only moves, and ambiguous preexisting changes are refused. New destinations never overwrite an existing file.
 - File replacement is atomic, but the final content check and replacement are not a filesystem compare-and-swap. A move uses two filesystem operations; an interruption can leave both names. Unconfirmed journal entries are labeled for inspection. Undo is explicit and sequential; interrupted undo can resume from its journal. There is no automatic rollback, and custom Windows ACL preservation is not guaranteed.
 - Pending writes are recorded before temporary-file content is written. A task with an unconfirmed operation refuses further mutations. Forced-process-exit tests cover partial writes, replacement, deletion, both halves of a move, and creation; ambiguous outcomes still require manual inspection. See [interrupted file operations](docs/UNDO.md#interrupted-file-operations).
-- Automatic validation uses at most three rounds. Missing modules, declined test execution and unsupported module-loading analysis are reported as partial coverage. A test filename does not prove safety: only developer-selected Pester files execute. The default execution policy is inherited from the workstation.
+- Automatic validation uses at most three rounds. Missing modules, unsupported test suites and unsupported module-loading analysis are reported as partial coverage. A test filename does not prove safety: test setup and local dependencies are inspected before automatically selected Pester files execute. Selection and skipped-test reasons appear in the conversation, without a file picker. The default execution policy is inherited from the workstation.
 - Validation and ordinary descendant processes stop when the extension host exits. A Windows Job Object and input-pipe lifetime watcher enforce cleanup; initialization failure blocks validation. Workstation policy must permit the fixed PowerShell `Add-Type` bootstrap. This controls process lifetime, not filesystem or network access.
 - A public Gemini model and isolated VS Code Extension Development Host have passed the live smoke suite; see `docs/ACCEPTANCE.md` for evidence and remaining interactive checks. Other endpoint/network/proxy/certificate configurations still require validation. The client uses the VS Code extension host's Node HTTPS/fetch behavior; it does not bypass TLS verification or implement custom proxy routing.
 
