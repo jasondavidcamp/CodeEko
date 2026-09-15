@@ -297,3 +297,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.20: Automatic unit-test selection replaces the native picker; inspect setup and literal local dependencies again after edits, and report skipped suites as partial coverage. Native PowerShell inspection and automatic-selection regression checks cover operational commands, dynamic execution and changed setup.
 - [ ] Verify automatic selection against representative complex repositories and confirm the installed chat experience after restart.
+
+- [x] 0.4.21: Replace the cryptic create-file baseline error with the affected filename, a plain-language explanation, next steps, and confirmation that the rejected attempt made no changes.

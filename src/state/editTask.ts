@@ -221,7 +221,7 @@ export class EditTask {
     if (await head(this.index.root) !== this.journal.head) throw new TaskConflict('The Git checkout changed during the task. Review the current changes before continuing.');
     if (action.tool === 'create_file') {
       const full = await this.allowedPath(action.args.path);
-      if (this.journal.files[action.args.path]) throw new TaskConflict('Create cannot replace a task baseline file.');
+      if (this.journal.files[action.args.path]) throw new TaskConflict(`Cannot create ${action.args.path} as a new file: it existed earlier in this task or was already created during it. Check whether it still exists or was moved/deleted before editing it or choosing a different filename. This create attempt made no changes.`);
       try { await fs.lstat(full); throw new TaskConflict(`Destination already exists: ${action.args.path}`); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
       const powershell = /\.ps[md]?1$/i.test(action.args.path);
       const bytes = encode(action.args.content, { encoding: powershell ? 'utf8bom' : 'utf8', eol: powershell ? '\r\n' : '\n', mixedEol: false });
