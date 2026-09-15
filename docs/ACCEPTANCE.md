@@ -58,6 +58,8 @@ The full isolated VS Code host suite passed again. Its live editing task was und
 
 ## Remaining manual pilot gate
 
+Validation hardening (0.4.1): tests verify preexisting/new/unknown source finding attribution, refusal to repeat failed validation indefinitely, and early stopping when diagnostics remain identical after a repair. Baseline Pester execution is not inferred; its absence is reported explicitly.
+
 1. Build and install the VSIX in a clean Windows VS Code profile with access to your configured endpoint.
 2. Set the HTTPS API endpoint, store an individual key and select a dynamically discovered model. Interrupt endpoint connectivity and verify the configured/manual model fallback and useful timeout error. Verify certificate/proxy handling without disabling TLS.
 3. Open the real PowerShell 5.1 repository. Create two named threads, ask different questions and restart VS Code; verify histories and repository association.

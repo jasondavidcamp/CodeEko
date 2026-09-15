@@ -40,9 +40,9 @@ test('validation is mode-gated and child environment excludes secrets and inheri
 });
 test('completion automatically validates and repairs, preserving failure evidence and enforcing three rounds', async t => {
   const f = await fixture(t); let rounds = 0;
-  const runner: PowerShellRunner = async operation => {
-    if (operation === 'inspect') return available;
-    if (operation === 'parse') { rounds++; return rounds === 1 ? { count: 1, diagnostics: [{ path: 'main.ps1', line: 1, message: 'Wrong value private-token', rule: 'FixtureFailure', severity: 'Error' }] } : clean; }
+  const runner: PowerShellRunner = async (operation, payload) => {
+    if (operation === 'inspect') { rounds++; return available; }
+    if (operation === 'parse') return rounds === 1 && (payload as any).files[0].text.includes('return 2') ? { count: 1, diagnostics: [{ path: 'main.ps1', line: 1, message: 'Wrong value private-token', rule: 'FixtureFailure', severity: 'Error' }] } : clean;
     if (operation === 'analyze') return clean;
     if (operation === 'pester') return { total: 1, passed: 1, failed: 0, skipped: 0, result: 'Passed', failures: [], containerErrors: [] };
     throw new Error('Unexpected operation');
@@ -106,9 +106,10 @@ test('real Windows PowerShell parses without executing and Pester reports failin
 
 test('third failing validation round blocks completion; child failures never count as passed', async t => {
   const f = await fixture(t);
+  let roundNumber = 0;
   const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
-    if (operation === 'inspect') return available;
-    throw new Error('Synthetic validator process failure');
+    if (operation === 'inspect') { roundNumber++; return available; }
+    throw new Error(`Synthetic validator process failure ${roundNumber}`);
   });
   const tools = new EditingTools(f.reads, f.task, f.hooks.mode, async () => {}, validation);
   for (let round = 1; round <= 3; round++) {
@@ -134,4 +135,64 @@ test('cancelling an active Pester process stops it and records no successful res
     assert.ok(await fs.stat(marker).then(() => true, () => false), 'Fixture must enter the running test before cancellation');
   } finally { controller.abort(); }
   await rejection;
+});
+
+test('source diagnostics distinguish task-start findings from new findings and unknown comparisons', async t => {
+  const f = await fixture(t);
+  const tools = new EditingTools(f.reads, f.task, f.hooks.mode, async () => {});
+  const read = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { hash: string };
+  await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: read.hash, edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal());
+  let unavailable = false;
+  const runner: PowerShellRunner = async (operation, payload) => {
+    if (operation === 'inspect') return available;
+    if (operation === 'analyze') return clean;
+    const current = (payload as any).files[0].text.includes('return 2');
+    if (!current && unavailable) throw new Error('Baseline analyzer unavailable');
+    const diagnostic = { path: 'main.ps1', line: 1, message: 'Existing issue', rule: 'Existing', severity: 'Error' };
+    const findings = [diagnostic, ...(current ? [{ ...diagnostic, message: 'New issue', rule: 'New' }] : [])];
+    return { count: findings.length, diagnostics: findings };
+  };
+  const first = await new TaskValidation(f.task, f.validationHooks, runner).run(signal());
+  const detail = first.steps.find(step => step.command.includes('Parser'))!.detail as any;
+  assert.deepEqual(detail.diagnostics.map((item: any) => item.origin), ['preexisting','new since task baseline']);
+  unavailable = true;
+  const second = await new TaskValidation(f.task, f.validationHooks, runner).run(signal());
+  assert.ok((second.steps.find(step => step.command.includes('Parser'))!.detail as any).diagnostics.every((item: any) => item.origin === 'unknown'));
+});
+
+test('repeating failed validation without edits stops without launching more commands', async t => {
+  const f = await fixture(t); let executions = 0;
+  const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
+    executions++; if (operation === 'inspect') return available;
+    throw new Error('Known failure');
+  });
+  await validation.run(signal()); const count = executions;
+  await validation.run(signal()); await assert.rejects(validation.run(signal()), /no repair progress/);
+  assert.equal(executions, count);
+});
+
+test('unchanged diagnostics after an edit stop repair early even when line numbers move', async t => {
+  const f = await fixture(t); let round = 0;
+  const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
+    if (operation === 'inspect') { round++; return available; }
+    if (operation === 'analyze') return clean;
+    return { count: 1, diagnostics: [{ path: 'main.ps1', line: round, message: 'Same unresolved failure', rule: 'Same', severity: 'Error' }] };
+  });
+  await validation.run(signal());
+  await fs.appendFile(path.join(f.root, 'main.ps1'), '# unrelated change\n');
+  await assert.rejects(validation.run(signal()), /no diagnostic progress/);
+  assert.equal(round, 2); assert.match(validation.summary(), /round 2\/3: failed/);
+});
+test('identical Pester failures stop early despite changed attribution metadata', async t => {
+  const f = await fixture(t);
+  const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
+    if (operation === 'inspect') return available;
+    if (operation === 'parse' || operation === 'analyze') return clean;
+    return { total: 1, passed: 0, failed: 1, skipped: 0, result: 'Failed', failures: [{ name: 'value', message: 'Same failed assertion' }], containerErrors: [] };
+  });
+  await validation.run(signal());
+  const tools = new EditingTools(f.reads, f.task, f.hooks.mode, async () => {}, validation);
+  const read = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { hash: string };
+  await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: read.hash, edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal());
+  await assert.rejects(validation.run(signal()), /no diagnostic progress/);
 });

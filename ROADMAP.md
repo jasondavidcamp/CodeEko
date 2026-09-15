@@ -180,6 +180,9 @@ Goal: complete changes with automatic, trustworthy local validation.
 - [x] Automatically run parser checks, available static analysis, and developer-selected unit tests. Selection is required because test names alone cannot establish safety.
 - [x] Do not automatically run integration tests or operations that affect IIS, services, Azure DevOps, databases, network resources, or other environments.
 - [x] Feed validation failures back into the agent for at most three total edit-and-validation attempts.
+- [x] Stop early on repeated unchanged validation or identical failure diagnostics after a repair.
+- [x] Compare parser/analyzer findings with task-start snapshots; explicitly label unknown failure origin when comparison is unavailable.
+- [ ] Compare test failures against an isolated, approved baseline test run to distinguish all preexisting test failures from regressions.
 - [x] Report every validation command, result, omission, and remaining failure in plain English.
 
 Exit criteria:
@@ -257,7 +260,7 @@ Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task
 Validation slice evidence (0.3): fixed Windows PowerShell 5.1 parsing, built-in analyzer rules, developer-selected Pester 4/5 tests, optional CurrentUser module installation, persisted results, cancellation and three-round repair limits are implemented. Live Gemini repaired a failing Pester test in two rounds while preserving test expectations and staged work. Missing or unapproved checks remain explicitly partial; test selection does not sandbox code.
 
 1. Demonstrate editing, native review and validation on a representative repository, including interactive approval and restart checks.
-2. Harden whole-application interruption recovery and validation failure attribution.
+2. Harden whole-application interruption recovery and baseline test-failure attribution.
 3. Validate Pester 4, enterprise module sources, certificate/proxy behavior and representative repository compatibility.
 4. Run the selected real multi-file feature as the full pilot acceptance test.
 

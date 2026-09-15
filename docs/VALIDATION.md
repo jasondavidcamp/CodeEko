@@ -2,6 +2,8 @@
 
 Version 0.3 adds `run_validation {}` and automatic validation before an edited task completes. The executor, not the model, limits each task to three validation rounds. Unchanged repository fingerprints reuse the current result. Edits invalidate it. A failed final round blocks completion and further edits; changes remain uncommitted for review.
 
+Version 0.4.1 also stops when failed validation is repeatedly requested without edits, or when an edit produces the same failure diagnostics. Moving diagnostic line numbers alone is not progress. This can end repair before the three-round maximum.
+
 ## Checks
 
 - Windows PowerShell 5.1 parses changed PowerShell files without executing their statements. Explicit validation before edits parses all eligible PowerShell files.
@@ -24,6 +26,8 @@ The fixed runner uses the system Windows PowerShell executable, no profile, no i
 Task-private `validation.json` records rounds, commands, statuses and bounded diagnostics. Repository text fingerprints, HEAD and staged diff are checked for staleness. Editor buffers must be saved. Fingerprints cover readable manifest content, not every possible external or ignored-file side effect. A local process can still race checks. Validation is not a security boundary against malicious tests or installed modules.
 
 The final UI summary distinguishes passed, failed, partial, unrun and stale results. A partial result is not proof of correct behavior. Reports are local plaintext alongside task snapshots. Task undo invalidates the historical validation result for the current working tree; see UNDO.md.
+
+Parser/analyzer failures are compared with saved task-start source text without executing that source. Matching findings are labeled preexisting; findings absent from a complete baseline comparison are labeled new since the task baseline. Failed or truncated comparisons leave unknown origin. Test failures report unknown origin unless observed before task edits: the runtime does not execute a reconstructed baseline test tree. The final narrative includes bounded findings and the private report records checked file paths.
 
 Developer tests use synthetic repositories; real Pester fixture tests explicitly use process-only RemoteSigned and never change machine execution policy. Run `npm run test:live:validation` with the README's environment variables for a real-model repair demonstration. This requires supported Pester and PSScriptAnalyzer for a full pass.
 
