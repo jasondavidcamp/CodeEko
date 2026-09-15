@@ -325,3 +325,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.31: Keep manifest membership stable when delayed watcher events invalidate cached file information. A regression reproduces a post-move notification causing a false validation-state mismatch; the fix includes the renamed source in parsing and reaches Pester. Same-size/same-timestamp edits refresh symbols, and genuine deletions still revoke reads.
 
 - [x] 0.4.32: Isolate format correction from task history and allow two bounded corrections, including consecutive malformed actions. A regression preserves failed-validation context without executing invalid edits. A live synthetic fixture repaired four assertion failures, preserved source and staged work, and passed Pester in two validation rounds and six model calls. Add opt-in, bounded, API-key-redacted rejected-response capture in private task storage and offline schema replay with no tool execution.
+
+- [x] 0.4.33: Replace the irregular settings glyph with a symmetrical outlined gear; visually checked at sidebar size.
