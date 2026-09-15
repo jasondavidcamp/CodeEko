@@ -84,7 +84,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   await receive({ type: 'send', text: 'Second topic', newConversation: true });
   assert.notEqual(sent.at(-1).thread.id, firstId); assert.equal(sent.at(-1).thread.name, 'Second topic');
   assert.equal(sent.at(-1).threads.length, 2); assert.equal(sent.at(-1).thread.messages.filter((m: any) => m.role === 'user').length, 1);
-  input = 'Renamed topic'; await receive({ type: 'rename' }); assert.equal(sent.at(-1).thread.name, 'Renamed topic');
+  await receive({ type: 'rename', id: sent.at(-1).thread.id, name: 'Renamed topic' }); assert.equal(sent.at(-1).thread.name, 'Renamed topic');
   await receive({ type: 'archive' }); assert.equal(sent.at(-1).thread.archived, true);
   const archivedStore = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await archivedStore.load();
   assert.equal(archivedStore.threads.at(-1)?.archived, true); assert.equal(archivedStore.threads.at(-1)?.name, 'Renamed topic');

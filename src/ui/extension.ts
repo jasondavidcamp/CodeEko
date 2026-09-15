@@ -125,8 +125,15 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     busy = true;
     try {
       if (message.type === 'rename') {
-        const name = await vscode.window.showInputBox({ title: 'Rename chat', value: thread.name, validateInput: value => !value.trim() ? 'Enter a chat name.' : value.trim().length > 100 ? 'Use 100 characters or fewer.' : undefined });
-        if (name?.trim() && name.trim().length <= 100) { const previous = thread.name; thread.name = name.trim(); try { await store.save(); } catch (error) { thread.name = previous; throw error; } }
+        const previous = thread.name;
+        try {
+          if (message.id !== thread.id || typeof message.name !== 'string' || !message.name.trim() || message.name.trim().length > 100) throw new Error('Enter a name of 1–100 characters for the current chat.');
+          thread.name = message.name.trim(); await store.save();
+          send({ type: 'renameResult', id: thread.id, ok: true });
+        } catch (error) {
+          thread.name = previous;
+          send({ type: 'renameResult', id: message.id, ok: false, error: error instanceof Error ? error.message : 'Could not rename chat.' });
+        }
       } else if (message.type === 'archive' || message.type === 'restore') {
         const previous = thread.archived; thread.archived = message.type === 'archive';
         try { await store.save(); } catch (error) { thread.archived = previous; throw error; }
