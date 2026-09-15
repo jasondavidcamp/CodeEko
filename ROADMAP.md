@@ -67,6 +67,7 @@ Full access currently covers supported repository tools and fixed validation com
 - [x] Persist bounded startup lifecycle diagnostics with webview handshake and bootstrap events.
 - [x] Export sanitized startup diagnostics independently of a functioning chat pane.
 - [x] Offer opt-in bounded rejected-response capture and offline schema replay.
+- [x] Open the latest rejected-response capture directly from Diagnostics settings, with guidance when no logs exist.
 - [x] Document install, build, configuration, limitations and data cleanup.
 - [x] Provide a current-user source-build installer with locked dependencies, optional tests, build-only mode and installed-version verification.
 - [x] Publish the initial MIT-licensed experimental release. Binary distribution is now paused; source installation is the current path.

@@ -12,7 +12,7 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   Module._load=function(name:string,...args:any[]){return name==='vscode'?mock:original.call(this,name,...args);};
   let settings: typeof import('../src/ui/settings');
   try{settings=require('../src/ui/settings');}finally{Module._load=original;}
-  const page=new settings.SettingsPage(()=>busy);page.open();page.open();assert.equal(panels,1);assert.equal(reveals,1);
+  const page=new settings.SettingsPage(()=>busy, async()=>{calls.push('openRejectedLogs');return 'Revealed capture.';});page.open();page.open();assert.equal(panels,1);assert.equal(reveals,1);
   await receive({type:'ready'});assert.equal(sent.at(-1).values.endpoint,'');
   for(const [key,value] of [['apiKey','private-key'],['permissionMode','Custom'],['endpoint','http://example.test'],['endpoint','https://user:password@example.test'],['requestTimeout',0],['requestTimeout',NaN],['installValidationModules','true']]){
     await receive({type:'save',key,value});assert.equal(sent.at(-1).failed,true);assert.equal(Object.keys(values).length,0);
@@ -21,6 +21,7 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   await receive({type:'save',key:'installValidationModules',value:true});assert.equal(values.installValidationModules,true);
   busy=true;await receive({type:'save',key:'permissionMode',value:'Full access'});assert.equal(values.permissionMode,undefined);assert.match(sent.at(-1).notice,/running task/);busy=false;
   await receive({type:'setKey'});await receive({type:'export'});assert.deepEqual(calls,['ekod.setKey','ekod.exportStartupDiagnostics']);
+  busy=true;await receive({type:'openRejectedLogs',path:'untrusted-path'});assert.equal(calls.at(-1),'openRejectedLogs');assert.equal(sent.at(-1).notice,'Revealed capture.');busy=false;
   values.model='external-change';changed({affectsConfiguration:()=>true});assert.equal(sent.at(-1).values.model,'external-change');
   assert.ok(!JSON.stringify(sent).includes('private-key'));
   const script=/<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(panel.webview.html)![1];assert.doesNotThrow(()=>new vm.Script(script));

@@ -1,3 +1,5 @@
+import { latestRejectedLog } from '../state/rejectedLogs';
+import * as fs from 'node:fs/promises';
 import { SettingsPage } from './settings';
 import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
@@ -51,7 +53,17 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
 export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
   const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
   diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
-  const settingsPage = new SettingsPage(() => active.size > 0); context.subscriptions.push(settingsPage);
+  const settingsPage = new SettingsPage(() => active.size > 0, async () => {
+    const storage = context.globalStorageUri.fsPath;
+    const capture = await latestRejectedLog(storage);
+    if (capture) {
+      await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(capture));
+      return 'Revealed the most recent rejected-response log.';
+    }
+    await fs.mkdir(storage, { recursive: true });
+    if (!await vscode.env.openExternal(vscode.Uri.file(storage))) throw new Error('Could not open extension storage.');
+    return 'No rejected-response logs yet. Enable capture, then retry your message. Opened extension storage.';
+  }); context.subscriptions.push(settingsPage);
   context.subscriptions.push(vscode.commands.registerCommand('ekod.openSettings', () => settingsPage.open()));
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));

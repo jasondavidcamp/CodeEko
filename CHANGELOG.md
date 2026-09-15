@@ -6,6 +6,11 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.44 — Diagnostic log navigation
+
+- Add Open rejected-response logs to Diagnostics settings, revealing the newest capture without displaying its contents.
+- Open extension storage with capture instructions when no logs exist.
+
 ## 0.4.43 — Selected-file commit requests
 
 - Recognize explicit requests such as “commit just the six character test for now” and “commit only this test.”
