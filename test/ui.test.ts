@@ -96,6 +96,10 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   approveUndo = true; await receive({ type: 'undo' });
   assert.equal(await fs.readFile(path.join(root, 'pilot.ps1'), 'utf8'), 'function Get-Pilot {}');
   assert.equal(sent.at(-1).thread.undoTaskId, undefined); assert.match(sent.at(-1).thread.messages.at(-1).content, /Undo complete/);
+  global.fetch = async () => new Response(JSON.stringify({ data: [{ id: 'available-model' }] }));
+  await receive({ type: 'selectModel' }); assert.ok(sent.some(m => m.type === 'models' && m.items.includes('available-model')));
+  await receive({ type: 'chooseModel', model: 'available-model' }); assert.equal(settings.model, 'available-model');
+  await receive({ type: 'chooseModel', model: 'invented-model' }); assert.equal(settings.model, 'available-model');
   await receive({ type: 'permissions', mode: 'Review' }); assert.equal(settings.permissionMode, 'Review');
   const firstId = sent.at(-1).thread.id;
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"New chat response"}}' } }] }));

@@ -78,6 +78,7 @@ Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant cod
 ## User experience and task lifecycle
 
 - Use ordinary conversation; slash commands are optional shortcuts.
+- Keep chat interactions in the conversation pane: anchored popovers for model and permission selection, in-pane dialogs for rename, and the composer for agent questions. Do not route these controls through top-of-window input boxes or quick picks. Preserve current selection, loading/error states, keyboard access, Escape/outside dismissal, and narrow-sidebar usability. Use native VS Code UI where it serves the task: diffs, Source Control, settings, secure API-key entry, and explicit command shortcuts. Match only capabilities the runtime actually supports; do not copy misleading permission claims.
 - Inspect before asking questions. Infer routine details from strong repository evidence and disclose meaningful assumptions.
 - Show brief progress and a concise final narrative describing changes, validation, and remaining issues.
 - Show code diffs only in VS Code's native diff editor or Source Control experience. Do not dump raw Git patches into chat.

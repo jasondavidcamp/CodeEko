@@ -105,6 +105,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
   const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
+  let discoveredModels: string[] = []; let discoveryEndpoint = ''; let discoveryFailed = false;
   let pendingQuestion: { id: string; resolve(answer: string): void; reject(error: Error): void } | undefined;
   const update = () => send({ type: 'state', questionId: pendingQuestion?.id, root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, lastUsedAt: lastChatActivity(t), archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
   const ask = async (question: string, signal: AbortSignal): Promise<string> => {
@@ -162,7 +163,14 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
       } else if (message.type === 'settings') {
         await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:internal-pilot.llm-coding-agent-runtime');
       } else if (message.type === 'selectModel') {
-        await selectModel(context);
+        discoveryEndpoint = config().get<string>('endpoint', ''); discoveredModels = []; discoveryFailed = false;
+        try { discoveredModels = await (await client(context)).models(); send({ type: 'models', items: discoveredModels }); }
+        catch { discoveryFailed = true; send({ type: 'models', items: [], error: 'Model discovery failed. Check your connection and endpoint settings, or enter a model ID manually.' }); }
+      } else if (message.type === 'chooseModel') {
+        const selected = message.model;
+        if (discoveryEndpoint !== config().get<string>('endpoint', '') || typeof selected !== 'string' || !selected.trim() || selected.length > 200 || (!discoveredModels.includes(selected) && !(discoveryFailed && message.manual === true))) throw new Error('Refresh model selection and choose a returned model or explicitly enter an ID after discovery fails.');
+        await config().update('model', selected.trim(), vscode.ConfigurationTarget.Global);
+        send({ type: 'modelChosen' });
       } else if (message.type === 'permissions') {
         if (!['Review', 'Workspace', 'Full access', 'Custom'].includes(message.mode)) throw new Error('Unsupported permission mode.');
         await config().update('permissionMode', message.mode, vscode.ConfigurationTarget.Global);
@@ -198,8 +206,8 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         thread.lastUsedAt = new Date().toISOString(); thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
         try {
           await store.save();
-          const api = await client(context); if (!config().get<string>('model')) await selectModel(context, controller.signal);
-          const model = config().get<string>('model'); if (!model) throw new Error('Select or configure a model first.');
+          const api = await client(context);
+          const model = config().get<string>('model'); if (!model) throw new Error('Choose a model using the model button below the chat, then resend your message.');
           send({ type: 'progress', text: 'Refreshing repository index.' }); await index.refresh(controller.signal);
           if (thread.undoTaskId && (await EditTask.load(index, storage, thread.undoTaskId, hooks)).undoState() === 'running') throw new TaskConflict('Resume the incomplete task undo before continuing this conversation.');
           const previous = thread.taskId ? await EditTask.load(index, storage, thread.taskId, hooks) : undefined;
