@@ -128,7 +128,7 @@ test('one protocol correction can recover a missing version without executing in
   const answer = await runAgent({ complete: async () => responses[calls++] }, 'm', [], { execute: async () => { executions++; return {}; } }, () => 'Review', new AbortController().signal, () => {});
   assert.equal(answer, 'Done'); assert.equal(calls, 3); assert.equal(executions, 1);
   calls = 0;
-  await assert.rejects(runAgent({ complete: async () => { calls++; return '{"tool":"list_files","args":{}}'; } }, 'm', [], { execute: async () => { throw new Error('Invalid action executed'); } }, () => 'Review', new AbortController().signal, () => {}), /invalid version-1/);
+  await assert.rejects(runAgent({ complete: async () => { calls++; return '{"tool":"list_files","args":{}}'; } }, 'm', [], { execute: async () => { throw new Error('Invalid action executed'); } }, () => 'Review', new AbortController().signal, () => {}), /repeatedly sent an unusable response/);
   assert.equal(calls, 2);
 });
 
@@ -136,4 +136,48 @@ test('repeated missing reads stop after two corrections inside the existing acti
   let calls = 0;
   await assert.rejects(runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: 'a', newText: 'b' }] } }); } }, 'm', [], { execute: async () => { throw new ReadRequired('main.ps1'); } }, () => 'Full access', new AbortController().signal, () => {}), /two read\/hash corrections/);
   assert.equal(calls, 3);
+});
+
+
+test('isolated format mistakes receive specific feedback without replaying tools or exposing counters', async () => {
+  const { runAgent } = await import('../src/agent/loop');
+  let calls = 0; let executions = 0; const progress: string[] = [];
+  const replies = [
+    { version: 1, tool: 'read_file', args: {} },
+    { version: 1, tool: 'read_file', args: { path: 'main.ps1' } },
+    { version: 1, tool: 'complete_task', args: { summary: 42 } },
+    { version: 1, tool: 'complete_task', args: { summary: 'Done' } }
+  ];
+  const answer = await runAgent({ complete: async (_model, messages) => {
+    if (calls === 0) assert.match(messages.at(-1)!.content, /tests\/Value.Tests.ps1/);
+    if (calls === 1) assert.match(messages.at(-1)!.content, /args.path/);
+    if (calls === 3) assert.match(messages.at(-1)!.content, /args.summary/);
+    return JSON.stringify(replies[calls++]);
+  } }, 'fake', [{ role: 'user', content: 'create a pester test' }], {
+    initialContext: async () => ({ files: ['tests/Value.Tests.ps1'] }),
+    execute: async () => { executions++; return {}; }
+  }, () => 'Full access', new AbortController().signal, text => progress.push(text));
+  assert.equal(answer, 'Done'); assert.equal(executions, 1); assert.equal(calls, 4);
+  assert.ok(progress.includes('Reading main.ps1…'));
+  assert.ok(progress.every(p => !/context characters|\d+\/20/.test(p)));
+});
+
+test('validation context drops passing-case inventory but preserves repair evidence and original report', async () => {
+  const { compactValidation } = await import('../src/agent/loop');
+  const report = { round: 1, fingerprint: 'private-state', status: 'failed', steps: [{ command: 'Pester', status: 'failed', detail: { total: 200, passed: 199, cases: Array.from({ length: 200 }, (_, i) => ({ name: `case ${i}`, result: 'Passed' })), failures: [{ name: 'relevant test', message: 'Expected 5', origin: 'unknown' }], comparison: { resolved: [] } } }] };
+  const compact = compactValidation(report) as any;
+  assert.equal(compact.steps[0].detail.cases, undefined);
+  assert.deepEqual(compact.steps[0].detail.failures, report.steps[0].detail.failures);
+  assert.equal(report.steps[0].detail.cases.length, 200);
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(report).length / 5);
+});
+
+
+test('test inventory supplies source paths as well as existing suites without a model round trip', async () => {
+  const { EditingTools } = await import('../src/tools/editing');
+  let request: unknown;
+  const reads = { execute: async (action: unknown) => { request = action; return { files: ['Get-Value.ps1', 'tests/Value.Tests.ps1'] }; } };
+  const tools = new EditingTools(reads as any, {} as any, () => 'Full access', async () => {});
+  assert.deepEqual(await tools.initialContext(new AbortController().signal), { files: ['Get-Value.ps1', 'tests/Value.Tests.ps1'] });
+  assert.deepEqual(request, { version: 1, tool: 'list_files', args: {} });
 });

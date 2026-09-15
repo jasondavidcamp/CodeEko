@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.21.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.22.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension prompts for the repository before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -69,3 +69,5 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `LLM_RU
 Conversation history, index metadata, validation reports, task journals, and raw file baseline/review snapshots are stored beneath VS Code's private per-user extension global storage, partitioned by a hash of the canonical Git root. No index or chat files are written to the inspected repository. History and snapshots are local plaintext under the user's OS account protections; API keys use SecretStorage. Snapshots can retain up to the 50 MB indexed baseline per task plus edits, with no automatic retention cleanup yet. Up to 100 named threads with 100 messages each are retained; each new task supplies at most 20 recent messages to the model. Interrupted tasks are marked interrupted when loaded and can receive a follow-up. Recorded diff snapshots survive reload and show the task's changes, not later external edits.
 
 To reset data, close all VS Code windows using LLM Runtime and remove this extension's `globalStorage/internal-pilot.llm-coding-agent-runtime` directory from the VS Code user-data location. To replace a key, rerun Set API Key. Uninstall through Extensions; VS Code may retain extension data and secrets, so follow your organization's workstation cleanup policy.
+
+Test requests include a repository file inventory to help reuse existing suites. The runtime sends compact validation feedback to the model and displays descriptive progress. Malformed model responses receive bounded, field-specific correction attempts; repeated failures stop without applying the rejected action.

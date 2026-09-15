@@ -299,3 +299,6 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [ ] Verify automatic selection against representative complex repositories and confirm the installed chat experience after restart.
 
 - [x] 0.4.21: Replace the cryptic create-file baseline error with the affected filename, a plain-language explanation, next steps, and confirmation that the rejected attempt made no changes.
+
+- [x] 0.4.22: Supply file inventory for test requests, prefer batch reads and existing suites, compact model-facing validation reports, show descriptive progress, and provide field-specific bounded protocol recovery. A live Gemini fixture reused its suite and passed in one validation round (six calls, 24 seconds); timing is a single observation, not a latency guarantee.
+- [ ] Measure test-generation latency and duplicate-suite avoidance across representative repositories and repeated live runs.

@@ -2,7 +2,7 @@
 
 Every model response must be one raw JSON object with exactly `version`, `tool`, `args`. Additional properties are rejected at both levels. Markdown fences, arrays, multiple objects, unknown tools and non-1 versions fail closed. No model response is executed directly. Authoritative schemas are in `src/protocol/actions.ts`.
 
-One invalid response per task may trigger a correction request within the existing 20-turn and context budgets. The invalid action is never executed or coerced into a valid one. A second invalid response, or a response exceeding 20,000 characters, terminates the task. This covers occasional omitted protocol fields while preserving strict local validation.
+Up to two isolated invalid responses may receive field-specific correction feedback inside the existing 20-turn and context budgets. Two consecutive invalid replies, a third invalid reply overall, or a response exceeding 20,000 characters stops the task. Invalid actions are never executed or coerced. The chat explains that the rejected response made no changes and earlier edits remain.
 
 ```json
 {"version":1,"tool":"read_file","args":{"path":"src/Example.ps1","startLine":1,"endLine":80}}
@@ -35,3 +35,5 @@ For a requested before/after test comparison, call `run_validation` before the f
 A rejected mutation may return `error: "read_required"` with a relative path. No edit was applied. Call `read_file`, copy its returned hash and then propose the edit again. Earlier conversation summaries and validation are not reads. At most two such corrections are allowed inside the existing 20-action and 12-edit-attempt limits. This recovery is only available when the file still matches the task's current snapshot; actual external changes and other safety conflicts remain terminal.
 
 The model request appends `/chat/completions` to the normalized API base and uses `stream:false`, `temperature:0`, `max_tokens:4096`, and `response_format:{"type":"json_object"}`. An unversioned base gets `/v1` appended; explicitly versioned compatibility paths are preserved. Progress is streamed separately through UI events. Compatibility with the configured endpoint's supported request fields is a required pilot acceptance check; there is no fallback to another service.
+
+Test requests receive a bounded current file inventory before the first model call. Prefer batch reads and existing suites. Model-facing validation reports omit passing-case inventories and fingerprints while retaining counts, failures, diagnostics and comparison evidence; the complete report remains in private storage. Progress describes file reads, edits and validation instead of internal turn/context counters.

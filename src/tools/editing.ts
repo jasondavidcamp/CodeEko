@@ -6,6 +6,9 @@ import { TaskValidation } from '../validation/task';
 
 export class EditingTools {
   constructor(private reads: ReadOnlyTools, readonly task: EditTask, private mode: () => string, private review: (task: EditTask, file?: string) => Promise<void>, readonly validation?: TaskValidation) {}
+  async initialContext(signal: AbortSignal): Promise<unknown> {
+    return this.reads.execute({ version: 1, tool: 'list_files', args: {} }, signal);
+  }
   async beforeComplete(signal: AbortSignal): Promise<unknown | undefined> { return this.validation?.beforeComplete(signal); }
   async execute(action: Action, signal: AbortSignal): Promise<unknown> {
     authorize(action.tool, this.mode()); check(signal);
