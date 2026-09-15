@@ -183,6 +183,7 @@ Goal: complete changes with automatic, trustworthy local validation.
 - [x] Feed validation failures back into the agent for at most three total edit-and-validation attempts.
 - [x] Stop early on repeated unchanged validation or identical failure diagnostics after a repair.
 - [x] Compare parser/analyzer findings with task-start snapshots; explicitly label unknown failure origin when comparison is unavailable.
+- [x] Compare complete approved pre-edit Pester 5 observations with later results; report observed preexisting/new/changed/resolved failures and retain unknown origin when evidence is incompatible.
 - [ ] Compare test failures against an isolated, approved baseline test run to distinguish all preexisting test failures from regressions.
 - [x] Report every validation command, result, omission, and remaining failure in plain English.
 
@@ -277,6 +278,8 @@ Restart evidence (0.4.1): a dedicated isolated VS Code process was terminated wh
 Crash-lifetime evidence (0.4.3): native tests verify validator/descendant cleanup on completion, cancellation and forced validator exit while preserving an unrelated process. Guard tests cover early owner loss, an independent deadline and blocked initialization. The isolated VS Code recovery test kills the extension-host PID alone and confirms that Pester and its descendant stop before UI cleanup; restart and undo preserve developer work. Broker-launched processes are outside this lifetime mechanism; representative workstation policy and mid-write interruption remain open.
 
 File-interruption evidence (0.4.4): eleven synthetic Windows worker crash checkpoints verify pending snapshots, byte preservation, partial move states, no replay, preserved staged work and HEAD, and refusal of ambiguous undo. Pending writes now precede temporary-file content; applied creates have no remaining temporary hard link. A repeated edit retains the task-start baseline. Representative workstations and power loss remain unverified.
+
+Observed test-baseline evidence (0.4.5): complete approved pre-edit Pester 5 runs can establish a task-local comparison without executing copied repositories or adding rounds. Stable case identities and unchanged test files distinguish observed preexisting, newly failing, changed and resolved failures. Stale, missing, skipped, truncated or ambiguous evidence stays unknown. Broader isolated-baseline execution and causal regression attribution remain open.
 
 ## Definition of pilot success
 

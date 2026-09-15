@@ -188,13 +188,67 @@ test('identical Pester failures stop early despite changed attribution metadata'
   const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
     if (operation === 'inspect') return available;
     if (operation === 'parse' || operation === 'analyze') return clean;
-    return { total: 1, passed: 0, failed: 1, skipped: 0, result: 'Failed', failures: [{ name: 'value', message: 'Same failed assertion' }], containerErrors: [] };
+    const detail = { name: 'value', path: path.join(f.root, 'tests/Value.Tests.ps1'), message: 'Same failed assertion' };
+    return { total: 1, passed: 0, failed: 1, skipped: 0, result: 'Failed', failures: [detail], cases: [{ ...detail, result: 'Failed' }], containerErrors: [] };
   });
   await validation.run(signal());
   const tools = new EditingTools(f.reads, f.task, f.hooks.mode, async () => {}, validation);
   const read = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { hash: string };
   await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: read.hash, edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal());
   await assert.rejects(validation.run(signal()), /no diagnostic progress/);
+  assert.match(validation.summary(), /preexisting/);
+});
+
+test('stale pre-edit Pester observations never become a baseline', async t => {
+  const f = await fixture(t); let pesterCalls = 0;
+  const validation = new TaskValidation(f.task, f.validationHooks, async operation => {
+    if (operation === 'inspect') return available;
+    if (operation === 'parse' || operation === 'analyze') return clean;
+    if (++pesterCalls === 1) await fs.appendFile(path.join(f.root, 'main.ps1'), '# external change\n');
+    const detail = { name: 'value', path: path.join(f.root, 'tests/Value.Tests.ps1'), message: 'failure' };
+    return { total: 1, passed: 0, failed: 1, skipped: 0, result: 'Failed', failures: [detail], cases: [{ ...detail, result: 'Failed' }], containerErrors: [] };
+  });
+  await assert.rejects(validation.run(signal()), /stale/);
+  const report = await validation.run(signal());
+  const detail = report.steps.find(step => step.command.startsWith('Invoke-Pester'))!.detail as any;
+  assert.equal(detail.comparison.baselineRound, null); assert.equal(detail.failures[0].origin, 'unknown');
+});
+
+test('real Pester pre-edit comparison reports preexisting and newly failing tests, then observed resolution', { skip: process.platform !== 'win32' }, async t => {
+  const runner = createPowerShellRunner('RemoteSigned');
+  const detected = await runner('inspect', { pesterMajor: 5 }, signal()) as typeof available;
+  if (!detected.modules.Pester || !detected.modules.PSScriptAnalyzer) { t.skip('Pester 5 and analyzer required.'); return; }
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-test-baseline-')); t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  const root = path.join(temp, 'repo'); await fs.mkdir(path.join(root, 'tests'), { recursive: true });
+  const source = 'function Get-Value { return 1 }\nfunction Get-Other { return 1 }\n';
+  const testText = "BeforeAll { . (Join-Path $PSScriptRoot '../main.ps1') }\nDescribe 'baseline' { It 'already fails' { Get-Value | Should -Be 2 }; It 'initially passes' { Get-Other | Should -Be 1 } }";
+  await fs.writeFile(path.join(root, 'main.ps1'), source); await fs.writeFile(path.join(root, 'tests/Value.Tests.ps1'), testText);
+  await git(root, ['init']); await git(root, ['add','.']); await git(root, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','fixture']);
+  await fs.writeFile(path.join(root, 'Notes.txt'), 'developer work'); await git(root, ['add','Notes.txt']);
+  const staged = await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']);
+  const index = new RepositoryIndex(root, path.join(temp, 'storage'));
+  const hooks = { mode: () => 'Full access', isDirty: () => false, confirm: async () => true, preview: async () => {} };
+  const task = await EditTask.capture(index, path.join(temp, 'storage'), hooks, signal()); let selections = 0;
+  const validation = new TaskValidation(task, { ...hooks, pesterMajor: () => 5, installMissing: () => false, progress: () => {}, redact: text => text, selectTests: async names => { selections++; return names; } }, runner);
+  const tools = new EditingTools(new ReadOnlyTools(index, async () => ''), task, hooks.mode, async () => {}, validation);
+  const before = await validation.run(signal()); assert.equal(before.status, 'failed');
+  const change = async (oldText: string, newText: string) => {
+    const doc = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { hash: string };
+    await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: doc.hash, edits: [{ oldText, newText }] } }, signal());
+  };
+  await change('function Get-Other { return 1 }', 'function Get-Other { return 0 }');
+  const after = await validation.run(signal());
+  const detail = after.steps.find(step => step.command.startsWith('Invoke-Pester'))!.detail as any;
+  assert.deepEqual(detail.failures.map((f: any) => f.origin), ['preexisting','newly failing since baseline']);
+  assert.ok(detail.cases.every((c: any) => c.path === 'tests/Value.Tests.ps1'));
+  await change('function Get-Value { return 1 }\nfunction Get-Other { return 0 }', 'function Get-Value { return 2 }\nfunction Get-Other { return 1 }');
+  const final = await validation.run(signal()); assert.equal(final.round, 3); assert.equal(final.status, 'passed');
+  const resolved = (final.steps.find(step => step.command.startsWith('Invoke-Pester'))!.detail as any).comparison.resolved;
+  assert.equal(resolved.length, 1); assert.match(resolved[0].name, /already fails/);
+  assert.equal(selections, 1); assert.throws(() => validation.assertCanEdit(), /Three/);
+  assert.equal(await fs.readFile(path.join(root, 'tests/Value.Tests.ps1'), 'utf8'), testText);
+  assert.equal(await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']), staged);
+  assert.match(await fs.readFile(path.join(task.directory, 'validation.json'), 'utf8'), /newly failing since baseline/);
 });
 test('selected Pester major reaches discovery and execution, and changing it invalidates cached results', async t => {
   const f = await fixture(t); let major: 4 | 5 = 4; const versions: string[] = [];
@@ -217,6 +271,16 @@ test('each installed supported Pester adapter reports pass and failure without s
       assert.ok(detected.modules.Pester!.startsWith(`${major}.`));
       const result = await createPowerShellRunner('RemoteSigned')('pester', { paths: [file], version: detected.modules.Pester }, signal()) as any;
       assert.equal(result.total, 2); assert.equal(result.passed, 1); assert.equal(result.failed, 1);
+      if (major === 5) {
+        assert.equal(result.containerErrors.length, 0, 'assertion failures are not container setup errors');
+        assert.equal(result.cases.length, 2);
+        assert.ok(result.cases.every((c: any) => c.path === file && c.name.startsWith('versions.')));
+        assert.equal(result.failures[0].message, result.cases.find((c: any) => c.result === 'Failed').message);
+        await fs.writeFile(file, "throw 'Synthetic discovery failure'");
+        const broken = await createPowerShellRunner('RemoteSigned')('pester', { paths: [file], version: detected.modules.Pester }, signal()) as any;
+        assert.equal(broken.result, 'Failed');
+        assert.ok(broken.containerErrors.some((message: string) => message.includes('Synthetic discovery failure')));
+      }
     });
   }
 });

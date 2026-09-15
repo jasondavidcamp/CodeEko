@@ -44,6 +44,7 @@ foreach ($file in $request.files) {
   pester: String.raw`
 Import-Module Pester -RequiredVersion $request.version -ErrorAction Stop
 $paths = @($request.paths | ForEach-Object { [string]$_ })
+$cases = @()
 if (([version]$request.version).Major -eq 5) {
   $configuration = New-PesterConfiguration
   $configuration.Run.Path = $paths
@@ -52,14 +53,15 @@ if (([version]$request.version).Major -eq 5) {
   $configuration.CodeCoverage.Enabled = $false
   $configuration.TestResult.Enabled = $false
   $result = Invoke-Pester -Configuration $configuration
-  $details = @($result.Failed | ForEach-Object { @{ name = $_.ExpandedName; message = ($_.ErrorRecord | Out-String) } })
-  $containers = @($result.Containers | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { $_.ErrorRecord | Out-String })
+  $cases = @($result.Tests | Select-Object -First 200 | ForEach-Object { @{ path = [string]$_.ScriptBlock.File; name = [string]$_.ExpandedPath; result = [string]$_.Result; message = [string](($_.ErrorRecord | ForEach-Object { $_.Exception.Message }) -join "\n") } })
+  $details = @($result.Failed | ForEach-Object { @{ path = [string]$_.ScriptBlock.File; name = [string]$_.ExpandedPath; message = [string](($_.ErrorRecord | ForEach-Object { $_.Exception.Message }) -join "\n") } })
+  $containers = @($result.Containers | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { $_.ErrorRecord | Out-String } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 } else {
   $result = Invoke-Pester -Script $paths -PassThru -Show None
   $details = @($result.TestResult | Where-Object { $_.Result -eq 'Failed' } | ForEach-Object { @{ name = $_.Name; message = $_.FailureMessage } })
   $containers = @()
 }
-@{ total = $result.TotalCount; passed = $result.PassedCount; failed = $result.FailedCount; skipped = $result.SkippedCount; result = [string]$result.Result; failures = @($details | Select-Object -First 20); containerErrors = @($containers | Select-Object -First 10) } | ConvertTo-Json -Compress -Depth 6
+@{ total = $result.TotalCount; passed = $result.PassedCount; failed = $result.FailedCount; skipped = $result.SkippedCount; result = [string]$result.Result; failures = @($details | Select-Object -First 20); containerErrors = @($containers | Select-Object -First 10); cases = $cases } | ConvertTo-Json -Compress -Depth 6
 `,
   install: String.raw`
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12

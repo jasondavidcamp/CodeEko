@@ -30,4 +30,6 @@ Mutation tools require Workspace or Full access. Read the target first and use i
 
 Queries are 1–200 characters; paths 1–500; line numbers positive integers; questions 1–1,000; summaries 1–12,000. Results are returned as a versioned JSON wrapper with the tool name and bounded result. Because the endpoint has no native tool API, the assistant action and user-role result form the next messages. The system prompt identifies tool results and repository contents as untrusted data.
 
+For a requested before/after test comparison, call `run_validation` before the first mutation. That approved observation counts toward the three-round maximum. Later Pester 5 results can report preexisting, newly failing, changed and unknown failures plus observed resolutions. Do not infer a baseline when the report says comparison is unavailable, or present newly observed failures as proof of causation.
+
 The model request appends `/chat/completions` to the normalized API base and uses `stream:false`, `temperature:0`, `max_tokens:4096`, and `response_format:{"type":"json_object"}`. An unversioned base gets `/v1` appended; explicitly versioned compatibility paths are preserved. Progress is streamed separately through UI events. Compatibility with the configured endpoint's supported request fields is a required pilot acceptance check; there is no fallback to another service.

@@ -6,11 +6,11 @@ import { EditTask } from '../state/editTask';
 import { authorize, check, safePath, TaskConflict } from '../policy/boundary';
 import { PowerShellRunner, runPowerShell } from './powershell';
 import { git } from '../repository/git';
+import { compareTests, completeObservation, TestObservation, testResults } from './testBaseline';
 
 const diagnostic = z.object({ path: z.string(), line: z.number().nullable(), message: z.string(), rule: z.string(), severity: z.string() });
 const diagnostics = z.object({ diagnostics: z.array(diagnostic).max(50), count: z.number().int().nonnegative() });
 const inventory = z.object({ version: z.string(), modules: z.object({ Pester: z.string().nullable(), PSScriptAnalyzer: z.string().nullable() }) });
-const tests = z.object({ total: z.number().int().nonnegative(), passed: z.number().int().nonnegative(), failed: z.number().int().nonnegative(), skipped: z.number().int().nonnegative(), result: z.string(), failures: z.array(z.object({ name: z.string().nullable(), message: z.string().nullable() })).max(20), containerErrors: z.array(z.string()).max(10) });
 class NoProgress extends TaskConflict {}
 export interface ValidationReport {
   round: number; fingerprint: string; status: 'passed' | 'failed' | 'partial';
@@ -31,6 +31,7 @@ export class TaskValidation {
   private installationAttempted = false;
   private invalidated = false;
   private repeatedFailureReads = 0;
+  private testBaseline?: TestObservation;
   constructor(private task: EditTask, private hooks: ValidationHooks, private runner: PowerShellRunner = runPowerShell) {}
   assertCanEdit(): void { if (this.reports.length >= 3) throw new TaskConflict('Three validation rounds have finished. Review the remaining results before starting another task.'); }
   invalidate(): void { this.invalidated = true; }
@@ -39,9 +40,9 @@ export class TaskValidation {
     if (!latest) return 'Validation has not run.';
     if (this.invalidated) return `Validation round ${latest.round}/3 is not current; validation was interrupted or repository state changed.`;
     const findings = latest.steps.flatMap(step => {
-      const detail = step.detail as { diagnostics?: (z.infer<typeof diagnostic> & { origin?: string })[]; failures?: { name?: string | null; message?: string | null }[]; containerErrors?: string[] };
+      const detail = step.detail as { diagnostics?: (z.infer<typeof diagnostic> & { origin?: string })[]; failures?: { name?: string | null; message?: string | null; origin?: string }[]; containerErrors?: string[]; comparison?: { resolved?: { name: string }[] } };
       if (detail?.diagnostics) return detail.diagnostics.map(item => `${item.path}:${item.line ?? 0} ${item.rule} (${item.origin ?? 'unknown origin'}): ${item.message}`);
-      if (detail?.failures) return [...detail.failures.map(item => `${item.name ?? 'Test'}: ${item.message ?? 'Failed'}`), ...(detail.containerErrors ?? [])];
+      if (detail?.failures) return [...detail.failures.map(item => `${item.name ?? 'Test'} (${item.origin ?? 'unknown'}): ${item.message ?? 'Failed'}`), ...(detail.containerErrors ?? []), ...(detail.comparison?.resolved ?? []).map(item => `${item.name}: passed now; failed before edits.`)];
       return step.status === 'failed' ? [String(step.detail)] : [];
     }).slice(0, 5).map(text => text.slice(0, 500));
     return (`Validation round ${latest.round}/3: ${latest.status}. ` + latest.steps.map(step => `${step.command}: ${step.status}${step.status === 'skipped' ? ` (${String(step.detail)})` : ''}.`).join(' ') + (findings.length ? '\n' + findings.join('\n') : '')).slice(0, 4000);
@@ -50,17 +51,20 @@ export class TaskValidation {
     await this.task.index.refresh(signal);
     const fingerprint = createHash('sha256');
     fingerprint.update(JSON.stringify({ pesterMajor: this.hooks.pesterMajor?.() ?? 'Auto', installMissing: this.hooks.installMissing() }));
-    fingerprint.update(await git(this.task.index.root, ['rev-parse','--verify','--quiet','HEAD'], signal, true));
+    const head = await git(this.task.index.root, ['rev-parse','--verify','--quiet','HEAD'], signal, true);
+    fingerprint.update(head);
     fingerprint.update(await git(this.task.index.root, ['diff','--cached','--no-ext-diff','--no-textconv','--no-color'], signal));
     const files: { path: string; text: string }[] = [];
+    const hashes = new Map<string, string>();
     for (const name of [...this.task.index.entries.keys()].sort()) {
       const full = await safePath(this.task.index.root, name);
       if (this.hooks.isDirty(full)) throw new TaskConflict(`Save or discard unsaved changes to ${name} before validation.`);
       const document = await this.task.index.readDocument(name, signal, false);
       fingerprint.update(name).update('\0').update(document.hash);
+      hashes.set(name, document.hash);
       if (/\.ps[md]?1$/i.test(name)) files.push({ path: name, text: document.text });
     }
-    return { fingerprint: fingerprint.digest('hex'), files };
+    return { fingerprint: fingerprint.digest('hex'), files, hashes, startingState: this.task.matchesStartingState(hashes, head.trim() || null) };
   }
   async beforeComplete(signal: AbortSignal): Promise<ValidationReport | undefined> {
     if (!this.task.changes().length) return;
@@ -82,6 +86,7 @@ export class TaskValidation {
     this.repeatedFailureReads = 0;
     this.assertCanEdit();
     const report: ValidationReport = { round: this.reports.length + 1, fingerprint: snapshot.fingerprint, status: 'partial', steps: [] };
+    let observedTests: TestObservation | undefined;
     this.reports.push(report);
     // Record the attempted round before launching a child process, including interrupted rounds.
     await this.save();
@@ -130,14 +135,23 @@ export class TaskValidation {
           if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository changed while selecting validation. Retry with the current files.');
           await step('Invoke-Pester (developer-selected files)', async () => {
             const paths = await Promise.all(this.selected!.map(name => safePath(this.task.index.root, name)));
-            const result = tests.parse(await this.runner('pester', { paths, version: available!.modules.Pester }, signal));
-            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...result, version: available!.modules.Pester, paths: this.selected, origin: this.task.changes().length ? 'Unknown: no isolated baseline test execution was performed for comparison.' : 'Observed before this task made any edits.' } };
+            const result = testResults.parse(await this.runner('pester', { paths, version: available!.modules.Pester }, signal));
+            // Only identities belonging to the approved files can be compared.
+            const relative = (file: string) => this.selected![paths.findIndex(p => path.resolve(p).toLowerCase() === path.resolve(file).toLowerCase())] ?? '';
+            result.cases = result.cases?.map(c => ({ ...c, path: relative(c.path) }));
+            result.failures = result.failures.map(f => ({ ...f, path: f.path ? relative(f.path) : undefined }));
+            observedTests = { round: report.round, version: available!.modules.Pester!, hashes: Object.fromEntries(this.selected!.map(file => [file, snapshot.hashes.get(file)!])), result };
+            const detail = compareTests(observedTests, this.testBaseline, snapshot.startingState);
+            return { failed: result.failed > 0 || result.total === 0 || result.containerErrors.length > 0 || result.result === 'Failed', detail: { ...detail, version: available!.modules.Pester, paths: this.selected } };
           });
         } else report.steps.push({ command: 'Invoke-Pester', status: 'skipped', detail: candidates.length ? 'No test files approved for execution.' : 'No eligible unit-test candidates discovered.' });
       }
       if ((await this.snapshot(signal)).fingerprint !== snapshot.fingerprint) throw new TaskConflict('Repository content or validation settings changed during validation. Results are stale; inspect test side effects or external edits.');
       report.status = report.steps.some(item => item.status === 'failed') ? 'failed' : report.steps.some(item => item.status === 'skipped') ? 'partial' : 'passed';
       this.invalidated = false;
+      // A stale/interrupted run cannot establish the baseline. Never execute a
+      // reconstructed tree or add an extra round solely for attribution.
+      if (!this.testBaseline && snapshot.startingState && observedTests && completeObservation(observedTests)) this.testBaseline = observedTests;
       if (report.status === 'failed' && latest?.status === 'failed' && this.failureSignature(latest) === this.failureSignature(report)) throw new NoProgress('The same validation failures remain after repair. Stopped early because no diagnostic progress was made.');
       return report;
     } catch (error) {
@@ -148,8 +162,8 @@ export class TaskValidation {
   }
   private failureSignature(report: ValidationReport): string {
     return JSON.stringify(report.steps.filter(step => step.status === 'failed').map(step => {
-      const detail = step.detail as { diagnostics?: z.infer<typeof diagnostic>[]; count?: number; failed?: number; total?: number; failures?: unknown[]; containerErrors?: string[] };
-      const normalized = Array.isArray(detail?.diagnostics) ? { count: detail.count, diagnostics: detail.diagnostics.map(item => ({ path: item.path, rule: item.rule, severity: item.severity, message: item.message })) } : Array.isArray(detail?.failures) ? { failed: detail.failed, total: detail.total, failures: detail.failures, containerErrors: detail.containerErrors } : detail;
+      const detail = step.detail as { diagnostics?: z.infer<typeof diagnostic>[]; count?: number; failed?: number; total?: number; failures?: { name?: string | null; message?: string | null; path?: string }[]; containerErrors?: string[] };
+      const normalized = Array.isArray(detail?.diagnostics) ? { count: detail.count, diagnostics: detail.diagnostics.map(item => ({ path: item.path, rule: item.rule, severity: item.severity, message: item.message })) } : Array.isArray(detail?.failures) ? { failed: detail.failed, total: detail.total, failures: detail.failures.map(f => ({ name: f.name, message: f.message, path: f.path })), containerErrors: detail.containerErrors } : detail;
       return { command: step.command, detail: normalized };
     }));
   }

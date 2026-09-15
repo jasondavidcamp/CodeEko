@@ -75,6 +75,10 @@ export class EditTask {
     const task = new EditTask(index, directory, hooks, data); task.reviewOnly = true; return task;
   }
   observe(file: string, digest: string): void { this.observed.set(file, digest); }
+  matchesStartingState(files: Map<string, string>, head: string | null): boolean {
+    return !this.journal.changes.length && head === this.journal.head && files.size === Object.keys(this.journal.files).length &&
+      [...files].every(([file, digest]) => this.journal.files[file]?.before === digest);
+  }
   async startingText(file: string): Promise<string | undefined> {
     const change = this.journal.changes.find(item => item.path === file);
     const digest = change ? change.before : this.journal.files[file]?.before;
