@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.27.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.28.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension asks you to choose the repository inside the conversation pane before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -24,7 +24,7 @@ For legacy test suites, set `llmRuntime.pesterVersion` to `4` or `5`. `Auto` use
 
 For a before/after test comparison, ask the agent to run validation before editing. The runtime selects eligible unit tests automatically. With complete Pester 5 results, later validation distinguishes previously observed failures, newly failing tests, changed failures and observed resolutions. The pre-edit run counts toward the same three-round limit. Without comparable evidence, origin stays unknown; newly failing tests are possible regressions, not proof that the edit caused them.
 
-If the model skips a file read, copies the wrong hash, or proposes missing/ambiguous patch text, the runtime asks it to reread and allows at most two corrections total within the existing action budget. A short follow-up such as “go” retains the original request and preservation constraints; it does not expand the requested scope. This applies only while on-disk content still matches the task's recorded state. External edits, dirty buffers and unsafe paths still stop the task; preexisting overlap blocks apply only in Workspace.
+If the model skips a file read, copies the wrong hash, or proposes missing/ambiguous patch text, the runtime automatically reads the file and supplies current contents for a corrected action, without spending a model turn requesting that read. It never replays the rejected edit. At most two corrections total are allowed, and automatic reads count toward the task's file-read limit. A short follow-up such as “go” retains the original request and preservation constraints; it does not expand the requested scope. This applies only while on-disk content still matches the task's recorded state. External edits, dirty buffers and unsafe paths still stop the task; preexisting overlap blocks apply only in Workspace.
 
 ## Repository documents
 

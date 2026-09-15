@@ -314,3 +314,6 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 - [x] 0.4.26: Full access permits edits overlapping preexisting repository changes; Workspace retains protection. Clean files and changed Git HEADs no longer inherit stale protection from earlier tasks.
 
 - [x] 0.4.27: Bind hash-omitting patches to the runtime’s latest file read and distinguish literal-target failures from version failures; retain external-edit and reread-after-write checks.
+
+- [x] 0.4.28: Automatically supply a policy-checked current file read after a rejected hash or literal patch, without replaying the edit or requiring another model read turn. Regression tests cover post-write refresh, preserved staged work, external-save refusal, cancellation and read limits. Live Gemini recovered an injected missing read and passed PowerShell 5.1 parsing, analysis and Pester in five model calls and two validation rounds.
+- [ ] Confirm recovery in the installed extension against the ongoing representative conversation after reload.

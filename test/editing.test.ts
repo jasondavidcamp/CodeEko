@@ -343,3 +343,35 @@ test('patches bind to the latest runtime read without a model-copied hash', asyn
   await assert.rejects(tools.execute(next, signal()), /changed after/);
   assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 6/);
 });
+
+test('runtime refreshes rejected edits and supplies post-write contents without another model read turn', async t => {
+  const f = await fixture(t); f.mode('Full access'); const { task, tools } = await f.start();
+  await fs.appendFile(path.join(f.root, 'other.ps1'), '# staged work\n');
+  await git(f.root, ['add', 'other.ps1']);
+  const staged = await git(f.root, ['diff', '--cached']);
+  let calls = 0;
+  await runAgent({ complete: async (_model, messages) => {
+    calls++;
+    if (calls === 2 || calls === 4) {
+      const result = JSON.parse(messages.at(-1)!.content).result;
+      assert.equal(result.error, 'read_required');
+      assert.match(result.currentRead.text, calls === 2 ? /return 4/ : /return 6/);
+      assert.equal(task.changes().length, calls === 2 ? 0 : 1);
+    }
+    if (calls <= 4) return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: calls <= 2 ? 'return 4' : 'return 6', newText: calls <= 2 ? 'return 6' : 'return 8' }] } });
+    return JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Updated.' } });
+  } }, 'mock', [], tools, f.hooks.mode, signal(), () => {});
+  assert.equal(calls, 5);
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 8/);
+  assert.equal(await git(f.root, ['diff', '--cached']), staged);
+});
+
+test('external saves during automatic read recovery still stop the replacement', async t => {
+  const f = await fixture(t); f.mode('Full access'); const { tools } = await f.start(); let calls = 0;
+  await assert.rejects(runAgent({ complete: async () => {
+    if (++calls === 2) await fs.appendFile(path.join(f.root, 'main.ps1'), '# external save\n');
+    return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'return 4', newText: 'return 8' }] } });
+  } }, 'mock', [], tools, f.hooks.mode, signal(), () => {}), /changed after/);
+  assert.equal(calls, 2);
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 4[\s\S]*# external save/);
+});

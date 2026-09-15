@@ -134,8 +134,23 @@ test('one protocol correction can recover a missing version without executing in
 
 test('repeated missing reads stop after two corrections inside the existing action budget', async () => {
   let calls = 0;
-  await assert.rejects(runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: 'a', newText: 'b' }] } }); } }, 'm', [], { execute: async () => { throw new ReadRequired('main.ps1'); } }, () => 'Full access', new AbortController().signal, () => {}), /two read\/hash corrections/);
+  let reads = 0;
+  await assert.rejects(runAgent({ complete: async () => { calls++; return JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: '0'.repeat(64), edits: [{ oldText: 'a', newText: 'b' }] } }); } }, 'm', [], { execute: async action => { if (action.tool === 'read_file') { reads++; return { path: 'main.ps1', text: 'a' }; } throw new ReadRequired('main.ps1'); } }, () => 'Full access', new AbortController().signal, () => {}), /two read\/hash corrections/);
   assert.equal(calls, 3);
+  assert.equal(reads, 2);
+});
+
+test('automatic recovery reads respect cancellation and the total read budget', async () => {
+  const controller = new AbortController(); let executions = 0;
+  const action = JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'a', newText: 'b' }] } });
+  await assert.rejects(runAgent({ complete: async () => action }, 'm', [], { execute: async () => { executions++; controller.abort(); throw new ReadRequired('main.ps1'); } }, () => 'Full access', controller.signal, () => {}), /abort/i);
+  assert.equal(executions, 1);
+  let calls = 0; let reads = 0;
+  await assert.rejects(runAgent({ complete: async () => {
+    if (++calls <= 6) return JSON.stringify({ version: 1, tool: 'read_files', args: { paths: ['a', 'b', 'c', 'd', 'e'] } });
+    return action;
+  } }, 'm', [], { execute: async value => { if (value.tool === 'read_files') { reads += value.args.paths.length; return []; } if (value.tool === 'read_file') { reads++; return {}; } throw new ReadRequired('main.ps1'); } }, () => 'Full access', new AbortController().signal, () => {}), /file-read limit/);
+  assert.equal(reads, 30);
 });
 
 
