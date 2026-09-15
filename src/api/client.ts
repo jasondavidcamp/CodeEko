@@ -1,3 +1,4 @@
+import { performanceDiagnostics } from '../state/performanceDiagnostics';
 export interface Message { role: 'system' | 'user' | 'assistant'; content: string }
 export function apiBase(endpoint: string): string {
   const url = new URL(endpoint);
@@ -10,7 +11,11 @@ export type CompatibilityMode = 'Standard' | 'User message';
 export class GeminiClient {
   constructor(private endpoint: string, private key: string, private timeout: number, private transport: typeof fetch = fetch, private compatibilityMode: CompatibilityMode = 'User message') {}
   redact(text: string): string { return this.key ? text.split(this.key).join('[REDACTED API KEY]') : text; }
-  private async request(route: string, body?: unknown, signal?: AbortSignal): Promise<any> {
+  private async request(route: string, body?: unknown, signal?: AbortSignal, repair = false): Promise<any> {
+    const started = performance.now();
+    const record = performanceDiagnostics.begin(route === '/models' ? 'models' : 'completion', this.compatibilityMode, this.timeout, repair);
+    let headersMs: number | undefined, status: number | undefined;
+    let outcome = 'failed';
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
@@ -18,6 +23,7 @@ export class GeminiClient {
     try {
       signal?.throwIfAborted();
       const response = await this.transport(apiBase(this.endpoint) + route, { method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal, headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      headersMs = Math.round(performance.now() - started); status = response.status;
       if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
       if (!response.body) throw new Error('Endpoint returned no body.');
       const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let length = 0;
@@ -28,14 +34,17 @@ export class GeminiClient {
           chunks.push(value);
         }
       } finally { await reader.cancel(); }
-      return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      outcome = route === '/models' ? 'success' : typeof data?.choices?.[0]?.message?.content !== 'string' ? 'missing-content' : data.choices[0].message.content.length === 0 ? 'empty' : 'success';
+      return data;
     } catch (error) {
+      outcome = signal?.aborted ? 'cancelled' : controller.signal.aborted ? 'timeout' : 'failed';
       if (signal?.aborted) throw new Error('Cancelled.');
       if (controller.signal.aborted) throw new Error('Endpoint request timed out.');
       if (error instanceof Error && /^Endpoint /.test(error.message)) throw error;
       // Never forward server bodies, URLs, headers or transport errors containing credentials.
       throw new Error('Endpoint request failed. Check the configured endpoint, network connection, certificate trust, and credentials.');
-    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+    } finally { performanceDiagnostics.finish(record, { elapsedMs: Math.round(performance.now() - started), headersMs, status, outcome }); clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   }
   async models(signal?: AbortSignal): Promise<string[]> {
     const data = await this.request('/models', undefined, signal);
@@ -44,7 +53,7 @@ export class GeminiClient {
     if (!models.length) throw new Error('Endpoint returned no models.');
     return models.sort();
   }
-  async complete(model: string, messages: Message[], signal?: AbortSignal): Promise<string> {
+  async complete(model: string, messages: Message[], signal?: AbortSignal, repair = false): Promise<string> {
     const compatible = this.compatibilityMode === 'User message';
     const requestMessages: Message[] = compatible ? [{ role: 'user', content:
       messages.filter(message => message.role === 'system').map(message => message.content).join('\n\n') +
@@ -52,7 +61,7 @@ export class GeminiClient {
       JSON.stringify(messages.filter(message => message.role !== 'system'))
     }] : messages;
     const data = await this.request('/chat/completions', { model, messages: requestMessages, temperature: 0, stream: false, max_tokens: 4096,
-      ...(compatible ? {} : { response_format: { type: 'json_object' } }) }, signal);
+      ...(compatible ? {} : { response_format: { type: 'json_object' } }) }, signal, repair);
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('Endpoint response has no message content.');
     return this.redact(content);

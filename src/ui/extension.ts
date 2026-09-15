@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     await fs.mkdir(storage, { recursive: true });
     if (!await vscode.env.openExternal(vscode.Uri.file(storage))) throw new Error('Could not open extension storage.');
     return 'No rejected-response logs yet. Enable capture, then retry your message. Opened extension storage.';
-  }); context.subscriptions.push(settingsPage);
+  }, context.extension.packageJSON.version); context.subscriptions.push(settingsPage);
   context.subscriptions.push(vscode.commands.registerCommand('ekod.openSettings', () => settingsPage.open()));
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));

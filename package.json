@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.47",
+  "version": "0.4.49",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {

@@ -6,6 +6,15 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.49 — Settings version
+
+- Show the installed extension version in Settings and include it in performance reports.
+
+## 0.4.48 — Request performance diagnostics
+
+- Add a Diagnostics performance table with request durations, response-header timing, format repairs, HTTP status and timeout outcomes.
+- Export or clear the latest 100 requests from the current session without capturing conversation text, endpoints or credentials.
+
 ## 0.4.47 — Request timeout
 
 - Default model requests to a 300-second timeout; explicitly saved values remain unchanged.

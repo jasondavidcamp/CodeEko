@@ -95,6 +95,7 @@ Full access currently covers supported repository tools and fixed validation com
 - [ ] Verify local commits under additional repository configurations and interruption scenarios.
 - [ ] Measure repeated live test-generation performance and duplicate-suite avoidance.
 - [ ] Improve durable task intent and validation context across long conversations.
+- [x] Add bounded session request-performance diagnostics with timing, format-repair markers, timeouts and metadata-only export.
 - [ ] Add response streaming and broader structured local diagnostics without recording credentials.
 - [ ] Automate release packaging, checksum generation and verification.
 

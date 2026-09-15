@@ -89,3 +89,11 @@ Commands and settings use the `ekod.*` namespace. Packages are named `ekod.vsix`
 ## Commit history
 
 Ask EKOD to explain the latest commit. The read-only `git_show_commit` tool returns its message, timestamp, changed files and bounded diffs independently of uncommitted work. It accepts HEAD (default), HEAD~1 through HEAD~99, or a commit hash. Merge commits compare with the first parent; initial commits compare with an empty tree. Excluded/ignored files, links, binary content and files above 256 KB are omitted; diffs are limited to 8,000 characters per file and 24,000 total across up to 40 files, with omissions/truncation reported. Historical content does not count as a current file read for editing.
+
+## Request performance
+
+The Settings sidebar shows the installed EKOD version. Performance exports include that version so reports can be matched to a build.
+
+Open **EKOD Settings > Diagnostics > Request performance** to inspect the latest 100 API requests in the current extension session. Send a message, then select **Refresh**. The table shows total duration, time to response headers, compatibility mode, format-repair requests, HTTP status, empty responses, cancellations and timeouts. **Export performance report** opens JSON that you can save or share; **Clear history** discards the session history. Restarting VS Code also clears it.
+
+These measurements include network and server time; they cannot separate proxy queuing from model computation. They exclude local tool execution and do not measure total task duration. No prompts, response text, endpoint addresses, model IDs or API keys are captured.

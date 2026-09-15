@@ -12,7 +12,9 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   Module._load=function(name:string,...args:any[]){return name==='vscode'?mock:original.call(this,name,...args);};
   let settings: typeof import('../src/ui/settings');
   try{settings=require('../src/ui/settings');}finally{Module._load=original;}
-  const page=new settings.SettingsPage(()=>busy, async()=>{calls.push('openRejectedLogs');return 'Revealed capture.';});page.open();page.open();assert.equal(panels,1);assert.equal(reveals,1);
+  const page=new settings.SettingsPage(()=>busy, async()=>{calls.push('openRejectedLogs');return 'Revealed capture.';}, '9.8.7');page.open();page.open();assert.equal(panels,1);assert.equal(reveals,1);
+  await receive({type:'refreshPerformance'});assert.ok(Array.isArray(sent.at(-1).performance.requests));assert.equal(sent.at(-1).runtimeVersion,'9.8.7');assert.equal(sent.at(-1).performance.runtimeVersion,'9.8.7');
+  await receive({type:'clearPerformance'});assert.equal(sent.at(-1).performance.requests.length,0);
   await receive({type:'ready'});assert.equal(sent.at(-1).values.endpoint,'');assert.equal(sent.at(-1).values.requestTimeout,300000);assert.equal(sent.at(-1).values.compatibilityMode,'User message');
   for(const [key,value] of [['apiKey','private-key'],['permissionMode','Custom'],['compatibilityMode','Unsupported'],['endpoint','http://example.test'],['endpoint','https://user:password@example.test'],['requestTimeout',0],['requestTimeout',NaN],['installValidationModules','true']]){
     await receive({type:'save',key,value});assert.equal(sent.at(-1).failed,true);assert.equal(Object.keys(values).length,0);

@@ -92,8 +92,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   global.fetch = async (_url, init) => {
     step++;
     if (step === 3) return new Promise((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))); afterEdit(); });
-    const messages = JSON.parse(init?.body as string).messages;
-    const action = step === 1 ? { version: 1, tool: 'read_file', args: { path: 'pilot.ps1' } } : { version: 1, tool: 'apply_patch', args: { path: 'pilot.ps1', expectedHash: JSON.parse(messages.at(-1).content).result.hash, edits: [{ oldText: 'Get-Pilot', newText: 'Get-UpdatedPilot' }] } };
+    const action = step === 1 ? { version: 1, tool: 'read_file', args: { path: 'pilot.ps1' } } : { version: 1, tool: 'apply_patch', args: { path: 'pilot.ps1', edits: [{ oldText: 'Get-Pilot', newText: 'Get-UpdatedPilot' }] } };
     return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] }));
   };
   const editRun = receive({ type: 'send', text: 'Rename the function to Get-UpdatedPilot' }); await editDone;
