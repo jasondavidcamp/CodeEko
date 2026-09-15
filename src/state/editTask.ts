@@ -60,7 +60,7 @@ export class EditTask {
         if (!protectedRanges.length) protectedRanges.push({ start: 0, end: document.text.length });
       }
       const prior = previous?.journal.files[file];
-      const canInherit = !previous?.journal.undo && prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
+      const canInherit = dirty.has(file) && previous?.journal.head === task.journal.head && !previous?.committed() && !previous?.journal.undo && prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
       task.journal.files[file] = { before: document.hash, current: document.hash, preexisting: canInherit ? prior!.preexisting : dirty.has(file), protected: canInherit ? prior!.protected.map(r => ({ ...r })) : protectedRanges };
     }
     check(signal);
@@ -308,7 +308,7 @@ export class EditTask {
       for (let i = 0; i < edits.length; i++) {
         const edit = edits[i];
         if (i && edits[i - 1].end > edit.start) throw new TaskConflict('Patch replacements overlap.');
-        if (state.known.protected.some(r => r.start === r.end ? edit.start <= r.start && edit.end >= r.end : edit.start < r.end && edit.end > r.start)) throw new TaskConflict(`The proposed edit overlaps preexisting developer changes in ${file}. What should be preserved? No overlapping edit was applied.`);
+        if (this.hooks.mode() !== 'Full access' && state.known.protected.some(r => r.start === r.end ? edit.start <= r.start && edit.end >= r.end : edit.start < r.end && edit.end > r.start)) throw new TaskConflict(`The proposed edit overlaps preexisting developer changes in ${file}. What should be preserved? No overlapping edit was applied.`);
       }
       let next = text;
       for (const edit of [...edits].reverse()) next = next.slice(0, edit.start) + edit.newText + next.slice(edit.end);

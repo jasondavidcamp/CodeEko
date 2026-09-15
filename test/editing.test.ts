@@ -306,3 +306,26 @@ test('Workspace can commit a selected deletion after in-pane approval', async t 
   assert.equal(f.counts().confirmations, 2);
   assert.match(await git(f.root, ['show','--format=','--name-status','HEAD']), /D\s+other.ps1/);
 });
+
+
+test('clean committed files do not inherit stale overlap protection from an earlier task', async t => {
+  const f = await fixture(t);
+  await fs.writeFile(path.join(f.root, 'main.ps1'), 'function Get-Count { return 6 }\n');
+  const prior = await f.start();
+  await git(f.root, ['add','main.ps1']); await git(f.root, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','Save work']);
+  assert.equal((await git(f.root, ['status','--porcelain'])).trim(), '');
+  const current = await f.start(prior.task);
+  await current.tools.execute(patch(await read(current.tools), 'return 6', 'return 8'), signal());
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 8/);
+});
+
+test('Full access can update preexisting overlapping edits without changing staged work', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await fs.writeFile(path.join(f.root, 'main.ps1'), 'function Get-Count { return 6 }\n');
+  await git(f.root, ['add','main.ps1']); const staged = await git(f.root, ['diff','--cached']);
+  const { tools } = await f.start();
+  await tools.execute(patch(await read(tools), 'return 6', 'return 8'), signal());
+  assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 8/);
+  assert.equal(await git(f.root, ['diff','--cached']), staged);
+  assert.equal(f.counts().confirmations, 0);
+});

@@ -310,3 +310,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.25: Explicitly requested local commits with a message and selected files; Full access executes directly, Workspace confirms in-pane, and unrelated staged files are preserved. No push or history rewriting.
 - [ ] Verify local commits against representative repository policies and interrupted Git operations; hook/signing/filter execution remains unsupported.
+
+- [x] 0.4.26: Full access permits edits overlapping preexisting repository changes; Workspace retains protection. Clean files and changed Git HEADs no longer inherit stale protection from earlier tasks.
