@@ -5,7 +5,7 @@ A TypeScript VS Code extension that supplies local repository tools to a configu
 ## Install and connect
 
 1. Install Git and VS Code 1.106 or newer on your Windows workstation. No separate runtime or backend installation is required.
-2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.35.vsix`.
+2. In VS Code, run **Extensions: Install from VSIX…** and select `llm-coding-agent-runtime-0.4.36.vsix`.
 3. Open and trust a local Git repository folder. In a multi-root workspace, the extension asks you to choose the repository inside the conversation pane before invoking Git.
 4. Set the user setting `llmRuntime.endpoint` to your HTTPS API base URL before connecting. It has no built-in default. An origin/base path gets `/v1` appended; an explicitly versioned base such as `/v1` or `/v1beta/openai` is preserved. There is no public-provider fallback.
 5. Run **LLM Runtime: Set API Key**. Each endpoint's key lives only in VS Code SecretStorage. Changing endpoints requires a key for the new endpoint.
@@ -98,3 +98,5 @@ Patch requests can now omit the model-copied hash: the runtime uses the latest r
 Startup diagnostics distinguish the early webview bootstrap (`webview.bootstrap`), main chat script entry (`webview.main`), and ready/render acknowledgements. Early listeners report script, resource, promise and content-security-policy failures using categories only. Missing bootstrap means no early signal reached the extension host; it does not by itself prove a cache or service-worker failure.
 
 For repeated startup verification, run `npm run build` then `node dist/test/live/runHost.js --ui-only --repeat-startup`. This launches six times against one temporary profile and synthetic repository, requires a current-process render acknowledgement before manual sidebar refocusing, and removes the isolated data afterward. Set `LLM_RUNTIME_VSCODE_EXECUTABLE` to test a particular VS Code executable. Other installed extensions are disabled in this test.
+
+Git status includes eligible tracked deletions, including already-staged deletions. Renames are shown as separate old-path deletions and new paths so both can be selected for a commit. Ignored and excluded paths remain omitted.

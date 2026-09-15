@@ -436,3 +436,26 @@ test('replace-all rejects excessive expansion and overlapping literal occurrence
   await assert.rejects(tools.execute(replacement('aa', 'b'.repeat(12000)), signal()), /file size limit/);
   assert.equal(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), 'a'.repeat(1001));
 });
+
+
+test('status exposes staged and unstaged deletions and both rename paths for local commits', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await git(f.root, ['config','user.name','Test']); await git(f.root, ['config','user.email','test@example.invalid']);
+  for (const file of ['staged.ps1','ignored.ps1','.env.private']) await fs.writeFile(path.join(f.root,file), 'fixture');
+  await git(f.root, ['add','.']); await git(f.root, ['commit','-m','Fixture']);
+  await fs.writeFile(path.join(f.root,'.gitignore'), 'ignored.ps1\n');
+  await fs.rename(path.join(f.root,'main.ps1'),path.join(f.root,'renamed.ps1'));
+  for (const file of ['other.ps1','staged.ps1','ignored.ps1','.env.private']) await fs.unlink(path.join(f.root,file));
+  await git(f.root, ['add','--all','--','main.ps1','renamed.ps1','staged.ps1']);
+  await fs.writeFile(path.join(f.root,'Notes.txt'),'unrelated staged work'); await git(f.root,['add','Notes.txt']);
+  const {task,tools} = await f.start();
+  const result = await tools.execute({version:1,tool:'git_status',args:{}},signal()) as {entries:{path:string;status:string}[]};
+  for (const file of ['main.ps1','other.ps1','staged.ps1']) assert.ok(result.entries.some(e=>e.path===file && e.status.includes('D')),file);
+  assert.ok(result.entries.some(e=>e.path==='renamed.ps1'));
+  assert.ok(!result.entries.some(e=>['ignored.ps1','.env.private'].includes(e.path)));
+  await task.commit('Rename and remove unused code',result.entries.filter(e=>['main.ps1','other.ps1','staged.ps1','renamed.ps1'].includes(e.path)).map(e=>e.path),true,signal());
+  const committed = await git(f.root,['show','--format=','--name-status','--no-renames','HEAD']);
+  for (const file of ['main.ps1','other.ps1','staged.ps1']) assert.ok(committed.includes('D\t'+file),file);
+  assert.ok(committed.includes('A\trenamed.ps1'));
+  assert.equal((await git(f.root,['diff','--cached','--name-only'])).trim(),'Notes.txt');
+});

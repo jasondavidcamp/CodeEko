@@ -230,7 +230,12 @@ export class EditTask {
     try {
       // Stage only named files so new files are known to --only. Failure retains
       // staging for inspection; never reset a developer's index as rollback.
-      await git(root, ['add','--all','--',...paths], signal);
+      // A previously staged deletion is already absent from the index. Passing
+      // that path to git add fails; retain it in the explicit commit path list.
+      const indexed = new Set((await git(root, ['ls-files','-z'], signal)).split('\0'));
+      const contents = JSON.parse(versions) as (string | null)[];
+      const stagePaths = paths.filter((file, i) => contents[i] !== null || indexed.has(file));
+      if (stagePaths.length) await git(root, ['add','--all','--',...stagePaths], signal);
       if (await inspect() !== versions) throw new TaskConflict('Selected files changed before commit.');
       await git(root, ['-c','gc.auto=0','-c','maintenance.auto=false','commit','--only','--file',messageFile,'--',...paths], signal);
       const committed = (await git(root, ['rev-parse','HEAD'])).trim();

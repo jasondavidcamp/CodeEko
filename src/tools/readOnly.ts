@@ -1,7 +1,7 @@
 import { Action } from '../protocol/actions';
-import { RepositoryIndex } from '../indexing';
+import { RepositoryIndex, excluded } from '../indexing';
 import { git } from '../repository/git';
-import { check } from '../policy/boundary';
+import { check, safePath } from '../policy/boundary';
 export class ReadOnlyTools {
   constructor(readonly index: RepositoryIndex, private ask: (question: string, signal: AbortSignal) => Promise<string>) {}
   async execute(action: Action, signal: AbortSignal): Promise<unknown> {
@@ -26,15 +26,21 @@ export class ReadOnlyTools {
         return { matches, truncated: false };
       }
       case 'git_status': {
-        const raw = await git(this.index.root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], signal);
+        const raw = await git(this.index.root, ['status', '--porcelain=v1', '--no-renames', '-z', '--untracked-files=all'], signal);
         const parts = raw.split('\0'); const entries = [];
         for (let i = 0; i < parts.length; i++) {
           const record = parts[i]; if (!record) continue;
           const status = record.slice(0, 2); const file = record.slice(3);
           if (/[RC]/.test(status)) i++; // Do not expose unfiltered source paths.
           if (this.index.entries.has(file)) entries.push({ status, path: file });
+          else if (status.includes('D') && !excluded(file)) {
+            // Missing files cannot belong to the readable index, but their deletion
+            // is still part of Git status. Expose names only after path/ignore checks.
+            try { await safePath(this.index.root, file, true); } catch { continue; }
+            if (!(await git(this.index.root, ['check-ignore', '--no-index', '--', file], signal, true)).trim()) entries.push({ status, path: file });
+          }
         }
-        return { entries: entries.slice(0, 200), note: 'Only readable manifest paths are shown; deleted and excluded files are omitted.', truncated: entries.length > 200 };
+        return { entries: entries.slice(0, 200), note: 'Readable files and eligible tracked deletions are shown. Renames appear as separate old-path deletions and new paths; include both when committing a rename. Excluded and ignored paths are omitted.', truncated: entries.length > 200 };
       }
       case 'ask_user': return { answer: await this.ask(a.question, signal) };
       case 'complete_task': return { summary: a.summary };
