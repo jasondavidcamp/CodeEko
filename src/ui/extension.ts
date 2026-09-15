@@ -1,6 +1,6 @@
 import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { GeminiClient, apiBase } from '../api/client';
 import { resolveRepository } from '../repository/git';
 import { RepositoryIndex } from '../indexing';
@@ -101,11 +101,21 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
   const send = (data: unknown) => { if (!disposed) void panel.webview.postMessage(data); };
-  const update = () => send({ type: 'state', root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, lastUsedAt: lastChatActivity(t), archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
+  let pendingQuestion: { id: string; resolve(answer: string): void; reject(error: Error): void } | undefined;
+  const update = () => send({ type: 'state', questionId: pendingQuestion?.id, root, mode: mode(), model: config().get<string>('model', ''), threads: store.threads.filter(t => t.messages.length > 0).map(t => ({ id: t.id, lastUsedAt: lastChatActivity(t), archived: t.archived === true, name: t.name === 'New conversation' ? (t.messages.find(m => m.role === 'user')?.content.slice(0, 70) ?? t.name) : t.name })), thread, busy });
   const ask = async (question: string, signal: AbortSignal): Promise<string> => {
-    const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
-    try { signal.throwIfAborted(); const answer = await vscode.window.showInputBox({ title: 'Agent question', prompt: question, ignoreFocusOut: true }, token.token); if (answer === undefined) { active.get(root)?.abort(); throw new Error('Cancelled.'); } return answer.slice(0, 8000); }
-    finally { signal.removeEventListener('abort', abort); token.dispose(); }
+    signal.throwIfAborted();
+    thread.messages.push({ role: 'assistant', content: question });
+    await store.save();
+    return new Promise<string>((resolve, reject) => {
+      signal.throwIfAborted();
+      const id = randomUUID();
+      const cleanup = () => { signal.removeEventListener('abort', abort); if (pendingQuestion?.id === id) pendingQuestion = undefined; };
+      const abort = () => { cleanup(); reject(new Error('Cancelled.')); };
+      pendingQuestion = { id, resolve: answer => { cleanup(); resolve(answer); }, reject: error => { cleanup(); reject(error); } };
+      signal.addEventListener('abort', abort, { once: true });
+      update();
+    });
   };
   const hooks: EditHooks = {
     mode,
@@ -121,6 +131,13 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     if (!message || typeof message.type !== 'string') return;
     if (message.type === 'ready') { update(); return; }
     if (message.type === 'cancel') { active.get(root)?.abort(); return; }
+    if (message.type === 'answer') {
+      if (!pendingQuestion || message.id !== pendingQuestion.id || typeof message.text !== 'string' || !message.text.trim() || message.text.length > 8000) return;
+      const pending = pendingQuestion; pendingQuestion = undefined;
+      thread.messages.push({ role: 'user', content: message.text }); thread.lastUsedAt = new Date().toISOString();
+      try { await store.save(); pending.resolve(message.text); } catch (error) { pending.reject(error instanceof Error ? error : new Error('Could not save answer.')); }
+      update(); return;
+    }
     if (busy) return;
     busy = true;
     try {

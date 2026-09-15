@@ -56,6 +56,23 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).thread.messages.filter((m: any) => m.role === 'user').length, 1);
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"See pilot.ps1:1"}}' } }] }));
   await receive({ type: 'send', text: 'Follow up' }); assert.equal(sent.at(-1).thread.status, 'complete');
+  let questionCalls = 0;
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(++questionCalls === 1 ? { version: 1, tool: 'ask_user', args: { question: 'Which output format?' } } : { version: 1, tool: 'complete_task', args: { summary: 'Used your answer.' } }) } }] }));
+  const questionRun = receive({ type: 'send', text: 'Generate a report' });
+  const deadline = Date.now() + 10000;
+  while (!sent.at(-1).questionId && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+  const questionId = sent.at(-1).questionId; assert.ok(questionId);
+  assert.equal(sent.at(-1).thread.messages.at(-1).content, 'Which output format?');
+  await receive({ type: 'answer', id: 'stale', text: 'Ignore this' }); assert.equal(questionCalls, 1);
+  await receive({ type: 'answer', id: questionId, text: 'Plain text' }); await questionRun;
+  assert.equal(sent.at(-1).thread.status, 'complete');
+  assert.ok(sent.at(-1).thread.messages.some((m: any) => m.content === 'Plain text'));
+  questionCalls = 0;
+  const cancelledQuestion = receive({ type: 'send', text: 'Ask another question' });
+  const cancelDeadline = Date.now() + 10000;
+  while (!sent.at(-1).questionId && Date.now() < cancelDeadline) await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(sent.at(-1).questionId); await receive({ type: 'cancel' }); await cancelledQuestion;
+  assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).questionId, undefined);
   let step = 0;
   let afterEdit!: () => void; const editDone = new Promise<void>(resolve => { afterEdit = resolve; });
   global.fetch = async (_url, init) => {

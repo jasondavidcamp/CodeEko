@@ -199,6 +199,7 @@ Exit criteria:
 
 Goal: make iterative daily use reliable.
 
+- [x] Ask and answer clarification questions inside the chat pane, with cancellation and persisted question/answer history.
 - [x] Support natural follow-ups without slash commands.
 - [ ] Retain task intent, assumptions, tool results, agent-owned edits, and validation history.
 - [x] Implement safe cancellation of model calls, searches, edits, and child processes.

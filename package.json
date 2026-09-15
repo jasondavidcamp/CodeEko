@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
