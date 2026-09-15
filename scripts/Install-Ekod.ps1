@@ -35,8 +35,8 @@ try {
         if (-not $code) { throw 'VS Code CLI not found. Add its bin directory to PATH or pass -CodeCommand with the full path to code.cmd.' }
     }
 
-    Write-Host 'Installing locked build dependencies into this clone...'
-    Invoke-Checked $npm @('ci', '--include=dev', '--no-audit', '--no-fund')
+    Write-Host 'Installing locked build dependencies from https://registry.npmjs.org/ into this clone...'
+    Invoke-Checked $npm @('ci', '--include=dev', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org/')
     if ($RunTests) { Invoke-Checked $npm @('test') }
     Write-Host 'Building and packaging EKOD locally...'
     Invoke-Checked $npm @('run', 'package')

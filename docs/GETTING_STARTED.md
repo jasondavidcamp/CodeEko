@@ -16,12 +16,12 @@ Options:
 - `-RunTests`: run the automated suite before packaging. Windows PowerShell validation checks may report missing optional modules.
 - `-CodeCommand 'C:\path\to\VS Code\bin\code.cmd'`: select a VS Code installation when its CLI is not on PATH. The standard per-user location is detected automatically.
 
-Use a writable clone directory. Prerequisites must be supplied through your approved software process; approved portable tools on PATH can also work. npm needs access to the dependencies in `package-lock.json` through an accessible registry or a populated cache. Existing npm registry, proxy and certificate configuration is honored; the script does not change TLS trust or download Node.js. Cloning alone does not provide npm dependencies. See [npm ci](https://docs.npmjs.com/cli/commands/npm-ci/) for dependency configuration.
+Use a writable clone directory. Prerequisites must be supplied through your approved software process; approved portable tools on PATH can also work. npm needs access to the dependencies in `package-lock.json` from the public npm registry at `https://registry.npmjs.org/` or a populated cache. The installer explicitly selects that registry for this command without changing your saved npm configuration. Existing proxy and certificate configuration is honored; the script does not change TLS trust or download Node.js. Cloning alone does not provide npm dependencies. See [npm ci](https://docs.npmjs.com/cli/commands/npm-ci/) for dependency configuration.
 
 PowerShell script execution and locally built extension installation must be permitted by workstation policy. If scripts require signing, have the script signed through the approved process. No execution-policy bypass is used. If running scripts is unavailable but the individual commands are permitted, the equivalent commands are:
 
 ```powershell
-npm.cmd ci --include=dev --no-audit --no-fund
+npm.cmd ci --include=dev --no-audit --no-fund --registry=https://registry.npmjs.org/
 npm.cmd run package
 code.cmd --install-extension .\ekod.vsix --force
 ```

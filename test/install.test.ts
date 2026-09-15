@@ -25,7 +25,7 @@ test('source installer handles paths, build-only and failed native commands on P
     return { ...result, calls: await fs.readFile(log, 'utf8') };
   }
   const built = await run(['-BuildOnly']);
-  assert.equal(built.status, 0, built.stderr); assert.match(built.calls, /npm ci --include=dev/); assert.match(built.calls, /npm run package/); assert.doesNotMatch(built.calls, /code /);
+  assert.equal(built.status, 0, built.stderr); assert.match(built.calls, /npm ci --include=dev --no-audit --no-fund --registry=https:\/\/registry\.npmjs\.org\//); assert.match(built.calls, /npm run package/); assert.doesNotMatch(built.calls, /code /);
   const installed = await run(['-RunTests', '-CodeCommand', path.join(bin, 'code.cmd')]);
   assert.equal(installed.status, 0, installed.stderr); assert.match(installed.calls, /npm test/); assert.match(installed.calls, /code --install-extension/); assert.match(installed.stdout, /Installed test-publisher.ekod@1.2.3/);
   for (const failure of ['ci', 'run', '--install-extension']) {
