@@ -13,6 +13,8 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Install EKOD as a self-contained VS Code extension.
 - [x] Configure an HTTPS endpoint with no built-in default; store API keys in VS Code SecretStorage.
 - [x] Discover models and support a configured fallback.
+- [x] Provide a User message compatibility option for endpoints that do not support system instructions or JSON mode.
+- [x] Retain original task context through empty-response retries and format correction.
 - [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
 - [x] Rename, archive and restore conversations from the chat pane.
 - [x] Keep conversation questions, permission choices and model selection in the pane.
@@ -117,3 +119,5 @@ Detailed acceptance scenarios and validation behavior are documented in `docs/AC
 Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4 check skipped, and the native VS Code 1.137.0 activation/sidebar/settings check passed. Current tracked files and the rebuilt VSIX were scanned for retired product identifiers and publication-sensitive references; none were found. Earlier commit history remains unchanged; release binaries were subsequently removed.
 
 Source installer verification: a real dependency restore and package build passed, the built VSIX installed into an isolated VS Code user profile, and Windows PowerShell 5.1 subprocess tests verified paths containing spaces, build-only mode, optional tests and stop-on-failure behavior. No elevation or workstation-policy changes were used by the installer.
+
+Endpoint compatibility verification (0.4.45): 126 tests passed, one unavailable Pester 4 check skipped; native VS Code activation/sidebar/settings checks and packaging passed. Synthetic transport regressions cover user-message requests, empty output, null tools, retained task evidence and unchanged read-only enforcement. Representative endpoint verification remains open.

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { apiBase } from '../api/client';
 
 export const settingsFields = [
+  { key: 'compatibilityMode', group: 'Connection', label: 'Endpoint compatibility', description: 'Standard uses system messages and JSON mode. User message sends instructions and context in one user message without requesting JSON mode, for endpoints that do not support those features.', value: 'Standard', options: ['Standard', 'User message'] },
   { key: 'autoOpenDiffs', group: 'Editor', label: 'Automatically open change previews', description: 'Open native diff tabs for proposed changes and after an editing task. Off keeps your editor tabs unchanged; explicit review remains available.', value: false },
   { key: 'endpoint', group: 'Connection', label: 'API endpoint', description: 'Your HTTPS API base URL. No endpoint is supplied by default.', value: '' },
   { key: 'model', group: 'Connection', label: 'Model', description: 'Use the model picker in chat to discover models, or enter an exact model ID here.', value: '' },

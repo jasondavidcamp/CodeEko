@@ -38,6 +38,10 @@ VS Code installs extensions for the current user; no administrator installation 
 
 The initial target is Windows PowerShell 5.1 repositories and VS Code 1.106 or newer. An origin/base endpoint gets `/v1` appended; explicit version paths are preserved.
 
+## Endpoint compatibility
+
+If an endpoint ignores system instructions or returns empty responses, open **EKOD Settings → Connection → Endpoint compatibility** and select **User message**. This sends instructions and conversation context in one user message and omits the JSON-mode request parameter. Standard remains the default. Both modes require valid action JSON and enforce the same permissions. Start a new chat and try a greeting, then a read-only question.
+
 ## Updating EKOD
 
 From your existing clone, pull the latest code and rerun the installer:

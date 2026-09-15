@@ -6,6 +6,12 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.45 — Endpoint compatibility
+
+- Add optional User message compatibility mode, without system messages or the JSON-mode request parameter.
+- Retry empty responses with the original request and preserve task context during format correction.
+- Retain strict action validation, permission enforcement and bounded correction attempts.
+
 ## 0.4.44 — Diagnostic log navigation
 
 - Add Open rejected-response logs to Diagnostics settings, revealing the newest capture without displaying its contents.

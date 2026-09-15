@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.44",
+  "version": "0.4.45",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -125,6 +125,16 @@
           "default": false,
           "scope": "application",
           "description": "Automatically open native diff tabs for proposed changes and after editing tasks. Explicit review still opens diffs when this is off."
+        },
+        "ekod.compatibilityMode": {
+          "type": "string",
+          "enum": [
+            "Standard",
+            "User message"
+          ],
+          "default": "Standard",
+          "scope": "application",
+          "description": "Standard uses system messages and JSON mode. User message embeds instructions and context in a user message without response_format. Action validation and permissions are unchanged."
         }
       }
     },

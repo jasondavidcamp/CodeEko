@@ -236,7 +236,7 @@ test('two malformed repair actions after failed validation recover without execu
     { version: 1, tool: 'complete_task', args: { summary: 'Repaired.' } }
   ];
   const answer = await runAgent({ complete: async (_model, messages) => {
-    if (calls === 3) { assert.equal(messages.length, 2); assert.match(messages[0].content, /format/i); }
+    if (calls === 3) { assert.ok(messages.some(message => message.content.includes('Fix the generated tests'))); assert.ok(messages.some(message => message.content.includes('Parameter set cannot be resolved'))); assert.match(messages.at(-1)!.content, /format-only/); }
     if (calls === 4) assert.ok(messages.some(message => message.content.includes('Parameter set cannot be resolved')));
     return JSON.stringify(replies[calls++]);
   } }, 'mock', [{ role: 'user', content: 'Fix the generated tests for six-character names.' }], { execute: async action => {

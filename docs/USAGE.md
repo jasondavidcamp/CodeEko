@@ -1,5 +1,11 @@
 # Usage and troubleshooting
 
+## Endpoint compatibility
+
+`ekod.compatibilityMode` defaults to `Standard` (system messages and JSON mode). Select `User message` in Connection settings for endpoints that need the instructions in user content or do not support JSON mode. The extension sends one user message with runtime instructions and JSON-encoded conversation records; it does not change the endpoint, model, credentials, action schema or permission checks.
+
+Empty model replies retry the original request within the same two-correction budget. Format corrections retain the original request and tool evidence, without adding rejected actions to accepted conversation history. Repeated failures still stop without executing the rejected actions.
+
 ## Chat and permissions
 
 `ekod.requestTimeout` defaults to 60 seconds. `ekod.permissionMode` defaults to Full access and is always visible in the panel. **Workspace and Full access enable repository edits; Review remains read-only. Existing Custom settings are treated as Review; Custom is no longer offered.** No mode enables general commands. Endpoint/model/timeout/permission settings are application-scoped so repository settings cannot redirect credentials or elevate permissions.
