@@ -1,8 +1,8 @@
 {
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
-  "description": "Read-only repository agent for a configured OpenAI-compatible Gemini endpoint.",
-  "version": "0.1.0",
+  "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
+  "version": "0.2.0",
   "publisher": "internal-pilot",
   "private": true,
   "license": "UNLICENSED",
@@ -71,7 +71,8 @@
             "Custom"
           ],
           "default": "Full access",
-          "description": "All modes permit only read-only tools in this release."
+          "scope": "application",
+          "description": "Review and Custom are read-only. Workspace and Full access allow guarded repository edits. Destructive operations always require confirmation."
         }
       }
     }
@@ -80,6 +81,7 @@
     "build": "tsc -p .",
     "test": "npm run build && node --test dist/test/*.test.js",
     "test:live": "npm run build && node dist/test/live/smoke.js",
+    "test:live:editing": "npm run build && node dist/test/live/editing.js",
     "test:host": "npm run build && node dist/test/live/runHost.js",
     "package": "npm run build && vsce package --allow-missing-repository",
     "vscode:prepublish": "npm run build"

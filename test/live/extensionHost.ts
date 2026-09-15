@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import * as vscode from 'vscode';
 import { runLiveSmoke } from './smoke';
 import * as fs from 'node:fs/promises';
+import { runLiveEditing } from './editing';
+import { NativeReview } from '../../src/ui/review';
 
 // Invoked only by VS Code's --extensionTestsPath, never by npm test or a packaged VSIX.
 export async function run(): Promise<void> {
@@ -21,6 +23,16 @@ export async function run(): Promise<void> {
   await vscode.window.tabGroups.close(tabs);
   console.log(`EXTENSION HOST PASSED (VS Code ${vscode.version}): activation, commands, blank endpoint default and conversation webview lifecycle.`);
   const live = await runLiveSmoke();
+  const nativeReview = new NativeReview('llm-runtime-test-snapshot');
+  let editing;
+  try {
+    editing = await runLiveEditing(task => nativeReview.open(task));
+    const deadline = Date.now() + 5000;
+    const diffs = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputTextDiff && tab.label.includes('Agent task changes'));
+    while (diffs().length < 3 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+    assert.ok(diffs().length >= 3, 'Native task diffs must open for all edited files.');
+    await vscode.window.tabGroups.close(diffs());
+  } finally { nativeReview.dispose(); }
   assert.ok(process.env.LLM_RUNTIME_HOST_REPORT, 'Test launcher must provide a result path.');
-  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, live }));
+  await fs.writeFile(process.env.LLM_RUNTIME_HOST_REPORT, JSON.stringify({ vscodeVersion: vscode.version, extensionActivation: true, commandsRegistered: true, blankEndpointDefault: true, webviewOpenedAndClosed: true, nativeDiffsOpened: true, live, editing }));
 }

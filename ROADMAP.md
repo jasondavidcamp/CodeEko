@@ -243,22 +243,19 @@ Exit criteria:
 
 Each slice should be demonstrated against the real pilot repository before adding the next layer.
 
-## Immediate next backlog
+## Implementation status and next backlog
 
-Implementation evidence (2026-09-14): the initial TypeScript read-only slice now has an extension shell, strict version-1 action schemas, SecretStorage integration, model discovery with manual fallback, repository filtering, lexical PowerShell indexing, a bounded action loop, cancellation and persistent named threads. The HTTPS API endpoint is configured by the developer and has no built-in default. Automated isolated-repository and mock-endpoint checks are included; a VSIX can be built locally. Phase 1/2 exit criteria remain open pending a real VS Code/endpoint/PowerShell-repository demonstration. Editing, validation/repair and undo remain unimplemented.
+Read-only slice evidence (2026-09-14): the extension shell, strict version-1 action schemas, SecretStorage integration, model discovery with manual fallback, repository filtering, lexical PowerShell indexing, bounded action loop, cancellation and persistent named threads are implemented. The HTTPS API endpoint is configured by the developer and has no built-in default.
 
-Live validation evidence (2026-09-14): a real public Gemini model passed the read-only explanation/follow-up suite over a synthetic five-file PowerShell module and test fixture. The same suite passed inside an isolated VS Code 1.138.0-insider Extension Development Host, alongside extension activation and conversation-panel lifecycle checks. Discovery, grounded citations, saved-thread reload, symbol refresh, cancellation and repository preservation passed. See `docs/ACCEPTANCE.md` for exact scope and remaining UI/restart/representative-repository checks. The next implementation slice remains safe multi-file editing and native review; the full pilot is not yet complete.
+Live validation evidence (2026-09-14): a real public Gemini model passed the read-only explanation/follow-up suite over a synthetic five-file PowerShell module and test fixture. The same suite passed inside an isolated VS Code 1.138.0-insider Extension Development Host, alongside extension activation and conversation-panel lifecycle checks. Discovery, grounded citations, saved-thread reload, symbol refresh, cancellation and repository preservation passed.
 
-1. Write the JSON action protocol and TypeScript interfaces.
-2. Scaffold the VSIX and direct Gemini client.
-3. Implement SecretStorage, model discovery, and the model picker.
-4. Implement workspace/Git-root detection and multi-root prompting.
-5. Build the read-only PowerShell manifest, symbol index, search, and file-reading tools.
-6. Demonstrate a repository-grounded explanation through the new extension.
-7. Add file mutation tools, baseline tracking, and native diff review.
-8. Add Windows PowerShell 5.1 validation and Pester discovery.
-9. Add the three-attempt repair loop.
-10. Run the selected real multi-file feature as the pilot acceptance test.
+Editing slice evidence (0.2, 2026-09-14): guarded patch/create/move/delete, task baselines and attribution, destructive confirmation, encoding preservation, cancellation summaries and persistent native review are implemented. Live Gemini updated two PowerShell files and created documentation while preserving a developer comment and staged work. The real extension host opened three native diffs. See `docs/ACCEPTANCE.md` for exact evidence and remaining interactive/restart/representative-repository checks. Moves are not atomic as a whole, and there is no automatic recovery or undo. The next implementation slice is Phase 4 validation and bounded repair; the full pilot is not yet complete.
+
+1. Demonstrate editing and native review on a representative repository, including interactive approval and restart checks.
+2. Add Windows PowerShell 5.1 parsing, PSScriptAnalyzer detection and safe Pester discovery/execution.
+3. Add the three-attempt repair loop and explicit validation results.
+4. Add task-scoped undo and interruption recovery hardening.
+5. Run the selected real multi-file feature as the full pilot acceptance test.
 
 ## Definition of pilot success
 

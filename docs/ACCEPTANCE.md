@@ -5,7 +5,7 @@
 Run `npm test`. The suite uses isolated temporary Git repositories and mock HTTPS responses. It never runs the pilot repository's scripts, Pester tests, integrations or environment-changing operations.
 
 - Traversal, sibling paths, absolute paths, alternate streams and Windows junctions are denied.
-- Unknown/malformed/oversized or extra-field actions cannot execute; mutation is denied in every permission mode.
+- Unknown/malformed/oversized or extra-field actions cannot execute; mutation is denied in Review and Custom, with general commands denied in every mode.
 - Multi-root selection occurs before repository access and cancelling selection stops the operation.
 - Tracked and untracked ignored files, generated output, sensitive names, binaries and linked paths are excluded.
 - Lexical index refresh updates changed symbols and persists outside the repository.
@@ -33,6 +33,14 @@ The first live attempt correctly rejected a model action that omitted `version`.
 These tests send only a small synthetic PowerShell fixture. They do not read or send another project's source, copy credentials into settings/files, run the fixture's PowerShell code, or alter normal VS Code settings. API credentials, endpoint selection, and machine-specific executable paths remain environment configuration. The live suite is opt-in and excluded from ordinary `npm test`; the VSIX excludes all test harness code. See the README for environment variables and commands.
 
 Scope: the host test checks the real panel lifecycle, then invokes the real agent/tool loop directly within the extension host. It does not automate typing into the webview, entering a key through the UI, or restarting VS Code between conversational turns. Visual/keyboard checks, actual UI key entry, whole-application restart recovery, representative production repositories, and other endpoint/proxy/certificate configurations remain to be checked.
+
+## Editing validation completed — 2026-09-14
+
+The 0.2 automated suite covers exact multi-file patches, creation, confirmed delete/move, stale hashes, protected developer spans, dirty buffers, changed destinations during approval, cancellation, permission revocation, encoding/BOM/newline preservation, empty files, ambiguous replacements, hard links, ignored paths and nested repositories. A configured Git clean-filter tripwire verifies that inspection does not execute the filter. Mock UI checks verify cancellation after an applied edit and reopening recorded diffs.
+
+`npm run test:live:editing` passed against `models/gemini-2.5-flash` in seven model calls. The isolated VS Code 1.138.0-insider host then passed both live suites: four read-only calls and seven editing calls. The editing task changed a PowerShell multiplier from 7 to 9, updated the Pester expectation from 28 to 36, and created `docs/CHANGE.md`. Exact byte assertions verified that an existing developer comment, UTF-8 BOM/CRLF encoding, staged index and HEAD were preserved. All three changes remained uncommitted. Saved review snapshots reloaded successfully, and three actual native text-diff tabs opened in the host.
+
+This demonstrates editing and review on a synthetic fixture, not execution of its Pester tests. Whole-application crash recovery, interactive destructive-operation approval, visual/keyboard review, and representative repository testing remain manual gates. Atomic replacement does not eliminate external-process races; interrupted moves require inspection. Automatic validation and undo remain future work.
 
 ## Remaining manual pilot gate
 

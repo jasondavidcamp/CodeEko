@@ -8,13 +8,13 @@
 | `src/api` | HTTPS endpoint normalization, model discovery, bounded chat response, timeouts, cancellation, no credential-bearing error bodies |
 | `src/agent` | Sequential 20-action loop, context/read budgets, progress, terminal state |
 | `src/protocol` | Version-1 strict schemas, JSON parsing and model protocol instructions |
-| `src/tools` | Read-only deterministic tool dispatch and bounded results |
+| `src/tools` | Deterministic read/edit dispatch and bounded results |
 | `src/policy` | Tool allowlist, mode validation, lexical and realpath containment, linked-path rejection |
 | `src/repository` | Fixed Git subprocesses and workspace selection |
 | `src/indexing` | Git-filtered manifest, text decoding, lexical PowerShell symbols and dependencies |
-| `src/state` | Validated versioned named threads, atomic file replacement, repository OS lease |
+| `src/state` | Validated named threads, task baselines and edit journals, repository OS lease |
 
-The VS Code extension host owns filesystem and Git access. The model only receives selected bounded text and returns an action proposal. It cannot invoke a tool by emitting code. The executor validates the complete JSON action and applies a separate deterministic policy before dispatch. Full access does not bypass this policy; future destructive tools must gain their own explicit confirmation checks.
+The VS Code extension host owns filesystem and Git access. The model only receives selected bounded text and returns an action proposal. It cannot invoke a tool by emitting code. The executor validates the complete JSON action and applies a separate deterministic policy before dispatch. Full access does not bypass this policy. Delete, move and whole-file erasure require a native preview and cancellable approval. Workspace and Full access permit edits; Review and Custom are read-only. No mode permits command execution in version 0.2.
 
 The webview has no filesystem/network access, no local resource roots, no remote content and a nonce-only Content Security Policy. Messages and model answers are rendered through `textContent`. UI events are validated in the extension; work is serialized. API credentials are never sent to the webview. Keys are scoped to the normalized endpoint so endpoint changes do not silently reuse an existing credential. Redirects are rejected. API response/error bodies are never logged; the current credential is redacted from successful model text as defense in depth.
 
@@ -24,7 +24,17 @@ For multiple workspace folders, select one before running Git. Inspect directory
 
 Filesystem checks mitigate accidental escapes; they are not an OS sandbox against a hostile local process racing path replacement between checks and opens. Do not use this extension on hostile or concurrently replaced repositories. Hard links cannot be reliably attributed to a unique repository. The extension requires workspace trust, but trust does not disable filtering.
 
-The manifest excludes common sensitive names and generated/binary paths; source code can itself contain secrets. This release does not claim data-loss prevention. Retrieved file contents are sent to the configured endpoint. The persisted index contains filenames and lexical symbol/dependency text, not whole files; conversation summaries may contain snippets. The extension deliberately creates no raw API or repository-content log.
+The manifest excludes common sensitive names and generated/binary paths; source code can itself contain secrets. This release does not claim data-loss prevention. Retrieved file contents are sent to the configured endpoint. The persisted index contains filenames and lexical symbol/dependency text; conversation summaries may contain snippets. Editing baselines separately store raw eligible file bytes in private extension storage for attribution and review. There is no raw API log.
+
+## Editing and review
+
+Each task captures HEAD, status and bounded file snapshots. Git zero-context hunks identify protected spans of preexisting staged/unstaged edits; uncertain attribution protects the whole file. A patch must match both the recorded read hash and current raw bytes, use exact unique non-overlapping text, and avoid protected spans. The executor checks permission, cancellation, HEAD, path policy, hard links and dirty editor buffers before mutation. Follow-ups inherit prior attribution only when bytes still match the previous task and no operation is unconfirmed.
+
+Prepared journal entries and content-addressed snapshots precede writes; applied entries follow them. Same-directory temporary files are flushed before atomic replacement. Creates use no-overwrite hard links; moves link the destination then unlink the source. A move is not atomic as a whole. Crashes can leave unconfirmed entries or temporary files, and cancelled directory creation can leave empty directories. Completed edits are retained on cancellation. There is no automatic recovery, rollback or undo. Checks do not eliminate races with hostile external processes.
+
+Native diff tabs compare immutable baseline and recorded output snapshots, isolating task changes from earlier developer work. Source Control displays the complete Git working tree. Reloaded journals are review-only. Snapshots remain local plaintext with no automatic retention policy. Edit attempts are capped at 12 per task and journals at 24 changed paths.
+
+Fixed Git calls disable external diffs, textconv, fsmonitor and configured clean/smudge/process filters where applicable. Inherited Git environment overrides are removed. The model cannot supply command arguments or change Git policy files.
 
 ## State and limits
 
@@ -32,7 +42,7 @@ Thread files use versioned schema validation, temporary-file write and same-dire
 
 Budgets: 20 actions/task, 60,000 context characters/request, 14,000 result characters/action, 30 explicit file reads/task, 5 files/read_files call, 200 lines/file read, 12,000 text characters/read, 100 search matches, 10 million text characters/search, 20,000 manifest entries, 50 MB candidate bytes and 30 seconds/index refresh, 256,000 bytes/file, 1 MB HTTP response, 4 MiB Git stdout, 15 seconds/Git subprocess. Chat messages are at most 8,000 characters; completion summaries at most 12,000. Timeout/cancellation/invalid protocol terminate safely. Tool failures return a bounded generic error that permits the model to choose another read-only action within the same limits.
 
-No retries are made for failed network requests. One schema-invalid model response can receive a correction request within the existing task budgets; no invalid action is executed. The future edit/validation slice must enforce at most three total edit-and-validation attempts; that is separate from the read-only action budget.
+No retries are made for failed network requests. One schema-invalid model response can receive a correction request within the existing task budgets; no invalid action is executed. Mutation failures stop the task instead of permitting speculative retries. The future validation slice must enforce at most three total edit-and-validation attempts, separate from the existing action budget.
 
 ## Endpoint configuration
 

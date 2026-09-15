@@ -43,10 +43,11 @@ export class ReadOnlyTools {
   }
   private async read(file: string, start = 1, end = start + 199, signal: AbortSignal): Promise<unknown> {
     if (end < start) throw new Error('endLine precedes startLine.');
-    const lines = (await this.index.read(file, signal)).split(/\r?\n/);
+    const document = await this.index.readDocument(file, signal);
+    const lines = document.text.split('\n');
     if (start > lines.length) return { path: file, totalLines: lines.length, text: '', note: 'Requested start line is past end of file.', truncated: false };
     const last = Math.min(end, start + 199, lines.length);
     const text = lines.slice(start - 1, last).map((l, i) => `${start + i}: ${l}`).join('\n');
-    return { path: file, startLine: start, endLine: last, totalLines: lines.length, text: text.slice(0, 12000), truncated: text.length > 12000 || last < Math.min(end, lines.length) };
+    return { path: file, hash: document.hash, encoding: document.encoding, lineEnding: document.eol === '\r\n' ? 'CRLF' : 'LF', startLine: start, endLine: last, totalLines: lines.length, text: text.slice(0, 12000), truncated: text.length > 12000 || last < Math.min(end, lines.length) };
   }
 }

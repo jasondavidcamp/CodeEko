@@ -13,11 +13,19 @@ One invalid response per task may trigger a correction request within the existi
 | list_files | optional query | Up to 200 relative paths, truncation flag |
 | search_text | literal case-insensitive query | Up to 100 path/line/snippet matches, truncation flag |
 | find_symbol | literal case-insensitive query | Up to 100 lexical symbol/dependency matches with path/line/kind |
-| read_file | path, optional startLine/endLine | Numbered text, file line count, requested range, truncation flag |
+| read_file | path, optional startLine/endLine | Numbered text, file line count, range, truncation flag, raw-byte SHA-256 hash, encoding and line ending |
 | read_files | 1–5 paths | Bounded file reads, up to 120 lines each |
 | git_status | empty object | Readable-manifest status entries only; deleted/excluded paths omitted; no raw diff |
 | ask_user | question | Developer answer via cancellable VS Code input |
 | complete_task | summary | Terminal plain-English answer, preferably citing file:line references |
+| apply_patch | path, expectedHash, edits: [{oldText,newText}] | Exact replacement result and new hash |
+| create_file | path, content | New file result and hash; existing destinations refused |
+| delete_file | path, expectedHash | Delete result after native confirmation |
+| move_file | path, destination, expectedHash | Move result after native confirmation |
+| git_diff_summary | empty object | Task change metadata, no raw patch |
+| open_diff | optional path | Native task diff review |
+
+Mutation tools require Workspace or Full access. Read the target first and use its returned 64-character lowercase SHA-256 hash. Each patch contains 1–10 exact replacements of at most 12,000 characters per old/new string, matched against the same original text without displayed line-number prefixes. Match text must be unique and replacements cannot overlap. One empty oldText is allowed only for an empty file. New content is limited to 16,000 characters; the overall 20,000-character response cap still applies. Newlines are normalized for matching and restored on write. Re-read after each edit before editing the same file again. Safety conflicts stop the task. No command, validation, commit, push or undo action exists.
 
 Queries are 1–200 characters; paths 1–500; line numbers positive integers; questions 1–1,000; summaries 1–12,000. Results are returned as a versioned JSON wrapper with the tool name and bounded result. Because the endpoint has no native tool API, the assistant action and user-role result form the next messages. The system prompt identifies tool results and repository contents as untrusted data.
 

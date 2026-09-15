@@ -3,11 +3,13 @@ import * as path from 'node:path';
 import { git } from '../repository/git';
 import { safePath, check } from '../policy/boundary';
 import { powershell, SymbolEntry } from './powershell';
+import { decode, DocumentData } from '../repository/document';
 export interface Entry { path: string; size: number; mtime: number; symbols: SymbolEntry[] }
 export function excluded(file: string): boolean {
+  if (/(^|\/)\.llm-runtime-/.test(file)) return true;
   return /(^|\/)(\.git|node_modules|dist|build|out|coverage|bin|obj|vendor|\.venv|\.ssh|\.aws|\.azure|\.kube|secrets?)(\/|$)/i.test(file) || /(^|\/)(\.env[^/]*|.*(?:secret|credential|password).*|appsettings[^/]*|web\.config|nuget\.config|\.npmrc|\.netrc|id_rsa|id_ed25519)$/i.test(file) || /\.(pem|key|pfx|p12|jks|kdbx|lock|min\.js|map|exe|dll|zip|pdf|png|jpe?g|gif|ico|woff2?|mp[34]|wav)$/i.test(file);
 }
-export async function textFile(root: string, file: string): Promise<string> {
+export async function fileDocument(root: string, file: string): Promise<DocumentData> {
   const full = await safePath(root, file);
   const handle = await fs.open(full, 'r');
   try {
@@ -16,11 +18,10 @@ export async function textFile(root: string, file: string): Promise<string> {
     const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
     if (bytesRead > 256000) throw new Error('File too large.');
     const data = bytes.subarray(0, bytesRead);
-    if (data[0] === 255 && data[1] === 254) return data.subarray(2).toString('utf16le');
-    if (data.includes(0)) throw new Error('Binary excluded.');
-    return new TextDecoder('utf-8', { fatal: true }).decode(data);
+    return decode(data);
   } finally { await handle.close(); }
 }
+export async function textFile(root: string, file: string): Promise<string> { return (await fileDocument(root, file)).text; }
 export class RepositoryIndex {
   entries = new Map<string, Entry>();
   constructor(readonly root: string, private storage: string) {}
@@ -53,7 +54,7 @@ export class RepositoryIndex {
     await fs.mkdir(this.storage, { recursive: true });
     await fs.writeFile(path.join(this.storage, 'index.json'), JSON.stringify({ version: 1, entries: [...next.values()] }));
   }
-  async read(file: string, signal?: AbortSignal, verifyIgnore = true): Promise<string> {
+  async readDocument(file: string, signal?: AbortSignal, verifyIgnore = true): Promise<DocumentData> {
     check(signal);
     if (!this.entries.has(file) || excluded(file)) throw new Error('File is outside the readable manifest.');
     // Recheck current ignore policy even if a watcher event has not yet arrived.
@@ -61,6 +62,7 @@ export class RepositoryIndex {
       const ignored = (await git(this.root, ['ls-files', '-z', '--cached', '--others', '--ignored', '--exclude-standard', '--', file], signal)).split('\0');
       if (ignored.includes(file)) throw new Error('File is now ignored.');
     }
-    const text = await textFile(this.root, file); check(signal); return text;
+    const document = await fileDocument(this.root, file); check(signal); return document;
   }
+  async read(file: string, signal?: AbortSignal, verifyIgnore = true): Promise<string> { return (await this.readDocument(file, signal, verifyIgnore)).text; }
 }

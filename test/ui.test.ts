@@ -12,18 +12,21 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   t.after(() => fs.rm(temp, { recursive: true, force: true }));
   const root = path.join(temp, 'repo'); const storage = path.join(temp, 'storage'); await fs.mkdir(root); await git(root, ['init']);
   await fs.writeFile(path.join(root, 'pilot.ps1'), 'function Get-Pilot {}');
+  await git(root, ['add','.']); await git(root, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','fixture']);
   const commands = new Map<string, () => Promise<void>>();
   const settings: Record<string, unknown> = { endpoint: 'https://api.example.test', model: 'saved-model', requestTimeout: 1000, permissionMode: 'Full access' };
   const secrets = new Map<string, string>(); const sent: any[] = []; const errors: string[] = [];
   let receive: (message: any) => Promise<void> = async () => {};
   let disposePanel = () => {}; let input = 'test-key'; let fallbackPrompt: any;
   const disposable = { dispose() {} };
+  let provider: any; const nativeDiffs: { before: string; after: string }[] = [];
   const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, reveal() {}, onDidDispose: (fn: () => void) => { disposePanel = fn; return disposable; }, dispose: () => disposePanel() };
   const mock = {
-    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; } },
-    workspace: { isTrusted: true, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
+    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
+    workspace: { isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
     window: { showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => items[0], createWebviewPanel: () => panel },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
+    Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
   };
   const Module = require('node:module') as { _load: (...args: any[]) => any };
@@ -51,6 +54,24 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).thread.messages.filter((m: any) => m.role === 'user').length, 1);
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"See pilot.ps1:1"}}' } }] }));
   await receive({ type: 'send', text: 'Follow up' }); assert.equal(sent.at(-1).thread.status, 'complete');
+  let step = 0;
+  let afterEdit!: () => void; const editDone = new Promise<void>(resolve => { afterEdit = resolve; });
+  global.fetch = async (_url, init) => {
+    step++;
+    if (step === 3) return new Promise((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))); afterEdit(); });
+    const messages = JSON.parse(init?.body as string).messages;
+    const action = step === 1 ? { version: 1, tool: 'read_file', args: { path: 'pilot.ps1' } } : { version: 1, tool: 'apply_patch', args: { path: 'pilot.ps1', expectedHash: JSON.parse(messages.at(-1).content).result.hash, edits: [{ oldText: 'Get-Pilot', newText: 'Get-UpdatedPilot' }] } };
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] }));
+  };
+  const editRun = receive({ type: 'send', text: 'Rename the function to Get-UpdatedPilot' }); await editDone;
+  await receive({ type: 'cancel' }); await editRun;
+  assert.equal(sent.at(-1).thread.status, 'cancelled');
+  assert.match(sent.at(-1).thread.messages.at(-1).content, /1 file change/);
+  assert.ok(!sent.at(-1).thread.messages.at(-1).content.includes('No repository files were changed'));
+  assert.equal(await fs.readFile(path.join(root, 'pilot.ps1'), 'utf8'), 'function Get-UpdatedPilot {}');
+  assert.deepEqual(nativeDiffs.at(-1), { before: 'function Get-Pilot {}', after: 'function Get-UpdatedPilot {}' });
+  const reviewId = sent.at(-1).thread.reviewTaskId; assert.ok(reviewId);
+  await receive({ type: 'review' }); assert.equal(nativeDiffs.length, 2);
   input = 'Second topic'; await receive({ type: 'new' }); assert.equal(sent.at(-1).threads.length, 2);
   const persisted = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await persisted.load(); assert.equal(persisted.threads.length, 2);
   const text = await fs.readFile(path.join(repositoryStorage(storage, await fs.realpath(root)), 'threads.json'), 'utf8'); assert.ok(!text.includes('test-key'));

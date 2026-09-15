@@ -30,7 +30,7 @@ test('containment rejects siblings, traversal, absolute and alternate-stream pat
 test('strict protocol rejects unknown, extra, malformed, and unbounded actions', () => {
   for (const raw of ['{}', '```json\n{}\n```', '{"version":2,"tool":"git_status","args":{}}', '{"version":1,"tool":"run_command","args":{}}', '{"version":1,"tool":"git_status","args":{"command":"x"}}', '{"version":1,"tool":"read_file","args":{"path":"a","startLine":0}}']) assert.throws(() => parseAction(raw));
   assert.equal(parseAction('{"version":1,"tool":"git_status","args":{}}').tool, 'git_status');
-  for (const mode of ['Review','Workspace','Full access','Custom']) { authorize('read_file', mode); assert.throws(() => authorize('apply_patch', mode)); }
+  for (const mode of ['Review','Workspace','Full access','Custom']) { authorize('read_file', mode); assert.throws(() => authorize('run_command', mode)); }
 });
 test('workspace selection happens before repository access and cancellation stops resolution', async t => {
   const { root } = await fixture(t); let called = false;

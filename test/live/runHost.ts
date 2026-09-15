@@ -36,7 +36,7 @@ async function main(): Promise<void> {
       child.on('exit', code => { clearTimeout(timeout); code === 0 ? resolve() : reject(new Error(`VS Code extension tests exited with code ${code}.`)); });
     });
     const result = JSON.parse(await fs.readFile(report, 'utf8'));
-    if (!result.extensionActivation || !result.live?.repositoryUnchanged) throw new Error('Extension host did not report completed checks.');
+    if (!result.extensionActivation || !result.live?.repositoryUnchanged || !result.editing?.preexistingWorkPreserved || !result.nativeDiffsOpened) throw new Error('Extension host did not report completed checks.');
     console.log('VERIFIED EXTENSION HOST RESULT: ' + JSON.stringify(result, null, 2));
   } finally {
     // Remove only the isolated profile and workspace created by this invocation.
