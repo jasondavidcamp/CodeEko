@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.22",
+  "version": "0.4.23",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -100,12 +100,11 @@
           "enum": [
             "Review",
             "Workspace",
-            "Full access",
-            "Custom"
+            "Full access"
           ],
           "default": "Full access",
           "scope": "application",
-          "description": "Review and Custom are read-only. Workspace and Full access allow guarded repository edits. Destructive operations always require confirmation."
+          "description": "Review is read-only. Workspace confirms destructive edits. Full access allows guarded repository edits and validation without operation confirmations."
         }
       }
     },

@@ -302,3 +302,6 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.22: Supply file inventory for test requests, prefer batch reads and existing suites, compact model-facing validation reports, show descriptive progress, and provide field-specific bounded protocol recovery. A live Gemini fixture reused its suite and passed in one validation round (six calls, 24 seconds); timing is a single observation, not a latency guarantee.
 - [ ] Measure test-generation latency and duplicate-suite avoidance across representative repositories and repeated live runs.
+
+- [x] 0.4.23: Full access skips repository operation confirmations; Workspace approvals and ambiguous repository selection stay in-pane. Remove Custom from selectable modes and treat legacy Custom settings as Review. Audit native chat prompts and test dialog cancellation and stale replies.
+- [ ] Confirm multi-repository selection and Workspace approval placement in representative installed workspaces after restart.

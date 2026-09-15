@@ -134,7 +134,7 @@ export class EditTask {
     for (const change of changes.filter(change => !restored.has(change.path))) {
       await this.hooks.preview(change.path, await this.snapshot(change.after), await this.snapshot(change.before)); check(signal);
     }
-    if (!await this.hooks.confirm(`Undo ${changes.length - restored.size} remaining task change(s)? Restore baseline content and remove task-created files.`, signal)) throw new TaskConflict('Undo was not approved.');
+    if (this.hooks.mode() !== 'Full access' && !await this.hooks.confirm(`Undo ${changes.length - restored.size} remaining task change(s)? Restore baseline content and remove task-created files.`, signal)) throw new TaskConflict('Undo was not approved.');
     await preflight(); this.journal.undo = undo; await this.persist();
     for (const change of changes) {
       if (restored.has(change.path)) continue;
@@ -293,6 +293,8 @@ export class EditTask {
     return { path: file, destination, applied: true };
   }
   private async confirm(question: string, file: string, before: string, after: string, signal: AbortSignal): Promise<void> {
+    check(signal);
+    if (this.hooks.mode() === 'Full access') return;
     await this.hooks.preview(file, before, after); check(signal);
     if (!await this.hooks.confirm(question, signal)) throw new TaskConflict('Destructive operation was not approved. No requested destructive change was applied.');
     check(signal);

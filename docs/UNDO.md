@@ -1,6 +1,6 @@
 # Task-scoped undo
 
-Use **Undo task changes** in the conversation panel after an edit task finishes or is cancelled. The runtime opens native previews and asks for confirmation. Undo is a developer UI action, not a model tool. Review and Custom modes cannot perform it.
+Task-scoped undo remains internal and is not offered in the chat menu; use native Source Control for reviewing changes. Internal undo retains native previews and preflight checks. Workspace requires an in-pane confirmation, while Full access skips it. Review and legacy Custom settings cannot undo.
 
 Undo restores the recorded starting bytes, including preexisting developer edits and original encoding/BOM/newlines. It removes task-created files and restores task-deleted files. A move is reversed through its recorded source and destination changes. It never changes the Git index or creates a commit.
 

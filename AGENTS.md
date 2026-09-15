@@ -51,7 +51,7 @@ Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant cod
 - Full access does not imply administrator elevation or authorization for unrelated operations. General command execution is a roadmap capability, not currently exposed by the runtime. Only implemented, policy-checked tools and fixed validation commands may execute. Repository editing tools remain scoped to the selected repository.
 - A working directory or path allowlist is not a process sandbox. VS Code does not automatically contain child-process filesystem or network access. Never claim strong confinement unless it is actually enforced and tested.
 - Restricted modes must reject unsupported execution capabilities rather than silently running them unrestricted. Keep any true OS isolation requirement explicit.
-- Destructive or difficult-to-reverse operations require explicit authorization. Automatic validation never authorizes environment-changing operations, even in Full access.
+- In the product, Full access authorizes implemented repository operations without per-operation confirmation, including delete, move and whole-file erasure. Workspace requires in-pane confirmation for these operations. Keep path, fresh-read, content, unsaved-buffer and developer-edit checks in every mode. Automatic validation never authorizes environment-changing operations.
 
 ## Repository awareness and editing
 
@@ -79,6 +79,7 @@ Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant cod
 ## User experience and task lifecycle
 
 - Use ordinary conversation; slash commands are optional shortcuts.
+- Audit every interactive chat entry point, including repository selection, operation approvals, startup failures and cancellation. Keep these in the conversation pane; native secure key entry and explicitly invoked setup commands remain exceptions. Removed permission modes must not silently grant more access.
 - Keep chat interactions in the conversation pane: anchored popovers for model and permission selection, in-pane dialogs for rename, and the composer for agent questions. Do not route these controls through top-of-window input boxes or quick picks. Preserve current selection, loading/error states, keyboard access, Escape/outside dismissal, and narrow-sidebar usability. Use native VS Code UI where it serves the task: diffs, Source Control, settings, secure API-key entry, and explicit command shortcuts. Match only capabilities the runtime actually supports; do not copy misleading permission claims.
 - Inspect before asking questions. Infer routine details from strong repository evidence and disclose meaningful assumptions.
 - Show brief progress and a concise final narrative describing changes, validation, and remaining issues.

@@ -18,7 +18,7 @@ async function fixture(t: any, encoding: 'utf8bom' | 'utf16le' = 'utf8bom') {
   const baseline = encode('function Get-Value { return 1 }\n# developer comment\n', { encoding, eol: '\r\n', mixedEol: false });
   await fs.writeFile(path.join(root, 'main.ps1'), baseline); await fs.writeFile(path.join(root, 'Notes.txt'), 'staged developer work\n'); await git(root, ['add','Notes.txt']);
   const index = new RepositoryIndex(root, storage);
-  const hooks: EditHooks = { mode: () => 'Full access', isDirty: () => false, confirm: async () => true, preview: async () => {} };
+  const hooks: EditHooks = { mode: () => 'Workspace', isDirty: () => false, confirm: async () => true, preview: async () => {} };
   const task = await EditTask.capture(index, storage, hooks, signal());
   const observe = async (name: string) => { const doc = await index.readDocument(name); task.observe(name, doc.hash); return doc.hash; };
   await task.execute({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', expectedHash: await observe('main.ps1'), edits: [{ oldText: 'return 1', newText: 'return 2' }] } }, signal());

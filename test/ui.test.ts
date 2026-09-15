@@ -35,6 +35,17 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   Module._load = function(request: string, ...args: any[]) { return request === 'vscode' ? mock : originalLoad.call(this, request, ...args); };
   let extension: typeof import('../src/ui/extension');
   try { extension = require('../src/ui/extension'); } finally { Module._load = originalLoad; }
+  const choiceMessages: any[] = []; const choiceListeners = new Set<(m: any) => void>(); const choiceDisposals = new Set<() => void>();
+  const choicePanel = { webview: { postMessage: (m: any) => { choiceMessages.push(m); }, onDidReceiveMessage: (fn: any) => { choiceListeners.add(fn); return { dispose: () => choiceListeners.delete(fn) }; } }, onDidDispose: (fn: any) => { choiceDisposals.add(fn); return { dispose: () => choiceDisposals.delete(fn) }; } };
+  const choose = extension.paneChoice(choicePanel as any, 'Delete file?', ['Cancel', 'Approve']);
+  const choiceId = choiceMessages.at(-1).id;
+  for (const fn of choiceListeners) { fn({ type: 'choiceReply', id: 'stale', index: 1 }); fn({ type: 'choiceReply', id: choiceId, index: 99 }); }
+  assert.equal(choiceListeners.size, 1, 'invalid approvals cannot resolve a prompt');
+  for (const fn of choiceListeners) fn({ type: 'choiceReply', id: choiceId, index: 1 });
+  assert.equal(await choose, 1); assert.equal(choiceListeners.size, 0);
+  const choiceAbort = new AbortController();
+  const cancelledChoice = extension.paneChoice(choicePanel as any, 'Choose repository', ['repo'], choiceAbort.signal);
+  choiceAbort.abort(); await assert.rejects(cancelledChoice, /Cancelled/); assert.equal(choiceListeners.size, 0);
   const context = { subscriptions: [], globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
   extension.activate(context as any);
   const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; panel.dispose(); extension.deactivate(); });
@@ -42,6 +53,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   global.fetch = async () => new Response('failure', { status: 503 }); input = 'manual-model';
   await commands.get('llmRuntime.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
   await commands.get('llmRuntime.open')!(); assert.equal(errors.length, 0);
+  settings.permissionMode = 'Custom'; await receive({ type: 'ready' }); assert.equal(sent.at(-1).mode, 'Review'); settings.permissionMode = 'Full access';
   const originalHtml = panel.webview.html; await commands.get('llmRuntime.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
   assert.ok(panel.webview.html.includes("default-src 'none'")); assert.ok(panel.webview.html.includes('textContent'));
   const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(panel.webview.html)![1];
@@ -116,4 +128,11 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const persisted = new ThreadStore(repositoryStorage(storage, await fs.realpath(root))); await persisted.load(); assert.equal(persisted.threads.length, 2);
   const text = await fs.readFile(path.join(repositoryStorage(storage, await fs.realpath(root)), 'threads.json'), 'utf8'); assert.ok(!text.includes('test-key'));
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));
+});
+
+
+test('chat popup audit confines native prompts to explicit setup commands', async () => {
+  const source = await fs.readFile(path.join(__dirname, '../../src/ui/extension.ts'), 'utf8');
+  const chat = source.slice(source.indexOf('async function open('));
+  assert.doesNotMatch(chat, /showQuickPick|showInputBox|showWarningMessage|showInformationMessage|showErrorMessage/);
 });

@@ -17,7 +17,7 @@ import { createPowerShellRunner } from '../validation/powershell';
 import * as path from 'node:path';
 const active = new Map<string, AbortController>();
 const config = () => vscode.workspace.getConfiguration('llmRuntime');
-const mode = () => config().get<string>('permissionMode', 'Full access');
+const mode = () => { const value = config().get<string>('permissionMode', 'Full access'); return value === 'Custom' ? 'Review' : value; };
 function outcome(task?: EditTask, validation?: TaskValidation): string {
   if (!task?.changes().length && !validation?.hasRun()) return '';
   return '\n\n' + [task?.summary(), validation?.summary()].filter(Boolean).join('\n');
@@ -61,7 +61,11 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     resolveWebviewView: view => {
       sidebar = view;
       context.subscriptions.push(view.onDidDispose(() => { initialization = undefined; }));
-      initialization = open(context, review, view);
+      initialization = open(context, review, view).catch(error => {
+        const show = () => { void view.webview.postMessage({ type: 'progress', text: error instanceof Error ? error.message : 'Could not open the conversation.' }); };
+        context.subscriptions.push(view.webview.onDidReceiveMessage(message => { if (message?.type === 'ready') show(); }));
+        view.webview.options = { enableScripts: true, localResourceRoots: [] }; view.webview.html = conversationHtml(); show();
+      });
       return initialization;
     }
   }, { webviewOptions: { retainContextWhenHidden: true } }));
@@ -90,7 +94,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening repository tools.');
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.some(f => f.uri.scheme !== 'file')) throw new Error('Only local filesystem workspaces are supported.');
-  const root = await resolveRepository(folders.map(f => f.uri.fsPath), choices => Promise.resolve(vscode.window.showQuickPick(choices, { title: 'Select the repository boundary' })));
+  const root = await resolveRepository(folders.map(f => f.uri.fsPath), async choices => { panel.webview.options = { enableScripts: true, localResourceRoots: [] }; const selected = paneChoice(panel, 'Choose the repository for this conversation', choices); panel.webview.html = conversationHtml(); const index = await selected; return index === undefined ? undefined : choices[index]; });
   const storage = repositoryStorage(context.globalStorageUri.fsPath, root);
   if (contained(root, storage)) throw new Error('Extension storage must be outside the repository. Open a narrower repository folder.');
   const release = await acquireRepositoryLease(root);
@@ -126,14 +130,12 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     mode,
     isDirty: file => vscode.workspace.textDocuments.some(document => document.uri.scheme === 'file' && document.uri.fsPath.toLowerCase() === file.toLowerCase() && document.isDirty),
     preview: (file, before, after) => review.preview(file, before, after),
-    confirm: async (question, signal) => {
-      const token = new vscode.CancellationTokenSource(); const abort = () => token.cancel(); signal.addEventListener('abort', abort, { once: true });
-      try { signal.throwIfAborted(); return await vscode.window.showQuickPick(['Cancel', 'Approve this operation'], { title: question, placeHolder: 'Inspect the native diff, then approve this specific operation.', ignoreFocusOut: true }, token.token) === 'Approve this operation'; }
-      finally { signal.removeEventListener('abort', abort); token.dispose(); }
-    }
+    confirm: async (question, signal) => (await paneChoice(panel, question + ' Inspect the native diff before approving.', ['Approve this operation'], signal)) === 0
+
   };
   const listener = panel.webview.onDidReceiveMessage(async message => {
     if (!message || typeof message.type !== 'string') return;
+    if (message.type === 'choiceReply') return;
     if (message.type === 'ready') { update(); return; }
     if (message.type === 'cancel') { active.get(root)?.abort(); return; }
     if (message.type === 'answer') {
@@ -172,7 +174,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         await config().update('model', selected.trim(), vscode.ConfigurationTarget.Global);
         send({ type: 'modelChosen' });
       } else if (message.type === 'permissions') {
-        if (!['Review', 'Workspace', 'Full access', 'Custom'].includes(message.mode)) throw new Error('Unsupported permission mode.');
+        if (!['Review', 'Workspace', 'Full access'].includes(message.mode)) throw new Error('Unsupported permission mode.');
         await config().update('permissionMode', message.mode, vscode.ConfigurationTarget.Global);
       } else if (message.type === 'undo' && thread.undoTaskId) {
         const controller = new AbortController(); active.set(root, controller); update();
@@ -250,3 +252,23 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   panel.webview.html = conversationHtml();
 }
 export function deactivate(): void { for (const controller of active.values()) controller.abort(); }
+
+
+export async function paneChoice(panel: vscode.WebviewView, question: string, choices: string[], signal?: AbortSignal): Promise<number | undefined> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const id = randomUUID();
+    const show = () => { void panel.webview.postMessage({ type: 'choice', id, question, choices }); };
+    const cleanup = () => { listener.dispose(); disposal.dispose(); signal?.removeEventListener('abort', abort); void panel.webview.postMessage({ type: 'choiceClosed', id }); };
+    const abort = () => { cleanup(); reject(new Error('Cancelled.')); };
+    const listener = panel.webview.onDidReceiveMessage(message => {
+      if (message?.type === 'ready') { show(); return; }
+      if (message?.type !== 'choiceReply' || message.id !== id) return;
+      if (message.index !== null && (!Number.isInteger(message.index) || message.index < 0 || message.index >= choices.length)) return;
+      cleanup(); resolve(message.index === null ? undefined : message.index);
+    });
+    const disposal = panel.onDidDispose(abort);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort(); else show();
+  });
+}

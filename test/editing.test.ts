@@ -25,7 +25,7 @@ async function fixture(t: any, bytes: Buffer = Buffer.from('# stable\nfunction G
   await fs.writeFile(path.join(root, '.gitignore'), 'ignored/\n');
   await git(root, ['add','.']); await git(root, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','fixture']);
   const index = new RepositoryIndex(root, storage);
-  let mode = 'Full access'; let dirty = false; let approved = false; let confirmations = 0; let previews = 0;
+  let mode = 'Workspace'; let dirty = false; let approved = false; let confirmations = 0; let previews = 0;
   const hooks: EditHooks = { mode: () => mode, isDirty: () => dirty, confirm: async () => { confirmations++; return approved; }, preview: async () => { previews++; } };
   const start = async (previous?: EditTask) => {
     const task = await EditTask.capture(index, storage, hooks, signal(), previous);
@@ -223,4 +223,22 @@ test('invalid literal patch recovers within the read correction budget and retai
   } }, 'mock', history, tools, f.hooks.mode, signal(), () => {});
   assert.equal(calls, 5); assert.equal(task.changes().length, 1);
   assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 8/);
+});
+
+
+test('Full access deletes, moves and erases without confirmation while preserving stale-file guards', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  const { tools } = await f.start();
+  await tools.execute({ version: 1, tool: 'delete_file', args: { path: 'other.ps1', expectedHash: await read(tools, 'other.ps1') } }, signal());
+  const hash = await read(tools);
+  await tools.execute({ version: 1, tool: 'move_file', args: { path: 'main.ps1', destination: 'moved.ps1', expectedHash: hash } }, signal());
+  const moved = await read(tools, 'moved.ps1');
+  const text = await fs.readFile(path.join(f.root, 'moved.ps1'), 'utf8');
+  await tools.execute({ version: 1, tool: 'apply_patch', args: { path: 'moved.ps1', expectedHash: moved, edits: [{ oldText: text, newText: '' }] } }, signal());
+  assert.equal(f.counts().confirmations, 0);
+  assert.equal(await fs.readFile(path.join(f.root, 'moved.ps1'), 'utf8'), '');
+  const current = await read(tools, 'moved.ps1');
+  await fs.writeFile(path.join(f.root, 'moved.ps1'), 'external edit');
+  await assert.rejects(tools.execute({ version: 1, tool: 'delete_file', args: { path: 'moved.ps1', expectedHash: current } }, signal()));
+  assert.equal(await fs.readFile(path.join(f.root, 'moved.ps1'), 'utf8'), 'external edit');
 });

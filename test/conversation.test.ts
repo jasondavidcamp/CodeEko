@@ -11,6 +11,14 @@ test('composer prevents duplicate sends, respects IME/newlines and preserves per
   const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(conversationHtml())![1];
   vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage: (message: any) => sent.push(message) }), document: { getElementById: get, createElement: node }, window: { addEventListener: (_: string, callback: typeof receive) => { receive = callback; } } });
   const state = (id: string, busy = false) => receive({ data: { type: 'state', root: 'repo', mode: 'Review', busy, threads: [{ id, name: id }], thread: { id, status: 'idle', messages: [{ role: 'assistant', content: '**Safe** `code` <img src=x onerror=alert(1)>' }] } } });
+  assert.ok(!conversationHtml().includes('permissionCustom'));
+  receive({ data: { type: 'choice', id: 'approval', question: 'Delete <file>?', choices: ['Cancel', 'Approve'] } });
+  assert.equal(get('choiceTitle').textContent, 'Delete <file>?');
+  get('choiceItems').children[1].onclick();
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.at(-1))), { type: 'choiceReply', id: 'approval', index: 1 });
+  receive({ data: { type: 'choice', id: 'cancel', question: 'Choose repository', choices: ['repo'] } });
+  get('choiceDialog').oncancel({ preventDefault() {} });
+  assert.equal(sent.at(-1).index, null);
   state('one'); get('input').value = 'Repair this'; get('input').oninput();
   let prevented = 0;
   const key = (extra: object) => get('input').onkeydown({ key: 'Enter', preventDefault: () => { prevented++; }, ...extra });
