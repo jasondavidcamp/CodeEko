@@ -47,7 +47,7 @@ export class ReadOnlyTools {
     const lines = document.text.split('\n');
     if (start > lines.length) return { path: file, totalLines: lines.length, text: '', note: 'Requested start line is past end of file.', truncated: false };
     const last = Math.min(end, start + 199, lines.length);
-    const text = lines.slice(start - 1, last).map((l, i) => `${start + i}: ${l}`).join('\n');
-    return { path: file, hash: document.hash, encoding: document.encoding, lineEnding: document.eol === '\r\n' ? 'CRLF' : 'LF', startLine: start, endLine: last, totalLines: lines.length, text: text.slice(0, 12000), truncated: text.length > 12000 || last < Math.min(end, lines.length) };
+    const text = lines.slice(start - 1, last).join('\n');
+    return { path: file, hash: document.hash, encoding: document.encoding, lineEnding: document.eol === '\r\n' ? 'CRLF' : 'LF', startLine: start, endLine: last, totalLines: lines.length, text: text.slice(0, 12000), truncated: text.length > 12000 || last < lines.length };
   }
 }

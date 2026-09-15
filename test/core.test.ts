@@ -140,6 +140,14 @@ test('repeated missing reads stop after two corrections inside the existing acti
   assert.equal(reads, 2);
 });
 
+test('file reads preserve literal source while range metadata identifies omitted lines', async t => {
+  const { root, storage } = await fixture(t);
+  await fs.writeFile(path.join(root, 'main.ps1'), 'first\r\n    "quoted"\r\nlast\r\n');
+  const tools = new ReadOnlyTools(new RepositoryIndex(root, storage), async () => '');
+  const result = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1', startLine: 2, endLine: 2 } }, new AbortController().signal) as { text: string; startLine: number; endLine: number; truncated: boolean };
+  assert.equal(result.text, '    "quoted"'); assert.equal(result.startLine, 2); assert.equal(result.endLine, 2); assert.equal(result.truncated, true);
+});
+
 test('automatic recovery reads respect cancellation and the total read budget', async () => {
   const controller = new AbortController(); let executions = 0;
   const action = JSON.stringify({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'a', newText: 'b' }] } });

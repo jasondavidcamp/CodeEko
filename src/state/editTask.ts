@@ -300,19 +300,28 @@ export class EditTask {
     const state = await this.current(file, expected, signal);
     if (action.tool === 'apply_patch') {
       const text = state.document.text;
-      const edits = action.args.edits.map(edit => {
+      const edits = action.args.edits.flatMap((edit, editIndex) => {
         const oldText = edit.oldText.replaceAll('\r\n', '\n'); const newText = edit.newText.replaceAll('\r\n', '\n');
-        const start = text.indexOf(oldText);
-        if (start < 0 || (oldText ? text.indexOf(oldText, start + 1) !== -1 : text.length > 0 || action.args.edits.length !== 1)) throw new PatchTargetRequired(file);
-        return { start, end: start + oldText.length, newText };
+        const starts: number[] = [];
+        if (oldText) {
+          for (let start = text.indexOf(oldText); start >= 0; start = text.indexOf(oldText, start + 1)) {
+            if (starts.length >= 1000) throw new TaskConflict('The patch matches too many locations. Use a smaller, focused replacement.');
+            starts.push(start);
+          }
+        } else if (!text.length && action.args.edits.length === 1) starts.push(0);
+        if (!starts.length || (starts.length > 1 && !edit.replaceAll)) throw new PatchTargetRequired(file, starts.length, editIndex);
+        return starts.map(start => ({ start, end: start + oldText.length, newText }));
       }).sort((a, b) => a.start - b.start);
+      if (edits.length > 1000) throw new TaskConflict('The patch exceeds 1000 replacement locations. Use a smaller, focused replacement.');
+      if (edits.reduce((size, edit) => size + edit.newText.length - (edit.end - edit.start), text.length) > 256000) throw new TaskConflict('The proposed patch exceeds the file size limit. No edit was applied.');
       for (let i = 0; i < edits.length; i++) {
         const edit = edits[i];
         if (i && edits[i - 1].end > edit.start) throw new TaskConflict('Patch replacements overlap.');
         if (this.hooks.mode() !== 'Full access' && state.known.protected.some(r => r.start === r.end ? edit.start <= r.start && edit.end >= r.end : edit.start < r.end && edit.end > r.start)) throw new TaskConflict(`The proposed edit overlaps preexisting developer changes in ${file}. What should be preserved? No overlapping edit was applied.`);
       }
-      let next = text;
-      for (const edit of [...edits].reverse()) next = next.slice(0, edit.start) + edit.newText + next.slice(edit.end);
+      const pieces: string[] = []; let cursor = 0;
+      for (const edit of edits) { pieces.push(text.slice(cursor, edit.start), edit.newText); cursor = edit.end; }
+      pieces.push(text.slice(cursor)); const next = pieces.join('');
       if (next === text) return { applied: false, reason: 'No text change.' };
       if (text.trim() && !next.trim()) await this.confirm(`Erase all content in ${file}?`, file, text, next, signal);
       const bytes = encode(next, state.document);

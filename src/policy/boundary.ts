@@ -28,6 +28,6 @@ export class ReadRequired extends TaskConflict {
   constructor(readonly file: string) { super(`Read ${file} again before editing; its task/read hash is stale or missing. No edit was applied.`); }
 }
 export class PatchTargetRequired extends ReadRequired {
-  constructor(file: string) { super(file); this.message = `Patch text is missing or ambiguous in ${file}. Use a smaller, unique replacement after reading the file.`; }
+  constructor(file: string, readonly matches = 0, readonly editIndex = 0) { super(file); this.message = `Patch replacement ${editIndex + 1} is ${matches ? 'ambiguous' : 'missing'}: matched ${matches} locations in ${file}. Use exact current text; for repeated text, choose a unique surrounding block or explicitly replace all occurrences.`; }
 }
 export function check(signal?: AbortSignal): void { signal?.throwIfAborted(); }

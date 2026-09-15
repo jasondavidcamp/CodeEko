@@ -13,12 +13,12 @@ Up to two isolated invalid responses may receive field-specific correction feedb
 | list_files | optional query | Up to 200 relative paths, truncation flag |
 | search_text | literal case-insensitive query | Up to 100 path/line/snippet matches, truncation flag |
 | find_symbol | literal case-insensitive query | Up to 100 lexical symbol/dependency matches with path/line/kind |
-| read_file | path, optional startLine/endLine | Numbered text, file line count, range, truncation flag, raw-byte SHA-256 hash, encoding and line ending |
+| read_file | path, optional startLine/endLine | Clean source text (LF, no added prefixes), file line count, range, truncation flag, raw-byte SHA-256 hash, encoding and line ending |
 | read_files | 1–5 paths | Bounded file reads, up to 120 lines each |
 | git_status | empty object | Readable-manifest status entries only; deleted/excluded paths omitted; no raw diff |
 | ask_user | question | Developer answer via cancellable VS Code input |
 | complete_task | summary | Terminal plain-English answer, preferably citing file:line references |
-| apply_patch | path, expectedHash, edits: [{oldText,newText}] | Exact replacement result and new hash |
+| apply_patch | path, optional expectedHash, edits: [{oldText,newText,replaceAll?}] | Exact replacement result and new hash |
 | create_file | path, content | New file result and hash; existing destinations refused |
 | delete_file | path, expectedHash | Delete result after native confirmation |
 | move_file | path, destination, expectedHash | Move result after native confirmation |
@@ -26,7 +26,7 @@ Up to two isolated invalid responses may receive field-specific correction feedb
 | open_diff | optional path | Native task diff review |
 | run_validation | empty object | Fixed parsing, analysis and approved Pester results; at most three rounds |
 
-Mutation tools require Workspace or Full access. Read the target first and use its returned 64-character lowercase SHA-256 hash. Each patch contains 1–10 exact replacements of at most 12,000 characters per old/new string, matched against the same original text without displayed line-number prefixes. Match text must be unique and replacements cannot overlap. One empty oldText is allowed only for an empty file. New content is limited to 16,000 characters; the overall 20,000-character response cap still applies. Newlines are normalized for matching and restored on write. Re-read after each edit before editing the same file again. Safety conflicts stop the task. General commands, commits and pushes are unavailable. Undo is a developer UI action, not a model tool. Completion automatically validates edited tasks; failures feed back into the loop and the third failed round blocks completion. See VALIDATION.md.
+Mutation tools require Workspace or Full access. Read the target first. Omit expectedHash for patches to use the runtime-observed version; delete/move require the returned 64-character lowercase SHA-256 hash. Each patch contains 1–10 exact replacements of at most 12,000 characters per old/new string, matched against the same original clean source text. Match text must be unique unless that edit explicitly sets replaceAll:true, which expands to every exact literal occurrence. Zero matches, overlapping occurrences/replacements and failed checks reject the entire batch before writing. At most 1000 expanded replacement locations are allowed, and projected output size is checked before constructing it. There is no fuzzy or regex matching. One empty oldText is allowed only for an empty file. New content is limited to 16,000 characters; the overall 20,000-character response cap still applies. Newlines are normalized for matching and restored on write. Re-read after each edit before editing the same file again. Safety conflicts stop the task. General commands and pushes are unavailable; local commits require an explicit current user request. Undo is a developer UI action, not a model tool. Completion automatically validates edited tasks; failures feed back into the loop and the third failed round blocks completion. See VALIDATION.md.
 
 Queries are 1–200 characters; paths 1–500; line numbers positive integers; questions 1–1,000; summaries 1–12,000. Results are returned as a versioned JSON wrapper with the tool name and bounded result. Because the endpoint has no native tool API, the assistant action and user-role result form the next messages. The system prompt identifies tool results and repository contents as untrusted data.
 

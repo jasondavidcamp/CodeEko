@@ -317,3 +317,5 @@ The pilot succeeds when the developer can install one VSIX, open the Git-based P
 
 - [x] 0.4.28: Automatically supply a policy-checked current file read after a rejected hash or literal patch, without replaying the edit or requiring another model read turn. Regression tests cover post-write refresh, preserved staged work, external-save refusal, cancellation and read limits. Live Gemini recovered an injected missing read and passed PowerShell 5.1 parsing, analysis and Pester in five model calls and two validation rounds.
 - [ ] Confirm recovery in the installed extension against the ongoing representative conversation after reload.
+
+- [x] 0.4.29: Return clean source text with separate line metadata, report rejected literal match counts, and support explicit bounded replace-all edits for repeated names. Preflight all replacements and retain version, overlap, encoding and output-size guards. A synthetic live Gemini six-character function/test update recovered a repeated-name rejection and passed automatic PowerShell validation in eight model calls and one validation round, preserving staged work.

@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.28",
+  "version": "0.4.29",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -138,7 +138,8 @@
     "test:recovery": "npm run build && node dist/test/live/runRecovery.js",
     "package": "npm run build && vsce package --allow-missing-repository",
     "vscode:prepublish": "npm run build",
-    "test:live:read-recovery": "npm run build && node dist/test/live/readRecovery.js"
+    "test:live:read-recovery": "npm run build && node dist/test/live/readRecovery.js",
+    "test:live:literal-recovery": "npm run build && node dist/test/live/literalRecovery.js"
   },
   "dependencies": {
     "zod": "^3.24.0"

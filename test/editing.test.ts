@@ -375,3 +375,33 @@ test('external saves during automatic read recovery still stop the replacement',
   assert.equal(calls, 2);
   assert.match(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), /return 4[\s\S]*# external save/);
 });
+
+test('repeated literal rename is explicit, preflighted and preserves bytes outside its matches', async t => {
+  const source = '# developer note\r\nDescribe "Get-FiveCharacterName" {\r\n    Get-FiveCharacterName | Should -Be "Alice"\r\n}\r\n';
+  const f = await fixture(t, Buffer.concat([Buffer.from([239, 187, 191]), Buffer.from(source)]));
+  f.mode('Full access'); const { tools } = await f.start();
+  const current = await tools.execute({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } }, signal()) as { text: string };
+  assert.equal(current.text, source.replaceAll('\r\n', '\n'));
+  const action: Action = { version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'Get-FiveCharacterName', newText: 'Get-SixCharacterName', replaceAll: true }] } };
+  const ambiguous = structuredClone(action); if (ambiguous.tool === 'apply_patch') delete ambiguous.args.edits[0].replaceAll;
+  await assert.rejects(tools.execute(ambiguous, signal()), /matched 2 locations/);
+  const missing = structuredClone(action); if (missing.tool === 'apply_patch') missing.args.edits.push({ oldText: 'missing text', newText: '' });
+  await assert.rejects(tools.execute(missing, signal()), /matched 0 locations/);
+  assert.equal(decode(await fs.readFile(path.join(f.root, 'main.ps1'))).text, current.text);
+  await tools.execute(action, signal());
+  assert.deepEqual(await fs.readFile(path.join(f.root, 'main.ps1')), Buffer.concat([Buffer.from([239, 187, 191]), Buffer.from(source.replaceAll('Get-FiveCharacterName', 'Get-SixCharacterName'))]));
+  await read(tools);
+  const overlap: Action = { version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText: 'Get-SixCharacterName', newText: 'X', replaceAll: true }, { oldText: 'SixCharacter', newText: 'Y', replaceAll: true }] } };
+  await assert.rejects(tools.execute(overlap, signal()), /overlap/);
+  assert.throws(() => parseAction(JSON.stringify({ ...action, args: { ...action.args, edits: [{ oldText: 'x', newText: 'y', replaceAll: 'true' }] } })));
+});
+
+test('replace-all rejects excessive expansion and overlapping literal occurrences before writing', async t => {
+  const f = await fixture(t, Buffer.from('a'.repeat(1001))); f.mode('Full access'); const { tools } = await f.start();
+  await read(tools);
+  const replacement = (oldText: string, newText: string): Action => ({ version: 1, tool: 'apply_patch', args: { path: 'main.ps1', edits: [{ oldText, newText, replaceAll: true }] } });
+  await assert.rejects(tools.execute(replacement('a', 'b'), signal()), /too many locations/);
+  await assert.rejects(tools.execute(replacement('aa', 'b'), signal()), /overlap/);
+  await assert.rejects(tools.execute(replacement('aa', 'b'.repeat(12000)), signal()), /file size limit/);
+  assert.equal(await fs.readFile(path.join(f.root, 'main.ps1'), 'utf8'), 'a'.repeat(1001));
+});
