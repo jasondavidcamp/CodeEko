@@ -6,6 +6,11 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.43 — Selected-file commit requests
+
+- Recognize explicit requests such as “commit just the six character test for now” and “commit only this test.”
+- Verify that committing one selected file preserves unrelated staged and unstaged changes.
+
 ## 0.4.42 — EKOD naming cleanup
 
 - Use `ekod.*` for every setting, command and view, and `EKOD_*` for development environment variables.

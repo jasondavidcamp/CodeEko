@@ -33,7 +33,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Recover bounded read/hash and literal-target errors using fresh file evidence.
 - [x] Support explicit repeated-text replacements with full preflight.
 - [x] Inspect working-tree status and selected commit history, including tracked deletions and renames.
-- [x] Commit explicitly selected files when requested, preserving unrelated staged changes.
+- [x] Commit explicitly selected files when requested, including “commit just” and “commit only” requests, preserving unrelated staged and unstaged changes.
 - [x] Provide native diffs and task-scoped undo with ambiguous-reversal refusal.
 
 ### Permissions and task control

@@ -43,5 +43,5 @@ export class EditingTools {
 }
 
 export function explicitCommitRequest(text: string): boolean {
-  return /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:go ahead and\s+)?commit(?:\s+(?:it|the|these|this|my|our|all|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text.trim()) && !/\b(?:do not|don't|never|without)\s+commit(?:\s+(?:it|the|these|this|my|our|all|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text);
+  return /^(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?(?:go ahead and\s+)?commit(?:\s+(?:it|the|these|this|my|our|all|just|only|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text.trim()) && !/\b(?:do not|don't|never|without)\s+commit(?:\s+(?:it|the|these|this|my|our|all|just|only|changes|code|files|everything|locally|now|with|using)\b|[.!]?$)/i.test(text);
 }

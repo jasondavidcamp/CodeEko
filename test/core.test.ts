@@ -269,8 +269,8 @@ test('test inventory supplies source paths as well as existing suites without a 
 
 test('commit request detection rejects discussion and negation; schema rejects push and extra options', async () => {
   const { explicitCommitRequest } = await import('../src/tools/editing');
-  for (const text of ['commit it', 'commit the code with that commit message', 'please commit these changes', 'can you commit this?']) assert.ok(explicitCommitRequest(text));
-  for (const text of ['explain git commit', 'do not commit', 'commit message suggestion', 'go', 'create a function']) assert.equal(explicitCommitRequest(text), false);
+  for (const text of ['commit it', 'commit the code with that commit message', 'please commit these changes', 'can you commit this?', 'commit just the six character test for now', 'please commit only this test']) assert.ok(explicitCommitRequest(text));
+  for (const text of ['explain git commit', 'do not commit', 'commit message suggestion', 'go', 'create a function', 'do not commit just the test', 'please do not commit only this file']) assert.equal(explicitCommitRequest(text), false);
   assert.throws(() => parseAction(JSON.stringify({ version: 1, tool: 'git_commit', args: { message: 'x', paths: ['main.ps1'], push: true } })));
   assert.throws(() => parseAction(JSON.stringify({ version: 1, tool: 'git_commit', args: { message: '', paths: [] } })));
 });

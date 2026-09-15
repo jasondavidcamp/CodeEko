@@ -8,7 +8,7 @@ import { git } from '../src/repository/git';
 import { decode, encode } from '../src/repository/document';
 import { RepositoryIndex } from '../src/indexing';
 import { EditTask, EditHooks } from '../src/state/editTask';
-import { EditingTools } from '../src/tools/editing';
+import { EditingTools, explicitCommitRequest } from '../src/tools/editing';
 import { ReadOnlyTools } from '../src/tools/readOnly';
 import { Action, parseAction } from '../src/protocol/actions';
 import { authorize, ReadRequired } from '../src/policy/boundary';
@@ -458,4 +458,28 @@ test('status exposes staged and unstaged deletions and both rename paths for loc
   for (const file of ['main.ps1','other.ps1','staged.ps1']) assert.ok(committed.includes('D\t'+file),file);
   assert.ok(committed.includes('A\trenamed.ps1'));
   assert.equal((await git(f.root,['diff','--cached','--name-only'])).trim(),'Notes.txt');
+});
+
+
+test('commit just the six character test leaves two other changed files untouched', async t => {
+  const f = await fixture(t); f.mode('Full access');
+  await git(f.root, ['config', 'user.name', 'Test']); await git(f.root, ['config', 'user.email', 'test@example.invalid']);
+  const selected = 'tests/SixCharacter.Tests.ps1';
+  await fs.mkdir(path.join(f.root, 'tests'));
+  await fs.writeFile(path.join(f.root, selected), "Describe 'six characters' { }\n");
+  await git(f.root, ['add', selected]); await git(f.root, ['commit', '-m', 'Initial test']);
+  await fs.appendFile(path.join(f.root, selected), '# selected test change\n');
+  await fs.appendFile(path.join(f.root, 'main.ps1'), '# unrelated unstaged source change\n');
+  await fs.writeFile(path.join(f.root, 'other.ps1'), '# unrelated staged change\n');
+  await git(f.root, ['add', 'other.ps1']);
+  const staged = await git(f.root, ['diff', '--cached', '--', 'other.ps1']);
+  const unstaged = await git(f.root, ['diff', '--', 'main.ps1']);
+  const { task } = await f.start();
+  const tools = new EditingTools(new ReadOnlyTools(f.index, async () => ''), task, f.hooks.mode, async () => {}, undefined, explicitCommitRequest('commit just the six character test for now'));
+  await tools.execute({ version: 1, tool: 'git_commit', args: { message: 'Update six character test', paths: [selected] } }, signal());
+  assert.equal((await git(f.root, ['show', '--format=', '--name-only', 'HEAD'])).trim(), selected);
+  assert.equal(await git(f.root, ['diff', '--cached', '--', 'other.ps1']), staged);
+  assert.equal(await git(f.root, ['diff', '--', 'main.ps1']), unstaged);
+  assert.equal((await git(f.root, ['status', '--porcelain', '--', selected])).trim(), '');
+  assert.equal(f.counts().confirmations, 0);
 });
