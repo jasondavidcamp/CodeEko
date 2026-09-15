@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.46",
+  "version": "0.4.47",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -71,7 +71,7 @@
         },
         "ekod.requestTimeout": {
           "type": "number",
-          "default": 60000,
+          "default": 300000,
           "minimum": 1000,
           "maximum": 300000,
           "scope": "application"

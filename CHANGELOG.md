@@ -6,6 +6,10 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.47 — Request timeout
+
+- Default model requests to a 300-second timeout; explicitly saved values remain unchanged.
+
 ## 0.4.46 — Default endpoint compatibility
 
 - Default to User message compatibility for new and unset configurations.
