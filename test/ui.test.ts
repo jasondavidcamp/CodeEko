@@ -17,14 +17,15 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const settings: Record<string, unknown> = { endpoint: 'https://api.example.test', model: 'saved-model', requestTimeout: 1000, permissionMode: 'Full access' };
   const secrets = new Map<string, string>(); const sent: any[] = []; const errors: string[] = [];
   let receive: (message: any) => Promise<void> = async () => {};
-  let disposePanel = () => {}; let input = 'test-key'; let fallbackPrompt: any;
+  const disposeListeners: (() => void)[] = []; let input = 'test-key'; let fallbackPrompt: any;
   const disposable = { dispose() {} };
+  let viewProvider: any; let viewResolved = false;
   let provider: any; let approveUndo = false; const nativeDiffs: { before: string; after: string }[] = [];
-  const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, reveal() {}, onDidDispose: (fn: () => void) => { disposePanel = fn; return disposable; }, dispose: () => disposePanel() };
+  const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, onDidDispose: (fn: () => void) => { disposeListeners.push(fn); return disposable; }, dispose: () => disposeListeners.forEach(fn => fn()) };
   const mock = {
-    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
+    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'llmRuntime.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
     workspace: { isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
-    window: { showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], createWebviewPanel: () => panel },
+    window: { showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'llmRuntime.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
     Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
@@ -41,6 +42,7 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   global.fetch = async () => new Response('failure', { status: 503 }); input = 'manual-model';
   await commands.get('llmRuntime.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
   await commands.get('llmRuntime.open')!(); assert.equal(errors.length, 0);
+  const originalHtml = panel.webview.html; await commands.get('llmRuntime.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
   assert.ok(panel.webview.html.includes("default-src 'none'")); assert.ok(panel.webview.html.includes('textContent'));
   const script = /<script nonce="[^"]+">([\s\S]+)<\/script>/.exec(panel.webview.html)![1];
   assert.doesNotThrow(() => new vm.Script(script)); // Catches template-string/newline quoting regressions.

@@ -2,7 +2,7 @@
   "name": "llm-coding-agent-runtime",
   "displayName": "LLM Coding Agent Runtime",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "publisher": "internal-pilot",
   "private": true,
   "repository": {
@@ -11,7 +11,7 @@
   },
   "license": "UNLICENSED",
   "engines": {
-    "vscode": "^1.95.0"
+    "vscode": "^1.106.0"
   },
   "categories": [
     "Other"
@@ -27,7 +27,8 @@
     "virtualWorkspaces": false
   },
   "activationEvents": [
-    "onCommand:llmRuntime.open"
+    "onCommand:llmRuntime.open",
+    "onView:llmRuntime.conversation"
   ],
   "contributes": {
     "commands": [
@@ -106,6 +107,25 @@
           "description": "Review and Custom are read-only. Workspace and Full access allow guarded repository edits. Destructive operations always require confirmation."
         }
       }
+    },
+    "viewsContainers": {
+      "secondarySidebar": [
+        {
+          "id": "llmRuntime",
+          "title": "LLM Coding Agent Runtime",
+          "icon": "media/conversation.svg"
+        }
+      ]
+    },
+    "views": {
+      "llmRuntime": [
+        {
+          "type": "webview",
+          "id": "llmRuntime.conversation",
+          "name": "Conversation",
+          "contextualTitle": "LLM Coding Agent Runtime"
+        }
+      ]
     }
   },
   "scripts": {

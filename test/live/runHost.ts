@@ -6,6 +6,7 @@ import { git } from '../../src/repository/git';
 import { downloadAndUnzipVSCode } from '@vscode/test-electron';
 
 async function main(): Promise<void> {
+  const uiOnly = process.argv.includes('--ui-only');
   const executable = process.env.LLM_RUNTIME_VSCODE_EXECUTABLE ?? await downloadAndUnzipVSCode({
     version: process.env.LLM_RUNTIME_VSCODE_VERSION ?? 'stable',
     cachePath: path.join(os.tmpdir(), 'llm-runtime-vscode-cache')
@@ -18,7 +19,7 @@ async function main(): Promise<void> {
   await fs.mkdir(path.join(userData, 'User'), { recursive: true });
   await fs.writeFile(path.join(userData, 'User/settings.json'), JSON.stringify({ 'security.workspace.trust.enabled': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'update.mode': 'none' }));
   const report = path.join(temp, 'result.json');
-  const env = { ...process.env, LLM_RUNTIME_HOST_REPORT: report }; delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
+  const env = { ...process.env, LLM_RUNTIME_HOST_REPORT: report, LLM_RUNTIME_HOST_UI_ONLY: uiOnly ? '1' : '0' }; delete (env as NodeJS.ProcessEnv).ELECTRON_RUN_AS_NODE;
   try {
     await new Promise<void>((resolve, reject) => {
       const child = spawn(executable, [
@@ -36,7 +37,8 @@ async function main(): Promise<void> {
       child.on('exit', code => { clearTimeout(timeout); code === 0 ? resolve() : reject(new Error(`VS Code extension tests exited with code ${code}.`)); });
     });
     const result = JSON.parse(await fs.readFile(report, 'utf8'));
-    if (!result.extensionActivation || !result.dirtyBufferPreserved || !result.live?.repositoryUnchanged || !result.editing?.preexistingWorkPreserved || !result.editing?.undoRestoredBaseline || !result.nativeDiffsOpened || !result.validation?.repaired || !result.validation?.readCorrection) throw new Error('Extension host did not report completed checks.');
+    if (!result.sidebarInitializedAndRefocused || !result.extensionActivation || !result.dirtyBufferPreserved) throw new Error('Extension host did not report completed UI checks.');
+    if (!uiOnly && (!result.live?.repositoryUnchanged || !result.editing?.preexistingWorkPreserved || !result.editing?.undoRestoredBaseline || !result.nativeDiffsOpened || !result.validation?.repaired || !result.validation?.readCorrection)) throw new Error('Extension host did not report completed live checks.');
     console.log('VERIFIED EXTENSION HOST RESULT: ' + JSON.stringify(result, null, 2));
   } finally {
     // Remove only the isolated profile and workspace created by this invocation.

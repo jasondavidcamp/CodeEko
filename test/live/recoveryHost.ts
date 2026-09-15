@@ -52,11 +52,7 @@ export async function run(): Promise<void> {
     assert.equal(interrupted.status, 'interrupted'); assert.equal(interrupted.undoTaskId, seeded.id);
     assert.equal(store.threads[1].messages[0].content, 'Keep this independent history.');
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 2 }\n# developer note\n');
-    await vscode.commands.executeCommand('llmRuntime.open');
-    const deadline = Date.now() + 5000;
-    const panels = () => vscode.window.tabGroups.all.flatMap(group => group.tabs).filter(tab => tab.input instanceof vscode.TabInputWebview && tab.label === 'LLM Coding Agent Runtime');
-    while (!panels().length && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
-    assert.equal(panels().length, 1);
+    assert.equal(await vscode.commands.executeCommand('llmRuntime.open'), true, 'Sidebar must restore after restart.');
     // Opening the real panel must not replay the interrupted mutation or undo automatically.
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 2 }\n# developer note\n');
     const task = await EditTask.load(index, storage, seeded.id, hooks);
@@ -69,7 +65,6 @@ export async function run(): Promise<void> {
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 1 }\n# developer note\n');
     assert.equal(await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']), seeded.staged);
     await assert.rejects(fs.stat(path.join(root, 'replayed.txt')));
-    await vscode.window.tabGroups.close(panels());
-    await fs.writeFile(process.env.LLM_RUNTIME_RECOVERY_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, threadsRecovered: true, interruptedStatus: true, appliedEditPreserved: true, validationInterrupted: true, noFalseValidationPass: true, noAutomaticReplay: true, nativePanelReopened: true, undoAfterRestart: true, developerWorkPreserved: true }));
+    await fs.writeFile(process.env.LLM_RUNTIME_RECOVERY_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, threadsRecovered: true, interruptedStatus: true, appliedEditPreserved: true, validationInterrupted: true, noFalseValidationPass: true, noAutomaticReplay: true, nativeSidebarReopened: true, undoAfterRestart: true, developerWorkPreserved: true }));
   } finally { review.dispose(); }
 }

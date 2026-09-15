@@ -16,7 +16,6 @@ import { TaskValidation } from '../validation/task';
 import { createPowerShellRunner } from '../validation/powershell';
 import * as path from 'node:path';
 const active = new Map<string, AbortController>();
-const panels = new Map<string, vscode.WebviewPanel>();
 const config = () => vscode.workspace.getConfiguration('llmRuntime');
 const mode = () => config().get<string>('permissionMode', 'Full access');
 const keyName = (endpoint: string) => 'apiKey.' + createHash('sha256').update(apiBase(endpoint)).digest('hex');
@@ -43,7 +42,7 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
 }
 export function activate(context: vscode.ExtensionContext): void {
   const review = new NativeReview(); context.subscriptions.push(review);
-  const command = (name: string, fn: () => Promise<void>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
+  const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
   command('llmRuntime.setKey', async () => {
     const endpoint = config().get<string>('endpoint', '');
     if (!endpoint) throw new Error('Configure an HTTPS API endpoint first.');
@@ -52,24 +51,43 @@ export function activate(context: vscode.ExtensionContext): void {
     if (key?.trim()) { await context.secrets.store(name, key.trim()); vscode.window.showInformationMessage('API key stored securely for this endpoint.'); }
   });
   command('llmRuntime.selectModel', () => selectModel(context));
-  command('llmRuntime.open', () => open(context, review));
+  let initialization: Promise<void> | undefined;
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('llmRuntime.conversation', {
+    resolveWebviewView: view => {
+      context.subscriptions.push(view.onDidDispose(() => { initialization = undefined; }));
+      initialization = open(context, review, view);
+      return initialization;
+    }
+  }, { webviewOptions: { retainContextWhenHidden: true } }));
+  command('llmRuntime.open', async () => {
+    await vscode.commands.executeCommand('llmRuntime.conversation.focus');
+    // View resolution crosses the workbench/extension-host boundary and can arrive
+    // after the focus command has returned.
+    const deadline = Date.now() + 10000;
+    while (!initialization && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+    if (!initialization) throw new Error('The conversation sidebar did not open. Try LLM Runtime: Open Conversation again.');
+    await initialization;
+    return true;
+  });
 }
-async function open(context: vscode.ExtensionContext, review: NativeReview): Promise<void> {
+async function open(context: vscode.ExtensionContext, review: NativeReview, panel: vscode.WebviewView): Promise<void> {
+  let disposed = false;
+  const earlyDispose = panel.onDidDispose(() => { disposed = true; });
+  context.subscriptions.push(earlyDispose);
   if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening repository tools.');
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.some(f => f.uri.scheme !== 'file')) throw new Error('Only local filesystem workspaces are supported.');
   const root = await resolveRepository(folders.map(f => f.uri.fsPath), choices => Promise.resolve(vscode.window.showQuickPick(choices, { title: 'Select the repository boundary' })));
-  const existing = panels.get(root); if (existing) { existing.reveal(); return; }
   const storage = repositoryStorage(context.globalStorageUri.fsPath, root);
   if (contained(root, storage)) throw new Error('Extension storage must be outside the repository. Open a narrower repository folder.');
   const release = await acquireRepositoryLease(root);
   const store = new ThreadStore(storage);
   try { await store.load(); } catch (error) { await release(); throw error; }
+  if (disposed) { await release(); return; }
   let thread = store.threads.at(-1) ?? store.create('New conversation');
   const index = new RepositoryIndex(root, storage);
-  const panel = vscode.window.createWebviewPanel('llmRuntime', 'LLM Coding Agent Runtime', vscode.ViewColumn.Beside, { enableScripts: true, localResourceRoots: [], retainContextWhenHidden: true });
-  panels.set(root, panel); panel.webview.html = conversationHtml();
-  let busy = false; let disposed = false;
+  panel.webview.options = { enableScripts: true, localResourceRoots: [] };
+  let busy = false;
   const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, '**/*'));
   const invalidate = (uri: vscode.Uri) => index.invalidate(path.relative(root, uri.fsPath).replaceAll('\\', '/'));
   const invalidations = [watcher.onDidCreate(invalidate), watcher.onDidChange(invalidate), watcher.onDidDelete(invalidate)];
@@ -174,7 +192,8 @@ async function open(context: vscode.ExtensionContext, review: NativeReview): Pro
     finally { busy = false; update(); if (disposed) await release(); }
   });
   const settings = vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('llmRuntime')) update(); });
-  panel.onDidDispose(() => { disposed = true; active.get(root)?.abort(); panels.delete(root); listener.dispose(); settings.dispose(); watcher.dispose(); invalidations.forEach(d => d.dispose()); if (!busy) void release(); });
-  context.subscriptions.push(panel);
+  context.subscriptions.push(panel.onDidDispose(() => { disposed = true; active.get(root)?.abort(); listener.dispose(); settings.dispose(); watcher.dispose(); invalidations.forEach(d => d.dispose()); if (!busy) void release(); }));
+  // Install the listener before loading HTML so the initial ready message cannot race it.
+  panel.webview.html = conversationHtml();
 }
 export function deactivate(): void { for (const controller of active.values()) controller.abort(); }
