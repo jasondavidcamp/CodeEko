@@ -37,6 +37,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Inspect working-tree status and selected commit history, including tracked deletions and renames.
 - [x] Commit explicitly selected files when requested, including “commit just” and “commit only” requests, preserving unrelated staged and unstaged changes.
 - [x] Provide native diffs and task-scoped undo with ambiguous-reversal refusal.
+- [x] Route direct conversational undo requests to guarded local undo, preserving unrelated pending work and reporting missing conversation task history without a model call.
 
 ### Permissions and task control
 
@@ -147,6 +148,8 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 - Marketplace distribution until release quality is established.
 
 ## Evidence and limits
+
+Conversational undo verification (2026-09-16): chat-handler tests submit the exact request "undo the pending changes", restore a synthetic task edit, preserve an unrelated staged file and the Git index, enforce Review denial and report missing undo history with zero provider calls. Request recognition, existing undo conflict/cancellation/recovery tests and protocol regressions passed (39 distinct targeted tests). The user's pending repository changes were not discarded as part of this verification.
 
 The initial public prerelease passed 118 tests with one unavailable Pester 4 check skipped, plus an isolated native VS Code 1.137.0 sidebar/settings check. Live model tests used synthetic PowerShell fixtures. Six repeated launches against one isolated profile passed but did not reproduce the intermittent startup failure. These results do not close the outstanding installed-profile, representative-repository or startup checks above.
 

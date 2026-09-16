@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Handle direct chat undo requests through guarded task undo without a model call; preserve unrelated pending work and explain missing task history in chat.
 - Display the settings sidebar brand as CodeEko instead of forcing uppercase.
 
 - Build and install from source with the current-user installer.

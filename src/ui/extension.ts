@@ -2,6 +2,7 @@ import { performanceDiagnostics } from '../state/performanceDiagnostics';
 import { latestRejectedLog } from '../state/rejectedLogs';
 import * as fs from 'node:fs/promises';
 import { SettingsPage } from './settings';
+import { explicitUndoRequest } from './undoRequest';
 import { conversationHtml } from './conversation';
 import * as vscode from 'vscode';
 import { createHash, randomUUID } from 'node:crypto';
@@ -231,15 +232,24 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
       } else if (message.type === 'permissions') {
         if (!['Review', 'Workspace', 'Full access'].includes(message.mode)) throw new Error('Unsupported permission mode.');
         await config().update('permissionMode', message.mode, vscode.ConfigurationTarget.Global);
-      } else if (message.type === 'undo' && thread.undoTaskId) {
+      } else if (message.type === 'undo' || (message.type === 'send' && typeof message.text === 'string' && explicitUndoRequest(message.text))) {
+        if (thread.archived && message.newConversation !== true) throw new Error('Restore this archived chat before continuing it.');
+        if (active.has(root)) throw new Error('A task is already running for this repository.');
+        if (message.newConversation === true && thread.messages.length) thread = store.create('New conversation');
+        if (message.type === 'send') {
+          if (!thread.messages.length) thread.name = message.text.trim().slice(0, 70);
+          thread.messages.push({ role: 'user', content: message.text });
+        }
         const controller = new AbortController(); active.set(root, controller); update();
         let undoTask: EditTask | undefined;
         try {
+          await store.save();
+          if (!thread.undoTaskId) throw new TaskConflict('This conversation has no recorded edit task to undo. Open the conversation that made the changes and ask again. Other pending repository changes were left untouched.');
           undoTask = await EditTask.load(index, storage, thread.undoTaskId, hooks);
           await undoTask.undo(controller.signal);
           if (thread.taskId === thread.undoTaskId) delete thread.taskId;
           delete thread.undoTaskId; thread.status = 'idle';
-          thread.messages.push({ role: 'assistant', content: undoTask.undoSummary() });
+          thread.messages.push({ role: 'assistant', content: undoTask.undoSummary() + '\nRestored only this conversation\'s latest recorded edit task. Unrelated pending changes were left untouched.' });
         } catch (error) {
           thread.status = controller.signal.aborted ? 'cancelled' : 'blocked';
           thread.messages.push({ role: 'assistant', content: `${controller.signal.aborted ? 'Undo cancelled.' : error instanceof Error ? error.message : 'Undo failed.'}\n${undoTask?.undoSummary() ?? 'No undo was performed.'}` });

@@ -1,6 +1,8 @@
 # Task-scoped undo
 
-Task-scoped undo remains internal and is not offered in the chat menu; use native Source Control for reviewing changes. Internal undo retains native previews and preflight checks. Workspace requires an in-pane confirmation, while Full access skips it. Review and legacy Custom settings cannot undo.
+In the conversation that made the edits, type **undo the pending changes**, **undo your changes**, or **undo the last task**. CodeEko handles these direct requests locally without a model call. Undo restores only that conversation's latest recorded edit task, not every pending Git change. If no task is available, chat explains how to find the editing conversation and leaves the repository untouched. Quoted instructions, questions about undo, file-specific requests and compound requests do not trigger this local action.
+
+Undo retains native previews and preflight checks. Workspace requires an in-pane confirmation, while Full access skips it. Review and legacy Custom settings cannot undo. Use native Source Control for reviewing changes.
 
 Undo restores the recorded starting bytes, including preexisting developer edits and original encoding/BOM/newlines. It removes task-created files and restores task-deleted files. A move is reversed through its recorded source and destination changes. It never changes the Git index or creates a commit.
 
