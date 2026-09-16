@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Handle direct chat undo requests through guarded task undo without a model call; preserve unrelated pending work and explain missing task history in chat.
+- Retry transient repository-lease contention for up to five seconds during reload; cancel pending acquisition when the pane closes and retain sanitized OS error codes in startup diagnostics.
 - Display the settings sidebar brand as CodeEko instead of forcing uppercase.
 - Clarify standalone action encoding and show a multiline PowerShell file-creation example. Detect over-escaped responses with a specific bounded-repair hint while retaining strict JSON and action validation.
 - Build and install from source with the current-user installer.

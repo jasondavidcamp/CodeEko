@@ -81,6 +81,8 @@ For repeated startup verification, run `npm run build` then `node dist/test/live
 Git status includes eligible tracked deletions, including already-staged deletions. Renames are shown as separate old-path deletions and new paths so both can be selected for a commit. Ignored and excluded paths remain omitted.
 ## Settings page
 
+During startup, CodeEko waits up to five seconds for an occupied repository lease to become available, allowing a previous extension host to finish shutting down during reload. It never takes a lease from an active owner. If the error persists, close other CodeEko panels for the same repository and reload the window. Startup diagnostics record bounded `lease.retry` events and sanitized OS error codes to distinguish contention from other local lease failures.
+
 Click the chat header settings gear to open **CodeEko Settings** in an editor tab. Connection, Editor, Permissions, Validation and Diagnostics sections group existing settings with descriptions. Changes save to VS Code user settings automatically; validation errors appear in the page. Changes are blocked while a task is running. API-key setup uses secure input and SecretStorage. The in-chat model and permission pickers remain available. You can also run **CodeEko: Open Settings** from the Command Palette.
 
 Automatic change-preview tabs are off by default. Enable **Editor → Automatically open change previews** in CodeEko Settings (``codeeko.autoOpenDiffs``) to open proposed-change and task-result diffs automatically. Explicit review still opens native diffs; existing editor tabs are not closed or rearranged.

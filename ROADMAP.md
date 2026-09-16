@@ -70,6 +70,7 @@ Full access currently covers supported repository tools and fixed validation com
 ### Diagnostics and distribution
 
 - [x] Persist bounded startup lifecycle diagnostics with webview handshake and bootstrap events.
+- [x] Retry transient repository-lease contention during reload with a five-second limit and pane-disposal cancellation; test exclusion, reacquisition and Windows owner-process termination.
 - [x] Export sanitized startup diagnostics independently of a functioning chat pane.
 - [x] Offer opt-in bounded rejected-response capture and offline schema replay.
 - [x] Open the latest rejected-response capture directly from Diagnostics settings, with guidance when no logs exist.
@@ -80,7 +81,7 @@ Full access currently covers supported repository tools and fixed validation com
 
 ## Next priorities
 
-1. **Startup reliability.** Reproduce and diagnose the intermittent chat initialization failure on an affected profile. Some users need a second VS Code restart; the cause remains unresolved.
+1. **Startup reliability.** Verify the bounded lease-retry fix across repeated full-application restarts and additional profiles. An affected installed profile failed at lease acquisition during reload; broader startup failure causes remain unconfirmed.
 2. **End-to-end task reliability.** Exercise conversational corrections, test generation, cancellation, resume and undo across representative repositories.
 3. **Validation compatibility.** Broaden test-suite compatibility and verify Pester 4 on a configuration where it is available.
 4. **Performance.** Reduce unnecessary repository preparation and API context for ordinary conversation, reuse the persisted index safely, and improve retrieval relevance. Measure local preparation, model calls, context size and end-to-end latency before and after each change.
@@ -152,6 +153,8 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 ## Evidence and limits
 
 Conversational undo verification (2026-09-16): chat-handler tests submit the exact request "undo the pending changes", restore a synthetic task edit, preserve an unrelated staged file and the Git index, enforce Review denial and report missing undo history with zero provider calls. Request recognition, existing undo conflict/cancellation/recovery tests and protocol regressions passed (39 distinct targeted tests). The user's pending repository changes were not discarded as part of this verification.
+
+Repository-lease recovery verification (2026-09-16): 150 tests passed, with unavailable Pester 4 coverage skipped. Regression tests cover contention timeout, cancellation, idempotent release, reacquisition and recovery after a separate Windows owner process terminates. Three installed-profile window reloads restored chat and acknowledged rendering. The final reload reproduced EADDRINUSE; bounded retry acquired the lease after 3.5 seconds and chat loaded without another reload. Full-application restarts and other workstation configurations remain open; these checks do not establish that every startup failure is resolved.
 
 The initial public prerelease passed 118 tests with one unavailable Pester 4 check skipped, plus an isolated native VS Code 1.137.0 sidebar/settings check. Live model tests used synthetic PowerShell fixtures. Six repeated launches against one isolated profile passed but did not reproduce the intermittent startup failure. These results do not close the outstanding installed-profile, representative-repository or startup checks above.
 

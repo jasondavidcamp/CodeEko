@@ -128,7 +128,8 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
 }
 async function open(context: vscode.ExtensionContext, review: NativeReview, panel: vscode.WebviewView, diagnostics: StartupDiagnostics, viewId: string): Promise<void> {
   let disposed = false;
-  const earlyDispose = panel.onDidDispose(() => { disposed = true; });
+  const opening = new AbortController();
+  const earlyDispose = panel.onDidDispose(() => { disposed = true; opening.abort(); });
   context.subscriptions.push(earlyDispose);
   if (!vscode.workspace.isTrusted) throw new Error('Trust the workspace before opening repository tools.');
   const folders = vscode.workspace.workspaceFolders ?? [];
@@ -136,7 +137,10 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   const root = await diagnostics.stage('repository', viewId, () => resolveRepository(folders.map(f => f.uri.fsPath), async choices => { panel.webview.options = { enableScripts: true, localResourceRoots: [] }; const selected = paneChoice(panel, 'Choose the repository for this conversation', choices); panel.webview.html = conversationHtml(); const index = await selected; return index === undefined ? undefined : choices[index]; }));
   const storage = repositoryStorage(context.globalStorageUri.fsPath, root);
   if (contained(root, storage)) throw new Error('Extension storage must be outside the repository. Open a narrower repository folder.');
-  const releaseLease = await diagnostics.stage('lease.acquire', viewId, () => acquireRepositoryLease(root));
+  const releaseLease = await diagnostics.stage('lease.acquire', viewId, () => acquireRepositoryLease(root, {
+    signal: opening.signal,
+    onRetry: code => diagnostics.log('lease.retry', { view: viewId, code })
+  }));
   let released = false;
   const release = async () => { if (released) return; released = true; await diagnostics.stage('lease.release', viewId, releaseLease); };
   const store = new ThreadStore(storage);
