@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Display the settings sidebar brand as CodeEko instead of forcing uppercase.
+
 - Build and install from source with the current-user installer.
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
