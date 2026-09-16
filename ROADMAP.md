@@ -2,7 +2,7 @@
 
 ## Product direction
 
-EKOD is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows.
+EKOD is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows. C# and TypeScript are planned next; language-specific indexing and validation for them are not yet implemented. A future Visual Studio extension is planned alongside VS Code, using shared runtime capabilities behind editor-specific adapters.
 
 README.md introduces the product and links to setup, usage and development guides. AGENTS.md defines contributor working boundaries. This roadmap records implemented capabilities and remaining work. Checked items have automated or recorded live evidence; they do not imply every workstation configuration has been verified.
 
@@ -80,8 +80,39 @@ Full access currently covers supported repository tools and fixed validation com
 1. **Startup reliability.** Reproduce and diagnose the intermittent chat initialization failure on an affected profile. Some users need a second VS Code restart; the cause remains unresolved.
 2. **End-to-end task reliability.** Exercise conversational corrections, test generation, cancellation, resume and undo across representative repositories.
 3. **Validation compatibility.** Broaden test-suite compatibility and verify Pester 4 on a configuration where it is available.
-4. **Performance.** Measure model calls, context growth and test-generation latency over repeated runs before tuning limits.
+4. **Performance.** Reduce unnecessary repository preparation and API context for ordinary conversation, reuse the persisted index safely, and improve retrieval relevance. Measure local preparation, model calls, context size and end-to-end latency before and after each change.
 5. **Distribution quality.** Add repeatable release automation and expand platform/configuration checks before a stable release.
+
+### Planned performance improvements
+
+- [ ] Defer repository indexing and task-baseline capture for greetings and ordinary conversation until repository tools are needed. Verify that a fresh-chat greeting performs no repository preparation and that a later code request initializes the required state before tool execution.
+- [ ] Reduce coding instructions and repository-specific context for non-code questions while preserving relevant conversation history and permission boundaries. Compare request size and response quality against the current behavior; handle ambiguous follow-ups without losing task intent.
+- [ ] Load the persisted index on startup and revalidate it against the current repository, changed/deleted files and ignore rules before reuse. Treat cached data as untrusted, recover from corrupt or incompatible caches, and verify that stale entries cannot authorize file access. Measure cold and warm startup cost.
+- [ ] Improve lexical retrieval relevance and bounded context selection before considering embeddings. Use representative PowerShell questions and test-generation tasks to measure relevant-file retrieval, context size, model-call count and end-to-end latency.
+- [ ] Add local preparation timings alongside API timings so performance reports distinguish indexing, baseline capture and tool execution from endpoint wait time. Compare repeated fresh-chat, existing-chat and repository-task runs without recording source text or credentials.
+
+### Planned C# and TypeScript support
+
+The current PowerShell index extracts lexical symbols; it does not provide compiler-level type or reference resolution. Share retrieval, task continuity, editing safeguards and the agent loop across languages, while adding language-specific project discovery, symbol extraction, semantic resolution and validation incrementally.
+
+- [ ] Define a shared language-support interface for project discovery, symbols, imports/references and validation capabilities. Support mixed-language repositories and report unavailable tooling without claiming semantic understanding from text matching alone.
+- [ ] Add C# repository understanding: discover solutions and projects, index namespaces, types and members, and resolve project references. Evaluate Roslyn or an available language service for type/reference resolution before introducing a separate indexing service.
+- [ ] Add TypeScript repository understanding: discover package boundaries and tsconfig files, index declarations and imports/exports, and resolve module references. Evaluate the TypeScript compiler or language service for type/reference resolution, including TSX and monorepos.
+- [ ] Add C# editing and validation using the repository's SDK, build configuration and existing unit-test framework. Detect missing tooling, select relevant tests, preserve unrelated failures, and apply execution permissions to build/test steps and their hooks.
+- [ ] Add TypeScript editing and validation using the repository's package manager, lockfile, type-checking, lint and unit-test configuration. Inspect scripts and hooks before execution; do not assume dependency installation or integration-test execution is authorized.
+- [ ] Verify C# and TypeScript support on representative single-project, multi-project and mixed-language repositories. Measure retrieval relevance, context size and task latency, and test cross-file changes, cancellation, continuity and preexisting-work preservation before describing either language as supported.
+
+### Planned Visual Studio extension and shared runtime boundaries
+
+Support Visual Studio as a future extension host alongside VS Code. Keep the current VS Code experience working while defining reusable boundaries; the host/runtime integration approach and supported Visual Studio versions require investigation before implementation.
+
+- [ ] Separate editor-independent model transport, action protocol, agent loop, permission policy, retrieval, task continuity, Git operations and validation orchestration from editor SDK dependencies. Define explicit interfaces and shared contract tests before extracting or duplicating components.
+- [ ] Define host adapters for workspace/solution discovery, document snapshots and unsaved buffers, applying edits, native diffs/navigation, conversation interactions, settings, secure credential storage, diagnostics and lifecycle/cancellation. Keep editor UI and SDK objects outside shared runtime contracts.
+- [ ] Evaluate how Visual Studio will host or communicate with the existing TypeScript runtime, including an owned local worker with a versioned protocol versus other integration options. Record packaging, runtime dependencies, process ownership, startup cost and deployment constraints before selecting an approach; do not assume TypeScript code can run directly in either host.
+- [ ] Define language-service capability boundaries so C# and TypeScript analysis can use host-provided services or standalone tooling without coupling the agent loop to one editor. Report capability differences explicitly.
+- [ ] Specify repository identity, storage/schema compatibility and exclusive task ownership across both hosts. Prevent concurrent conflicting edits when VS Code and Visual Studio open the same repository; define whether conversation history is shared and how migrations preserve it. Do not assume credential stores are interchangeable.
+- [ ] Build a Visual Studio extension incrementally: connection/settings and chat first, then repository inspection, editing and validation. Keep questions and approvals in its conversation pane and use native editor review surfaces where appropriate.
+- [ ] Verify shared behavior and host-specific integration separately, covering unsaved-document preservation, permissions, cancellation, interrupted tasks, startup, installation/update and representative solutions. Document supported Visual Studio versions and installation requirements before release.
 
 ## Remaining acceptance checks
 
@@ -94,7 +125,9 @@ Full access currently covers supported repository tools and fixed validation com
 - [ ] Validate certificate trust, proxies, timeouts, API failures and model-list fallback across configurations.
 - [ ] Verify local commits under additional repository configurations and interruption scenarios.
 - [ ] Measure repeated live test-generation performance and duplicate-suite avoidance.
-- [ ] Improve durable task intent and validation context across long conversations.
+- [ ] Persist a structured task summary that retains the original objective, accepted constraints, decisions, completed work, validation evidence and unresolved issues across runs and restarts.
+- [ ] Add bounded context compaction so older messages can leave the context window without losing task intent. Carry the durable summary into subsequent runs, incorporate user corrections, and distinguish prior evidence from current repository state; summaries must not replace fresh reads or permission checks.
+- [ ] Test continuity beyond the 20-message history window, across context/action-budget stops and after restart. Verify that short follow-ups resume the intended task, changed requirements supersede stale decisions, and interrupted work is not replayed automatically.
 - [x] Add bounded session request-performance diagnostics with timing, format-repair markers, timeouts and metadata-only export.
 - [x] Add default-on SSE response streaming, in-pane receiving progress and first-content diagnostics with complete-action validation.
 - [ ] Expand structured local diagnostics without recording credentials.
@@ -106,7 +139,7 @@ Full access currently covers supported repository tools and fixed validation com
 - Git push and autonomous commits without a user request.
 - Concurrent tasks against one repository and multi-repository edits.
 - Integration tests or other environment-changing validation.
-- Additional programming languages.
+- Programming languages beyond PowerShell and the planned C# and TypeScript support.
 - Repository instruction-file support.
 - Embeddings until measured retrieval failures justify them.
 - Detailed model-request inspection and centralized policy management.
