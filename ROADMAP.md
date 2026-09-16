@@ -15,6 +15,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Discover models and support a configured fallback.
 - [x] Default to User message compatibility for endpoints that do not support system instructions or JSON mode.
 - [x] Retain original task context through empty-response retries and format correction.
+- [x] Recover recognized provider malformed-function-call rejections with bounded plain-JSON retries; preserve finish reasons without executing rejected responses.
 - [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
 - [x] Rename, archive and restore conversations from the chat pane.
 - [x] Keep conversation questions, permission choices and model selection in the pane.

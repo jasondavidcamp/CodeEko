@@ -16,7 +16,7 @@ const requestSchema = z.object({
   model: model.optional(), promptCharacters: count.optional(), messageCount: count.optional(), maxOutputTokens: count.optional(),
   firstContentMs: count.optional(), contentChunks: count.optional(), streamed: z.boolean().optional(), streamingRequested: z.boolean().optional(),
   elapsedMs: count.optional(), headersMs: count.optional(), status: count.optional(), usage: usageSchema.optional(), rateLimit: rateSchema.optional(),
-  finishReason: z.enum(['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'other']).optional()
+  finishReason: z.enum(['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'MALFORMED_FUNCTION_CALL', 'function_call_filter: MALFORMED_FUNCTION_CALL', 'other']).optional()
 });
 const phases = ['index', 'baseline', 'history', 'inventory', 'tool', 'validation', 'completion-check', 'finalize'] as const;
 const toolNames = ['list_files', 'read_file', 'read_files', 'search_text', 'find_symbol', 'git_status', 'git_diff_summary', 'git_show_commit', 'apply_patch', 'create_file', 'delete_file', 'move_file', 'open_diff', 'run_validation', 'git_commit', 'ask_user'] as const;
@@ -140,7 +140,7 @@ export function responseMetadata(data: any): RequestMetadata {
     if (count.safeParse(data?.usage?.[source]).success) usage[target] = data.usage[source];
   }
   const reason = Array.isArray(data?.choices) ? data.choices.find((choice: any) => choice?.index === undefined || choice.index === 0)?.finish_reason : undefined;
-  return { ...(Object.keys(usage).length ? { usage } : {}), ...(typeof reason === 'string' ? { finishReason: ['stop', 'length', 'content_filter', 'tool_calls', 'function_call'].includes(reason) ? reason as RequestTiming['finishReason'] : 'other' } : {}) };
+  return { ...(Object.keys(usage).length ? { usage } : {}), ...(typeof reason === 'string' ? { finishReason: ['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'MALFORMED_FUNCTION_CALL', 'function_call_filter: MALFORMED_FUNCTION_CALL'].includes(reason) ? reason as RequestTiming['finishReason'] : 'other' } : {}) };
 }
 export function requestMetadata(modelId: string, key: string, messages: { content: string }[]): RequestMetadata {
   return { ...(model.safeParse(modelId).success && (!key || !modelId.includes(key)) ? { model: modelId } : {}), promptCharacters: messages.reduce((n, m) => n + m.content.length, 0), messageCount: messages.length, maxOutputTokens: 4096 };

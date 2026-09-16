@@ -104,6 +104,8 @@ API timings include network and server time; they cannot separate proxy queuing 
 
 ## Streaming responses
 
+If the provider rejects a response with `MALFORMED_FUNCTION_CALL`, CodeEko retries up to twice per unresolved provider-rejection sequence with the original task context and an explicit plain-JSON instruction. A validated action resets that sequence; provider retries do not consume the separate JSON-format/empty-response budget. Every request still counts toward the overall task limit. Rejected responses never execute tools. Performance reports preserve the recognized provider finish reason; unknown values remain `other`. Truncated, filtered and otherwise unsupported responses remain blocked with an explanation.
+
 **Settings > Connection > Stream model responses** is enabled by default. CodeEko shows receiving progress when the first content arrives, then validates the complete action before running tools. Turn it off if your endpoint rejects streaming. SSE is recognized even when the response content-type header is incorrect; ordinary JSON responses are also accepted. No automatic retry switches request modes. The request timeout covers the entire response, including all chunks.
 
 Request performance diagnostics includes first-content timing, content-chunk count, whether streaming was requested and whether SSE was received. These timings indicate when content arrives, not when the model started computing.

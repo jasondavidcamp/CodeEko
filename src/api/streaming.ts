@@ -1,4 +1,5 @@
 import { responseMetadata, RequestMetadata } from '../state/performanceDiagnostics';
+import { checkFinishReason } from './finish';
 /** Decode OpenAI-compatible JSON or SSE without trusting the Content-Type header. */
 export class CompletionDecoder {
   private mode: 'unknown' | 'json' | 'sse' = 'unknown';
@@ -64,7 +65,7 @@ export class CompletionDecoder {
         this.text += content; this.onContent();
       } else if (content != null && typeof content !== 'string') throw new Error('Endpoint returned malformed streaming content.');
       if (choice?.finish_reason != null) {
-        if (choice.finish_reason !== 'stop') throw new Error('Endpoint stream did not finish normally.');
+        checkFinishReason(choice.finish_reason);
         this.finished = true;
       }
     }

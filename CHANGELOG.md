@@ -9,6 +9,17 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.54 — Independent recovery budgets
+
+- Keep provider-rejection recovery separate from empty-response and JSON-format retries. Successfully validated actions reset the provider-rejection sequence; all calls still count toward the task limit.
+- Cover recovered provider failures followed by an empty response, and alternating failures without progress.
+
+## 0.4.53 — Provider function-call recovery
+
+- Clarify that actions are JSON message text, not native function calls.
+- Recover provider malformed-function-call rejections with at most two context-preserving retries; never execute rejected content.
+- Preserve recognized provider finish reasons in diagnostics and explain truncated or filtered responses in chat.
+
 ## 0.4.52 — CodeEko identity
 
 - Rename the extension, commands, settings, scripts and repository to CodeEko.

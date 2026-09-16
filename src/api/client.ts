@@ -1,4 +1,5 @@
 import { CompletionDecoder } from './streaming';
+import { checkFinishReason } from './finish';
 import { performanceDiagnostics, requestMetadata, responseMetadata, rateMetadata, RequestMetadata, RequestTiming } from '../state/performanceDiagnostics';
 export interface Message { role: 'system' | 'user' | 'assistant'; content: string }
 export function apiBase(endpoint: string): string {
@@ -63,6 +64,7 @@ export class GeminiClient {
         await reader.cancel().catch(() => {});
       }
       Object.assign(metadata, responseMetadata(data));
+      checkFinishReason(data?.choices?.[0]?.finish_reason);
       outcome = route === '/models' ? 'success' : typeof data?.choices?.[0]?.message?.content !== 'string' ? 'missing-content' : data.choices[0].message.content.length === 0 ? 'empty' : 'success';
       return data;
     } catch (error) {

@@ -8,6 +8,7 @@ import { runAgent } from '../src/agent/loop';
 const action = JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Hello café 🌧' } });
 const event = (content: string) => 'data: ' + JSON.stringify({ choices: [{ index: 0, delta: { content } }] }) + '\r\n\r\n';
 const ending = 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';
+const rejectedReason = 'function_call_filter: MALFORMED_FUNCTION_CALL';
 function response(text: string, split = false): Response {
   const bytes = new TextEncoder().encode(text);
   return new Response(new ReadableStream<Uint8Array>({ start(c) {
@@ -88,4 +89,74 @@ test('cancellation and overall timeout stop a stalled stream and retain first-co
     const timing = performanceDiagnostics.snapshot().requests.at(-1)!;
     assert.equal(timing.outcome, cancel ? 'cancelled' : 'timeout'); assert.equal(timing.contentChunks, 1);
   }
+});
+
+test('provider native-call rejection retries original task as text and never executes rejected content', async () => {
+  for (const stream of [true, false]) {
+    let calls = 0; const executed: string[] = [];
+    const client = new GeminiClient('https://example.test', 'private-key', 1000, (async (_url, init) => {
+      const request = JSON.parse(init!.body as string); calls++;
+      if (calls === 2) {
+        assert.match(request.messages[0].content, /seven character names/);
+        assert.match(request.messages[0].content, /No native function calling tools are available/);
+      }
+      const content = calls === 1 ? JSON.stringify({ version: 1, tool: 'delete_file', args: { path: 'keep.ps1', expectedHash: 'a'.repeat(64) } })
+        : calls === 2 ? JSON.stringify({ version: 1, tool: 'list_files', args: {} }) : action;
+      const reason = calls === 1 ? rejectedReason : 'stop';
+      return response(stream ? event(content) + 'data: ' + JSON.stringify({ choices: [{ finish_reason: reason }] }) + '\n\ndata: [DONE]\n\n'
+        : JSON.stringify({ choices: [{ message: { content }, finish_reason: reason }] }));
+    }) as typeof fetch, 'User message', stream);
+    const result = await runAgent(client, 'model', [{ role: 'user', content: 'add a function for seven character names' }],
+      { execute: async value => { executed.push(value.tool); return []; } }, () => 'Full access', new AbortController().signal, () => {});
+    assert.match(result, /Hello/); assert.equal(calls, 3); assert.deepEqual(executed, ['list_files']);
+    const records = performanceDiagnostics.snapshot().requests.slice(-3);
+    assert.equal(records[0].finishReason, rejectedReason); assert.equal(records[0].outcome, 'failed'); assert.equal(records[1].repair, true);
+  }
+});
+
+test('repeated native-call rejection is bounded and unknown or incomplete finishes remain rejected', async () => {
+  let calls = 0, executed = 0;
+  const client = new GeminiClient('https://example.test', 'private-key', 1000, (async () => {
+    calls++; return response(event(action) + 'data: ' + JSON.stringify({ choices: [{ finish_reason: rejectedReason }] }) + '\n\n');
+  }) as typeof fetch);
+  await assert.rejects(runAgent(client, 'model', [{ role: 'user', content: 'seven character names' }],
+    { execute: async () => { executed++; } }, () => 'Full access', new AbortController().signal, () => {}), /repeatedly rejected.*malformed native function call/);
+  assert.equal(calls, 3); assert.equal(executed, 0);
+  for (const reason of ['length', 'content_filter', 'private-key', 'MALFORMED_FUNCTION_CALL']) {
+    for (const stream of [true, false]) {
+      const failing = new GeminiClient('https://example.test', 'private-key', 1000, (async () => response(stream
+        ? event(action) + 'data: ' + JSON.stringify({ choices: [{ finish_reason: reason }] }) + '\n\n'
+        : JSON.stringify({ choices: [{ message: { content: action }, finish_reason: reason }] }))) as typeof fetch);
+      await assert.rejects(failing.complete('model', []), error => { assert.doesNotMatch(String(error), /private-key/); return true; });
+      assert.equal(performanceDiagnostics.snapshot().requests.at(-1)!.finishReason, reason === 'private-key' ? 'other' : reason);
+    }
+  }
+});
+
+test('recovered provider rejections do not exhaust the later empty-response retry budget', async () => {
+  const read = JSON.stringify({ version: 1, tool: 'read_file', args: { path: 'names.ps1' } });
+  const create = JSON.stringify({ version: 1, tool: 'create_file', args: { path: 'Seven.ps1', content: '# seven character names' } });
+  const sequence = [null, read, null, read, '', create, action];
+  const executed: string[] = [], attempts: number[] = []; let calls = 0;
+  const client = new GeminiClient('https://example.test', 'private-key', 1000, (async (_url, init) => {
+    const content = sequence[calls++]; assert.ok(calls <= sequence.length);
+    const prompt = JSON.parse(init!.body as string).messages[0].content;
+    assert.match(prompt, /seven character names/);
+    if (calls === 6) { assert.match(prompt, /endpoint returned no content/); assert.match(prompt, /source evidence/); }
+    return response(event(content ?? read) + 'data: ' + JSON.stringify({ choices: [{ finish_reason: content === null ? rejectedReason : 'stop' }] }) + '\n\ndata: [DONE]\n\n');
+  }) as typeof fetch);
+  await runAgent(client, 'model', [{ role: 'user', content: 'add a function for seven character names' }],
+    { execute: async value => { executed.push(value.tool); return 'source evidence'; } }, () => 'Full access', new AbortController().signal, () => {}, async record => { attempts.push(record.attempt); });
+  assert.equal(calls, 7); assert.deepEqual(executed, ['read_file', 'read_file', 'create_file']); assert.deepEqual(attempts, [1]);
+});
+
+test('empty responses do not reset an unresolved provider-rejection sequence', async () => {
+  let calls = 0;
+  const client = new GeminiClient('https://example.test', 'key', 1000, (async () => {
+    const reason = ++calls % 2 ? rejectedReason : 'stop';
+    return response('data: ' + JSON.stringify({ choices: [{ delta: { content: '' }, finish_reason: reason }] }) + '\n\ndata: [DONE]\n\n');
+  }) as typeof fetch);
+  await assert.rejects(runAgent(client, 'model', [], { execute: async () => { assert.fail('Rejected or empty response must not execute'); } },
+    () => 'Full access', new AbortController().signal, () => {}), /repeatedly rejected/);
+  assert.equal(calls, 5);
 });

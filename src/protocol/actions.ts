@@ -32,6 +32,7 @@ export function parseAction(raw: string): Action {
   return result.data;
 }
 export const protocol = `Return exactly one JSON object, no markdown. Every response MUST contain all three top-level keys: "version", "tool", and "args". "version" MUST be the number 1, including on complete_task. Never omit it.
+Return this JSON as ordinary message text. No native function-calling tools are registered; do not emit native function calls.
 Valid initial action: {"version":1,"tool":"list_files","args":{}}
 Valid read action: {"version":1,"tool":"read_file","args":{"path":"src/Example.ps1"}}
 Valid final action: {"version":1,"tool":"complete_task","args":{"summary":"Your grounded answer with file and line citations."}}
