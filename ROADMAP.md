@@ -94,6 +94,7 @@ Full access currently covers supported repository tools and fixed validation com
 - [ ] Load the persisted index on startup and revalidate it against the current repository, changed/deleted files and ignore rules before reuse. Treat cached data as untrusted, recover from corrupt or incompatible caches, and verify that stale entries cannot authorize file access. Measure cold and warm startup cost.
 - [ ] Improve lexical retrieval relevance and bounded context selection before considering embeddings. Use representative PowerShell questions and test-generation tasks to measure relevant-file retrieval, context size, model-call count and end-to-end latency.
 - [x] Add local preparation and tool/validation timings alongside API timings, correlated by task, turn and session, with bounded persistent metadata-only history.
+- [x] Add first-body/first-SSE timing, bounded body-chunk samples, per-request event-loop delay and sanitized storage-operation failures; verify delayed streaming, local stalls, persistence and storage failures with synthetic tests.
 - [ ] Compare repeated fresh-chat, existing-chat and repository-task runs using the expanded diagnostics without recording source text or credentials.
 
 ### Planned C# and TypeScript support

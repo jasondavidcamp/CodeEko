@@ -1,5 +1,6 @@
 import { CompletionDecoder } from './streaming';
 import { checkFinishReason } from './finish';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { performanceDiagnostics, requestMetadata, responseMetadata, rateMetadata, RequestMetadata, RequestTiming } from '../state/performanceDiagnostics';
 export interface Message { role: 'system' | 'user' | 'assistant'; content: string }
 export function apiBase(endpoint: string): string {
@@ -18,6 +19,8 @@ export class GeminiClient {
     const record = performanceDiagnostics.begin(route === '/models' ? 'models' : 'completion', this.compatibilityMode, this.timeout, repair, metadata);
     let headersMs: number | undefined, status: number | undefined, firstContentMs: number | undefined;
     let contentChunks = 0, streamed = false;
+    const timing: Partial<RequestTiming> = { bodyBytes: 0, bodyChunks: 0, sseEvents: 0, bodyChunkSamples: [] };
+    const loopDelay = monitorEventLoopDelay({ resolution: 20 }); loopDelay.enable();
     let outcome: RequestTiming['outcome'] = 'failed';
     const controller = new AbortController();
     const abort = () => controller.abort();
@@ -39,6 +42,12 @@ export class GeminiClient {
           performanceDiagnostics.finish(record, { firstContentMs, contentChunks, streamed: true });
           onContent?.();
         }
+      }, () => {
+        timing.sseEvents!++;
+        if (timing.firstSseEventMs === undefined) {
+          timing.firstSseEventMs = Math.round(performance.now() - started);
+          performanceDiagnostics.finish(record, { firstSseEventMs: timing.firstSseEventMs, sseEvents: timing.sseEvents });
+        }
       });
       const utf8 = new TextDecoder('utf-8', { fatal: true });
       const cancelReader = () => { void reader.cancel().catch(() => {}); };
@@ -50,6 +59,15 @@ export class GeminiClient {
           const { done, value } = await reader.read();
           controller.signal.throwIfAborted();
           if (done) break;
+          if (value.length) {
+            const atMs = Math.round(performance.now() - started);
+            const firstBody = timing.firstBodyByteMs === undefined;
+            timing.firstBodyByteMs ??= atMs;
+            if (timing.lastBodyByteMs !== undefined) timing.maxBodyGapMs = Math.max(timing.maxBodyGapMs ?? 0, atMs - timing.lastBodyByteMs);
+            timing.lastBodyByteMs = atMs; timing.bodyBytes! += value.length; timing.bodyChunks!++;
+            if (timing.bodyChunkSamples!.length < 32) timing.bodyChunkSamples!.push({ atMs, bytes: value.length });
+            if (firstBody) performanceDiagnostics.finish(record, timing);
+          }
           length += value.length; if (length > 1000000) throw new Error('Endpoint response exceeds limit.');
           decoder.push(utf8.decode(value, { stream: true }));
         }
@@ -74,7 +92,11 @@ export class GeminiClient {
       if (error instanceof Error && /^Endpoint /.test(error.message)) throw error;
       // Never forward server bodies, URLs, headers or transport errors containing credentials.
       throw new Error('Endpoint request failed. Check the configured endpoint, network connection, certificate trust, and credentials.');
-    } finally { performanceDiagnostics.finish(record, { ...metadata, elapsedMs: Math.round(performance.now() - started), headersMs, status, outcome, firstContentMs, contentChunks, streamed, streamingRequested: route !== '/models' && this.streaming }); clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+    } finally {
+      loopDelay.disable(); timing.eventLoopSamples = loopDelay.count;
+      if (loopDelay.count) { timing.eventLoopDelayMaxMs = Math.round(loopDelay.max / 1e6); timing.eventLoopDelayMeanMs = Math.round(loopDelay.mean / 1e6); }
+      performanceDiagnostics.finish(record, { ...metadata, ...timing, elapsedMs: Math.round(performance.now() - started), headersMs, status, outcome, firstContentMs, contentChunks, streamed, streamingRequested: route !== '/models' && this.streaming }); clearTimeout(timer); signal?.removeEventListener('abort', abort);
+    }
   }
   async models(signal?: AbortSignal): Promise<string[]> {
     const data = await this.request('/models', undefined, signal);

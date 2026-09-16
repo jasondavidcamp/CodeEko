@@ -11,7 +11,7 @@ export class CompletionDecoder {
   done = false;
   readonly metadata: RequestMetadata = {};
   get streamed(): boolean { return this.mode === 'sse'; }
-  constructor(private onContent: () => void) {}
+  constructor(private onContent: () => void, private onEvent: () => void = () => {}) {}
 
   push(chunk: string): void {
     this.pending += chunk;
@@ -48,6 +48,7 @@ export class CompletionDecoder {
   private event(): void {
     const data = this.data.join('\n'); this.data = [];
     const name = this.eventName; this.eventName = '';
+    if (data.trim() || name) this.onEvent();
     if (name === 'error') throw new Error('Endpoint reported a streaming error.');
     if (!data.trim()) return;
     if (data.trim() === '[DONE]') { this.done = true; return; }

@@ -15,6 +15,10 @@ const requestSchema = z.object({
   ...common, id: count, operation: z.enum(['models', 'completion']), mode: z.enum(['Standard', 'User message']), timeoutMs: count, repair: z.boolean(), outcome,
   model: model.optional(), promptCharacters: count.optional(), messageCount: count.optional(), maxOutputTokens: count.optional(),
   firstContentMs: count.optional(), contentChunks: count.optional(), streamed: z.boolean().optional(), streamingRequested: z.boolean().optional(),
+  firstBodyByteMs: count.optional(), firstSseEventMs: count.optional(), sseEvents: count.optional(),
+  bodyBytes: count.optional(), bodyChunks: count.optional(), lastBodyByteMs: count.optional(), maxBodyGapMs: count.optional(),
+  bodyChunkSamples: z.array(z.object({ atMs: count, bytes: count })).max(32).optional(),
+  eventLoopDelayMaxMs: count.optional(), eventLoopDelayMeanMs: count.optional(), eventLoopSamples: count.optional(),
   elapsedMs: count.optional(), headersMs: count.optional(), status: count.optional(), usage: usageSchema.optional(), rateLimit: rateSchema.optional(),
   finishReason: z.enum(['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'MALFORMED_FUNCTION_CALL', 'function_call_filter: MALFORMED_FUNCTION_CALL', 'other']).optional()
 });
@@ -27,6 +31,8 @@ export type RequestMetadata = Partial<Pick<RequestTiming, 'model' | 'promptChara
 type Task = z.infer<typeof taskSchema>;
 type Phase = z.infer<typeof phaseSchema>;
 type Context = { taskId: string; turn?: number };
+type StorageOperation = 'mkdir' | 'list' | 'stat' | 'read' | 'decode' | 'prune' | 'write' | 'rename' | 'clear';
+type StorageError = { operation: StorageOperation; code: string; firstAt: string; lastAt: string; occurrences: number };
 
 // Only explicitly allowed metadata is persisted, including when reading older local files.
 export class PerformanceDiagnostics {
@@ -40,6 +46,19 @@ export class PerformanceDiagnostics {
   private directory?: string;
   private pending: Promise<void> = Promise.resolve();
   private writeFailed = false;
+  private storageErrors: StorageError[] = [];
+  private storageFailure(operation: StorageOperation, error: unknown): void {
+    this.writeFailed = true;
+    const raw = (error as NodeJS.ErrnoException)?.code;
+    const code = operation === 'decode' ? 'invalid-json' : ['EACCES','EPERM','ENOENT','ENOTDIR','EISDIR','ENOSPC','EDQUOT','EBUSY','EMFILE','ENFILE','EIO','EROFS','EEXIST'].includes(raw ?? '') ? raw! : 'unknown';
+    const at = new Date().toISOString();
+    const previous = this.storageErrors.find(item => item.operation === operation && item.code === code);
+    if (previous) { previous.lastAt = at; previous.occurrences++; }
+    else { this.storageErrors.push({ operation, code, firstAt: at, lastAt: at, occurrences: 1 }); this.storageErrors = this.storageErrors.slice(-20); }
+  }
+  private async io<T>(operation: StorageOperation, work: () => Promise<T>): Promise<T> {
+    try { return await work(); } catch (error) { this.storageFailure(operation, error); throw error; }
+  }
   ready: Promise<void> = Promise.resolve();
   configure(storage: string, runtimeVersion: string): Promise<void> {
     this.runtimeVersion = version.safeParse(runtimeVersion).success ? runtimeVersion : 'unknown';
@@ -48,20 +67,20 @@ export class PerformanceDiagnostics {
   }
   private async load(): Promise<void> {
     try {
-      await fs.mkdir(this.directory!, { recursive: true });
-      const names = (await fs.readdir(this.directory!)).filter(name => /^[a-f0-9-]{36}\.json$/.test(name)).sort();
+      await this.io('mkdir', () => fs.mkdir(this.directory!, { recursive: true }));
+      const names = (await this.io('list', () => fs.readdir(this.directory!))).filter(name => /^[a-f0-9-]{36}\.json$/.test(name)).sort();
       const files: { name: string; mtime: number }[] = [];
       for (const name of names.slice(-100)) {
-        const stat = await fs.lstat(path.join(this.directory!, name));
+        const stat = await this.io('stat', () => fs.lstat(path.join(this.directory!, name)));
         if (stat.isFile() && !stat.isSymbolicLink()) files.push({ name, mtime: stat.mtimeMs });
       }
       files.sort((a, b) => b.mtime - a.mtime);
       for (const [i, file] of files.entries()) {
         const filename = path.join(this.directory!, file.name);
-        if (i >= 4 || Date.now() - file.mtime > 7 * 86400000) { await fs.unlink(filename); continue; }
+        if (i >= 4 || Date.now() - file.mtime > 7 * 86400000) { await this.io('prune', () => fs.unlink(filename)); continue; }
         try {
-          if ((await fs.stat(filename)).size > 2000000) continue;
-          const data = JSON.parse(await fs.readFile(filename, 'utf8'));
+          if ((await this.io('stat', () => fs.stat(filename))).size > 2000000) continue;
+          const data = JSON.parse(await this.io('read', () => fs.readFile(filename, 'utf8')));
           if (data.version !== 2) continue;
           const load = <T extends { outcome: string }>(items: unknown, schema: z.ZodType<T>, max: number): T[] => !Array.isArray(items) ? [] : items.slice(-max).flatMap(item => {
             const result = schema.safeParse(item);
@@ -70,7 +89,7 @@ export class PerformanceDiagnostics {
           this.records.push(...load(data.requests, requestSchema, 100));
           this.tasks.push(...load(data.tasks, taskSchema, 100));
           this.phases.push(...load(data.phases, phaseSchema, 500));
-        } catch { /* A corrupt diagnostics file must not prevent chat. */ }
+        } catch (error) { if (error instanceof SyntaxError) this.storageFailure('decode', error); /* Diagnostics must not prevent chat. */ }
       }
       this.trim();
     } catch { this.writeFailed = true; }
@@ -87,8 +106,8 @@ export class PerformanceDiagnostics {
       const report = this.snapshot();
       const current = { ...report, requests: report.requests.filter(x => x.sessionId === this.sessionId), tasks: report.tasks.filter(x => x.sessionId === this.sessionId), phases: report.phases.filter(x => x.sessionId === this.sessionId) };
       const target = path.join(this.directory!, this.sessionId + '.json');
-      await fs.writeFile(target + '.tmp', JSON.stringify(current));
-      await fs.rename(target + '.tmp', target);
+      await this.io('write', () => fs.writeFile(target + '.tmp', JSON.stringify(current)));
+      await this.io('rename', () => fs.rename(target + '.tmp', target));
     }).catch(() => { this.writeFailed = true; });
   }
   async flush(): Promise<void> { await this.ready; await this.pending; }
@@ -124,12 +143,12 @@ export class PerformanceDiagnostics {
   clear(): void {
     this.records = []; this.tasks = []; this.phases = [];
     if (this.directory) this.pending = this.pending.then(async () => {
-      for (const name of await fs.readdir(this.directory!)) if (/^[a-f0-9-]{36}\.json(?:\.tmp)?$/.test(name)) await fs.unlink(path.join(this.directory!, name));
+      for (const name of await this.io('list', () => fs.readdir(this.directory!))) if (/^[a-f0-9-]{36}\.json(?:\.tmp)?$/.test(name)) await this.io('clear', () => fs.unlink(path.join(this.directory!, name)));
     }).catch(() => { this.writeFailed = true; });
   }
   snapshot(runtimeVersion = this.runtimeVersion) {
     this.trim();
-    return structuredClone({ version: 2, runtimeVersion, sessionId: this.sessionId, writeFailed: this.writeFailed, scope: 'Latest 100 requests, 100 tasks and 500 phases; up to five sessions, seven days', requests: this.records, tasks: this.tasks, phases: this.phases });
+    return structuredClone({ version: 2, runtimeVersion, sessionId: this.sessionId, writeFailed: this.writeFailed, storageErrors: this.storageErrors, scope: 'Latest 100 requests, 100 tasks and 500 phases; up to five sessions, seven days', requests: this.records, tasks: this.tasks, phases: this.phases });
   }
 }
 export const performanceDiagnostics = new PerformanceDiagnostics();

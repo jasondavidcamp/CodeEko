@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.4.55 — Response timing and storage diagnostics
+
+- Measure first body bytes, first SSE event, bounded body-chunk arrivals and event-loop delay alongside first content and total request time.
+- Report bounded diagnostics-storage failures by operation and sanitized error code, without paths, payloads or arbitrary headers.
+
+## Earlier unreleased fixes
+
 - Handle direct chat undo requests through guarded task undo without a model call; preserve unrelated pending work and explain missing task history in chat.
 - Retry transient repository-lease contention for up to five seconds during reload; cancel pending acquisition when the pane closes and retain sanitized OS error codes in startup diagnostics.
 - Display the settings sidebar brand as CodeEko instead of forcing uppercase.
