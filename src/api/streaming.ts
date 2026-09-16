@@ -1,3 +1,4 @@
+import { responseMetadata, RequestMetadata } from '../state/performanceDiagnostics';
 /** Decode OpenAI-compatible JSON or SSE without trusting the Content-Type header. */
 export class CompletionDecoder {
   private mode: 'unknown' | 'json' | 'sse' = 'unknown';
@@ -7,6 +8,7 @@ export class CompletionDecoder {
   private text = '';
   private finished = false;
   done = false;
+  readonly metadata: RequestMetadata = {};
   get streamed(): boolean { return this.mode === 'sse'; }
   constructor(private onContent: () => void) {}
 
@@ -50,6 +52,7 @@ export class CompletionDecoder {
     if (data.trim() === '[DONE]') { this.done = true; return; }
     let event: any;
     try { event = JSON.parse(data); } catch { throw new Error('Endpoint returned malformed streaming data.'); }
+    Object.assign(this.metadata, responseMetadata(event));
     if (event?.error) throw new Error('Endpoint reported a streaming error.');
     if (!event || typeof event !== 'object') throw new Error('Endpoint returned malformed streaming data.');
     if (event.choices !== undefined && !Array.isArray(event.choices)) throw new Error('Endpoint returned malformed streaming data.');

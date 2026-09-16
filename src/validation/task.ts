@@ -1,3 +1,4 @@
+import { performanceDiagnostics } from '../state/performanceDiagnostics';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -78,6 +79,9 @@ export class TaskValidation {
     }
   }
   async run(signal: AbortSignal): Promise<ValidationReport> {
+    return performanceDiagnostics.measure('validation', () => this.runValidation(signal));
+  }
+  private async runValidation(signal: AbortSignal): Promise<ValidationReport> {
     authorize('run_validation', this.hooks.mode()); check(signal);
     const snapshot = await this.snapshot(signal);
     const latest = this.reports.at(-1);

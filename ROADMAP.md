@@ -89,7 +89,8 @@ Full access currently covers supported repository tools and fixed validation com
 - [ ] Reduce coding instructions and repository-specific context for non-code questions while preserving relevant conversation history and permission boundaries. Compare request size and response quality against the current behavior; handle ambiguous follow-ups without losing task intent.
 - [ ] Load the persisted index on startup and revalidate it against the current repository, changed/deleted files and ignore rules before reuse. Treat cached data as untrusted, recover from corrupt or incompatible caches, and verify that stale entries cannot authorize file access. Measure cold and warm startup cost.
 - [ ] Improve lexical retrieval relevance and bounded context selection before considering embeddings. Use representative PowerShell questions and test-generation tasks to measure relevant-file retrieval, context size, model-call count and end-to-end latency.
-- [ ] Add local preparation timings alongside API timings so performance reports distinguish indexing, baseline capture and tool execution from endpoint wait time. Compare repeated fresh-chat, existing-chat and repository-task runs without recording source text or credentials.
+- [x] Add local preparation and tool/validation timings alongside API timings, correlated by task, turn and session, with bounded persistent metadata-only history.
+- [ ] Compare repeated fresh-chat, existing-chat and repository-task runs using the expanded diagnostics without recording source text or credentials.
 
 ### Planned C# and TypeScript support
 
@@ -130,7 +131,7 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 - [ ] Test continuity beyond the 20-message history window, across context/action-budget stops and after restart. Verify that short follow-ups resume the intended task, changed requirements supersede stale decisions, and interrupted work is not replayed automatically.
 - [x] Add bounded session request-performance diagnostics with timing, format-repair markers, timeouts and metadata-only export.
 - [x] Add default-on SSE response streaming, in-pane receiving progress and first-content diagnostics with complete-action validation.
-- [ ] Expand structured local diagnostics without recording credentials.
+- [x] Expand metadata-only diagnostics with model IDs, context size, available token usage, completion reasons and recognized rate-limit signals; retain bounded history across restarts.
 - [ ] Automate release packaging, checksum generation and verification.
 
 ## Deferred scope

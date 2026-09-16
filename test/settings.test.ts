@@ -4,10 +4,11 @@ import * as vm from 'node:vm';
 
 test('settings tab validates writes, reuses its panel and never exposes keys', async () => {
   const values: Record<string, unknown> = {}, sent: any[] = [], calls: string[] = [];
+  let exported = '';
   let receive: (m:any)=>Promise<void> = async()=>{}, disposed=()=>{}, changed:(e:any)=>void=()=>{}, panels=0, reveals=0, busy=false;
   const disposable={dispose(){}};
   const panel={reveal(){reveals++;},dispose(){disposed();},onDidDispose(fn:()=>void){disposed=fn;return disposable;},webview:{html:'',onDidReceiveMessage(fn:typeof receive){receive=fn;return disposable;},postMessage(m:any){sent.push(m);return Promise.resolve(true);}}};
-  const mock={ViewColumn:{Active:1},ConfigurationTarget:{Global:1},window:{createWebviewPanel(){panels++;return panel;}},commands:{executeCommand:async(name:string)=>{calls.push(name);}},workspace:{getConfiguration:(namespace:string)=>{assert.equal(namespace,'ekod');return ({get:(key:string,fallback:unknown)=>values[key]??fallback,update:async(key:string,value:unknown,target:number)=>{assert.equal(target,1);values[key]=value;}});},onDidChangeConfiguration(fn:typeof changed){changed=fn;return disposable;}}};
+  const mock={ViewColumn:{Active:1},ConfigurationTarget:{Global:1},window:{showTextDocument:async()=>{},createWebviewPanel(){panels++;return panel;}},commands:{executeCommand:async(name:string)=>{calls.push(name);}},workspace:{openTextDocument:async(options:any)=>{exported=options.content;return {};},getConfiguration:(namespace:string)=>{assert.equal(namespace,'ekod');return ({get:(key:string,fallback:unknown)=>values[key]??fallback,update:async(key:string,value:unknown,target:number)=>{assert.equal(target,1);values[key]=value;}});},onDidChangeConfiguration(fn:typeof changed){changed=fn;return disposable;}}};
   const Module=require('node:module'),original=Module._load;
   Module._load=function(name:string,...args:any[]){return name==='vscode'?mock:original.call(this,name,...args);};
   let settings: typeof import('../src/ui/settings');
@@ -15,6 +16,8 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   const page=new settings.SettingsPage(()=>busy, async()=>{calls.push('openRejectedLogs');return 'Revealed capture.';}, '9.8.7');page.open();page.open();assert.equal(panels,1);assert.equal(reveals,1);
   await receive({type:'refreshPerformance'});assert.ok(Array.isArray(sent.at(-1).performance.requests));assert.equal(sent.at(-1).runtimeVersion,'9.8.7');assert.equal(sent.at(-1).performance.runtimeVersion,'9.8.7');
   await receive({type:'clearPerformance'});assert.equal(sent.at(-1).performance.requests.length,0);
+  await receive({type:'exportPerformance'});assert.equal(JSON.parse(exported).runtimeVersion,'9.8.7');assert.ok(Array.isArray(JSON.parse(exported).tasks));
+  busy=true;await receive({type:'clearPerformance'});assert.equal(sent.at(-1).failed,true);assert.match(sent.at(-1).notice,/running task/);busy=false;
   await receive({type:'ready'});assert.equal(sent.at(-1).values.endpoint,'');assert.equal(sent.at(-1).values.requestTimeout,300000);assert.equal(sent.at(-1).values.compatibilityMode,'User message');assert.equal(sent.at(-1).values.streamResponses,true);
   for(const [key,value] of [['apiKey','private-key'],['permissionMode','Custom'],['compatibilityMode','Unsupported'],['endpoint','http://example.test'],['endpoint','https://user:password@example.test'],['requestTimeout',0],['requestTimeout',NaN],['installValidationModules','true']]){
     await receive({type:'save',key,value});assert.equal(sent.at(-1).failed,true);assert.equal(Object.keys(values).length,0);

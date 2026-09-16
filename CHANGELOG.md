@@ -6,6 +6,12 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.51 — Task performance reports
+
+- Correlate request timings with task/turn IDs and local preparation, tool and validation phases.
+- Record model IDs, context size, available token usage, completion reasons and numeric rate-limit signals.
+- Retain bounded metadata-only history across restarts with version attribution, interrupted-run recovery and saved-history clearing.
+
 ## 0.4.50 — Streaming responses
 
 - Enable response streaming by default with a Connection setting to disable it.

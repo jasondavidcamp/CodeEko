@@ -1,3 +1,4 @@
+import { performanceDiagnostics } from '../state/performanceDiagnostics';
 import { latestRejectedLog } from '../state/rejectedLogs';
 import * as fs from 'node:fs/promises';
 import { SettingsPage } from './settings';
@@ -30,6 +31,7 @@ function outcome(task?: EditTask, validation?: TaskValidation): string {
 }
 const keyName = (endpoint: string) => 'apiKey.' + createHash('sha256').update(apiBase(endpoint)).digest('hex');
 async function client(context: vscode.ExtensionContext): Promise<GeminiClient> {
+  await performanceDiagnostics.ready;
   const endpoint = config().get<string>('endpoint', '');
   if (!endpoint) throw new Error('Set ekod.endpoint to your HTTPS API URL first.');
   const key = await context.secrets.get(keyName(endpoint));
@@ -51,6 +53,7 @@ async function selectModel(context: vscode.ExtensionContext, signal?: AbortSigna
   } finally { signal?.removeEventListener('abort', abort); token.dispose(); }
 }
 export function activate(context: vscode.ExtensionContext): { isConversationVisible(): boolean } {
+  void performanceDiagnostics.configure(context.globalStorageUri.fsPath, String(context.extension.packageJSON.version));
   const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
   diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
   const settingsPage = new SettingsPage(() => active.size > 0, async () => {
@@ -258,15 +261,16 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         let task: EditTask | undefined;
         let validation: TaskValidation | undefined;
         thread.lastUsedAt = new Date().toISOString(); thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
+        await performanceDiagnostics.task(async () => {
         try {
           await store.save();
           const api = await client(context);
           const model = config().get<string>('model'); if (!model) throw new Error('Choose a model using the model button below the chat, then resend your message.');
-          send({ type: 'progress', text: 'Refreshing repository index.' }); await index.refresh(controller.signal);
+          send({ type: 'progress', text: 'Refreshing repository index.' }); await performanceDiagnostics.measure('index', () => index.refresh(controller.signal));
           if (thread.undoTaskId && (await EditTask.load(index, storage, thread.undoTaskId, hooks)).undoState() === 'running') throw new TaskConflict('Resume the incomplete task undo before continuing this conversation.');
-          const previous = thread.taskId ? await EditTask.load(index, storage, thread.taskId, hooks) : undefined;
+          const previous = thread.taskId ? await performanceDiagnostics.measure('history', () => EditTask.load(index, storage, thread.taskId!, hooks)) : undefined;
           send({ type: 'progress', text: 'Capturing task baseline and preexisting changes.' });
-          task = await EditTask.capture(index, storage, hooks, controller.signal, previous);
+          task = await performanceDiagnostics.measure('baseline', () => EditTask.capture(index, storage, hooks, controller.signal, previous));
           thread.taskId = task.id; await store.save();
           validation = new TaskValidation(task, {
             mode, isDirty: hooks.isDirty, redact: text => api.redact(text),
@@ -295,11 +299,12 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             if (task) {
               if (task.changes().length) { thread.reviewTaskId = task.id; thread.undoTaskId = task.id; }
               if (task.committed()) thread.undoTaskId = undefined;
-              await task.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed');
+              await performanceDiagnostics.measure('finalize', () => task!.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed'));
               if (task.changes().length && !disposed && config().get<boolean>('autoOpenDiffs', false)) await review.open(task);
             }
           } finally { active.delete(root); thread.lastUsedAt = new Date().toISOString(); await store.save(); }
         }
+        }, () => thread.status);
       }
     } catch (e) { send({ type: 'progress', text: e instanceof Error ? e.message : 'Operation failed.' }); }
     finally { busy = false; update(); if (disposed) await release(); }
@@ -309,7 +314,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   // Install the listener before loading HTML so the initial ready message cannot race it.
   diagnostics.log('html', { view: viewId }); armHandshake(); panel.webview.html = conversationHtml();
 }
-export async function deactivate(): Promise<void> { startupDiagnostics?.log('deactivate'); for (const controller of active.values()) controller.abort(); await startupDiagnostics?.flush(); }
+export async function deactivate(): Promise<void> { startupDiagnostics?.log('deactivate'); for (const controller of active.values()) controller.abort(); await startupDiagnostics?.flush(); await performanceDiagnostics.flush(); }
 
 
 export async function paneChoice(panel: vscode.WebviewView, question: string, choices: string[], signal?: AbortSignal): Promise<number | undefined> {
