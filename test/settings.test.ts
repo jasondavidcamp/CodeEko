@@ -8,7 +8,7 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   let receive: (m:any)=>Promise<void> = async()=>{}, disposed=()=>{}, changed:(e:any)=>void=()=>{}, panels=0, reveals=0, busy=false;
   const disposable={dispose(){}};
   const panel={reveal(){reveals++;},dispose(){disposed();},onDidDispose(fn:()=>void){disposed=fn;return disposable;},webview:{html:'',onDidReceiveMessage(fn:typeof receive){receive=fn;return disposable;},postMessage(m:any){sent.push(m);return Promise.resolve(true);}}};
-  const mock={ViewColumn:{Active:1},ConfigurationTarget:{Global:1},window:{showTextDocument:async()=>{},createWebviewPanel(){panels++;return panel;}},commands:{executeCommand:async(name:string)=>{calls.push(name);}},workspace:{openTextDocument:async(options:any)=>{exported=options.content;return {};},getConfiguration:(namespace:string)=>{assert.equal(namespace,'ekod');return ({get:(key:string,fallback:unknown)=>values[key]??fallback,update:async(key:string,value:unknown,target:number)=>{assert.equal(target,1);values[key]=value;}});},onDidChangeConfiguration(fn:typeof changed){changed=fn;return disposable;}}};
+  const mock={ViewColumn:{Active:1},ConfigurationTarget:{Global:1},window:{showTextDocument:async()=>{},createWebviewPanel(){panels++;return panel;}},commands:{executeCommand:async(name:string)=>{calls.push(name);}},workspace:{openTextDocument:async(options:any)=>{exported=options.content;return {};},getConfiguration:(namespace:string)=>{assert.equal(namespace,'codeeko');return ({get:(key:string,fallback:unknown)=>values[key]??fallback,update:async(key:string,value:unknown,target:number)=>{assert.equal(target,1);values[key]=value;}});},onDidChangeConfiguration(fn:typeof changed){changed=fn;return disposable;}}};
   const Module=require('node:module'),original=Module._load;
   Module._load=function(name:string,...args:any[]){return name==='vscode'?mock:original.call(this,name,...args);};
   let settings: typeof import('../src/ui/settings');
@@ -27,7 +27,7 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   await receive({type:'save',key:'compatibilityMode',value:'User message'});assert.equal(values.compatibilityMode,'User message');
   await receive({type:'save',key:'installValidationModules',value:true});assert.equal(values.installValidationModules,true);
   busy=true;await receive({type:'save',key:'permissionMode',value:'Full access'});assert.equal(values.permissionMode,undefined);assert.match(sent.at(-1).notice,/running task/);busy=false;
-  await receive({type:'setKey'});await receive({type:'export'});assert.deepEqual(calls,['ekod.setKey','ekod.exportStartupDiagnostics']);
+  await receive({type:'setKey'});await receive({type:'export'});assert.deepEqual(calls,['codeeko.setKey','codeeko.exportStartupDiagnostics']);
   busy=true;await receive({type:'openRejectedLogs',path:'untrusted-path'});assert.equal(calls.at(-1),'openRejectedLogs');assert.equal(sent.at(-1).notice,'Revealed capture.');busy=false;
   values.model='external-change';changed({affectsConfiguration:()=>true});assert.equal(sent.at(-1).values.model,'external-change');
   assert.ok(!JSON.stringify(sent).includes('private-key'));

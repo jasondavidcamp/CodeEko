@@ -13,7 +13,7 @@ import { runAgent } from '../src/agent/loop';
 import { ReadOnlyTools } from '../src/tools/readOnly';
 import { acquireRepositoryLease } from '../src/state/lease';
 async function fixture(t: any) {
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-'));
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-'));
   t.after(() => fs.rm(temp, { recursive: true, force: true }));
   const root = path.join(temp, 'repo'); await fs.mkdir(root); await git(root, ['init']);
   return { root, storage: path.join(temp, 'storage'), temp };

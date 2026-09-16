@@ -13,7 +13,7 @@ import { TaskValidation } from '../../src/validation/task';
 import { runPowerShell, createPowerShellRunner } from '../../src/validation/powershell';
 
 export async function runLiveValidation(injectMissingRead = false) {
-  const endpoint = process.env.EKOD_TEST_ENDPOINT; const key = process.env.EKOD_TEST_API_KEY; const model = process.env.EKOD_TEST_MODEL;
+  const endpoint = process.env.CODEEKO_TEST_ENDPOINT; const key = process.env.CODEEKO_TEST_API_KEY; const model = process.env.CODEEKO_TEST_MODEL;
   assert.ok(endpoint && key && model, 'Configure live test endpoint, key and model in the environment.');
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-live-validation-')); const root = path.join(temp, 'repo');
   const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 240000);

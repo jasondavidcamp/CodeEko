@@ -6,6 +6,12 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.52 — CodeEko identity
+
+- Rename the extension, commands, settings, scripts and repository to CodeEko.
+- Settings use `codeeko.*`; install with `scripts/Install-CodeEko.ps1`.
+- The new extension identity has separate settings, API-key storage and chat history. Configure the endpoint, model and API key in CodeEko after installation. Existing data is not deleted.
+
 ## 0.4.51 — Task performance reports
 
 - Correlate request timings with task/turn IDs and local preparation, tool and validation phases.
@@ -53,17 +59,17 @@
 - Recognize explicit requests such as “commit just the six character test for now” and “commit only this test.”
 - Verify that committing one selected file preserves unrelated staged and unstaged changes.
 
-## 0.4.42 — EKOD naming cleanup
+## 0.4.42 — CodeEko naming cleanup
 
-- Use `ekod.*` for every setting, command and view, and `EKOD_*` for development environment variables.
-- Use EKOD-only storage, temporary-file and native-diff identifiers.
+- Use `codeeko.*` for every setting, command and view, and `CODEEKO_*` for development environment variables.
+- Use CodeEko-only storage, temporary-file and native-diff identifiers.
 - Refresh the roadmap around public product capabilities and outstanding verification.
-- Upgrade: configure endpoint, model and preferences in EKOD Settings; back up existing extension data first. Chats and diagnostics now use EKOD’s private extension storage; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
+- Upgrade: configure endpoint, model and preferences in CodeEko Settings; back up existing extension data first. Chats and diagnostics now use CodeEko’s private extension storage; data in other extension storage folders is not loaded automatically. API keys remain in VS Code SecretStorage.
 
 
 ## 0.4.41 — Initial public prerelease
 
-- Publish EKOD under the MIT license.
+- Publish CodeEko under the MIT license.
 - Repository-aware chat with persistent conversations, configurable permissions, guarded file edits, local commits and read-only commit inspection.
 - Automatic Windows PowerShell 5.1 syntax, static-analysis and eligible Pester unit-test validation with bounded repair.
 - Dedicated settings page and optional automatic diff tabs (off by default).

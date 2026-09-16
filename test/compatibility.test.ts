@@ -62,7 +62,7 @@ test('empty responses stop after three calls without executing tools', async () 
 
 test('endpoint compatibility defaults to User message and is application scoped', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
-  const field = manifest.contributes.configuration.properties['ekod.compatibilityMode'];
+  const field = manifest.contributes.configuration.properties['codeeko.compatibilityMode'];
   assert.equal(field.default, 'User message'); assert.equal(field.scope, 'application');
   assert.deepEqual(field.enum, ['User message', 'Standard']);
 });

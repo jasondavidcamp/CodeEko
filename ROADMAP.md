@@ -1,8 +1,8 @@
-# EKOD Roadmap
+# CodeEko Roadmap
 
 ## Product direction
 
-EKOD is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows. C# and TypeScript are planned next; language-specific indexing and validation for them are not yet implemented. A future Visual Studio extension is planned alongside VS Code, using shared runtime capabilities behind editor-specific adapters.
+CodeEko is a TypeScript VS Code extension that connects a configurable HTTPS model endpoint to local repository tools. It provides persistent chat, permission controls, file editing, Git inspection, validation and bounded repair. The initial language target is PowerShell in Git repositories on Windows. C# and TypeScript are planned next; language-specific indexing and validation for them are not yet implemented. A future Visual Studio extension is planned alongside VS Code, using shared runtime capabilities behind editor-specific adapters.
 
 README.md introduces the product and links to setup, usage and development guides. AGENTS.md defines contributor working boundaries. This roadmap records implemented capabilities and remaining work. Checked items have automated or recorded live evidence; they do not imply every workstation configuration has been verified.
 
@@ -10,7 +10,7 @@ README.md introduces the product and links to setup, usage and development guide
 
 ### Conversation and configuration
 
-- [x] Install EKOD as a self-contained VS Code extension.
+- [x] Install CodeEko as a self-contained VS Code extension.
 - [x] Configure an HTTPS endpoint with no built-in default; store API keys in VS Code SecretStorage.
 - [x] Discover models and support a configured fallback.
 - [x] Default to User message compatibility for endpoints that do not support system instructions or JSON mode.
@@ -19,7 +19,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Rename, archive and restore conversations from the chat pane.
 - [x] Keep conversation questions, permission choices and model selection in the pane.
 - [x] Provide a dedicated settings tab and automatic sidebar activation.
-- [x] Use the `ekod.*` namespace for settings, commands and views.
+- [x] Use the `codeeko.*` namespace for settings, commands and views.
 - [x] Keep product documentation independent of publisher accounts and derive runtime/test identity from installation metadata.
 - [x] Keep automatic diff tabs off by default; provide an opt-in setting.
 

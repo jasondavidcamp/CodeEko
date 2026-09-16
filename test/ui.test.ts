@@ -9,7 +9,8 @@ import { ThreadStore, repositoryStorage } from '../src/state/threads';
 
 test('extension commands, secure webview, discovery fallback, busy guard, cancellation and thread lifecycle', async t => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-ui-'));
-  t.after(() => fs.rm(temp, { recursive: true, force: true }));
+  let stop: (() => Promise<void>) | undefined;
+  t.after(async () => { await stop?.(); await fs.rm(temp, { recursive: true, force: true }); });
   const root = path.join(temp, 'repo'); const storage = path.join(temp, 'storage'); await fs.mkdir(root); await git(root, ['init']);
   await fs.writeFile(path.join(root, 'pilot.ps1'), 'function Get-Pilot {}');
   await git(root, ['add','.']); await git(root, ['-c','user.name=Test','-c','user.email=test@example.invalid','commit','-m','fixture']);
@@ -24,9 +25,9 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, onDidDispose: (fn: () => void) => { disposeListeners.push(fn); return disposable; }, dispose: () => disposeListeners.forEach(fn => fn()) };
   let exported = ''; let failFocus = false;
   const mock = {
-    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'ekod.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'ekod.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
+    commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'codeeko.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'codeeko.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
     workspace: { openTextDocument: async (options: any) => { exported = options.content; return {}; }, isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
-    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'ekod.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
+    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'codeeko.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
     Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
@@ -49,13 +50,13 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   choiceAbort.abort(); await assert.rejects(cancelledChoice, /Cancelled/); assert.equal(choiceListeners.size, 0);
   const context = { subscriptions: [], extension: { packageJSON: { version: 'test' } }, globalStorageUri: { fsPath: storage }, secrets: { get: async (key: string) => secrets.get(key), store: async (key: string, value: string) => { secrets.set(key, value); } } };
   extension.activate(context as any);
-  const originalFetch = global.fetch; t.after(() => { global.fetch = originalFetch; panel.dispose(); extension.deactivate(); });
-  await commands.get('ekod.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
+  const originalFetch = global.fetch; stop = async () => { global.fetch = originalFetch; panel.dispose(); await extension.deactivate(); };
+  await commands.get('codeeko.setKey')!(); assert.equal(secrets.size, 1); assert.ok(!JSON.stringify(settings).includes('test-key'));
   global.fetch = async () => new Response('failure', { status: 503 }); input = 'manual-model';
-  await commands.get('ekod.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
-  await commands.get('ekod.open')!(); assert.equal(errors.length, 0);
+  await commands.get('codeeko.selectModel')!(); assert.equal(fallbackPrompt.value, 'saved-model'); assert.equal(settings.model, 'manual-model');
+  await commands.get('codeeko.open')!(); assert.equal(errors.length, 0);
   settings.permissionMode = 'Custom'; await receive({ type: 'ready' }); assert.equal(sent.at(-1).mode, 'Review'); settings.permissionMode = 'Full access';
-  const originalHtml = panel.webview.html; await commands.get('ekod.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
+  const originalHtml = panel.webview.html; await commands.get('codeeko.open')!(); assert.equal(panel.webview.html, originalHtml, 'Refocusing the sidebar must reuse its repository session.');
   assert.ok(panel.webview.html.includes("default-src 'none'")); assert.ok(panel.webview.html.includes('textContent'));
   const script = [...panel.webview.html.matchAll(/<script nonce="[^"]+">([\s\S]*?)<\/script>/g)].map(match => match[1]).join("\n");
   assert.doesNotThrow(() => new vm.Script(script)); // Catches template-string/newline quoting regressions.
@@ -164,11 +165,11 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const token = sent.at(-1).startupToken;
   assert.equal(typeof token, 'string');
   await receive({ type: 'startupAck', token: 'stale' });
-  await commands.get('ekod.exportStartupDiagnostics')!();
+  await commands.get('codeeko.exportStartupDiagnostics')!();
   assert.ok(!exported.includes('state.ack'));
   await receive({ type: 'startupAck', token });
-  failFocus = true; await commands.get('ekod.open')!();
-  await commands.get('ekod.exportStartupDiagnostics')!();
+  failFocus = true; await commands.get('codeeko.open')!();
+  await commands.get('codeeko.exportStartupDiagnostics')!();
   for (const event of ['activate','resolve','stage.end','ready','state.sent','state.delivered','state.ack','focus.failed']) assert.ok(exported.includes(event), event);
   assert.ok(!exported.includes(root)); assert.ok(!exported.includes('private-startup-error')); assert.ok(!exported.includes('test-key'));
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));

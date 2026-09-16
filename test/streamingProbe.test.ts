@@ -26,7 +26,7 @@ test('PowerShell streaming probe detects mislabeled incremental SSE and separate
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
   const port = (server.address() as { port: number }).port;
-  const script = path.resolve(__dirname, '../../scripts/Test-EkodStreaming.ps1');
+  const script = path.resolve(__dirname, '../../scripts/Test-CodeEkoStreaming.ps1');
   async function run() {
     // Only the in-memory test copy accepts HTTP, to use a loopback fixture without certificates.
     const command = "$s=[IO.File]::ReadAllText($env:PROBE_SCRIPT); $s=$s.Replace(\"$address.Scheme -ne 'https'\",\"$address.Scheme -ne 'http'\"); & ([scriptblock]::Create($s)) -Endpoint $env:PROBE_ENDPOINT -Model 'fixture' -ApiKey (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force) -TimeoutSeconds 2";

@@ -3,12 +3,12 @@
 With Git, Node.js 22 or newer (including npm), and VS Code already available, run this in a normal, non-administrator PowerShell terminal:
 
 ```powershell
-git clone https://github.com/jasondavidcamp/EKOD.git
-cd EKOD
-.\scripts\Install-Ekod.ps1
+git clone https://github.com/jasondavidcamp/CodeEko.git
+cd CodeEko
+.\scripts\Install-CodeEko.ps1
 ```
 
-The script installs locked build dependencies into the clone, builds a VSIX locally, installs it using the VS Code CLI, and verifies the installed version. It does not download a release VSIX, install global npm tools, or request elevation. Run it again after reviewing and pulling an update. Reload VS Code after installation, then configure EKOD Settings and use **EKOD: Set API Key**.
+The script installs locked build dependencies into the clone, builds a VSIX locally, installs it using the VS Code CLI, and verifies the installed version. It does not download a release VSIX, install global npm tools, or request elevation. Run it again after reviewing and pulling an update. Reload VS Code after installation, then configure CodeEko Settings and use **CodeEko: Set API Key**.
 
 Options:
 
@@ -23,7 +23,7 @@ PowerShell script execution and locally built extension installation must be per
 ```powershell
 npm.cmd ci --include=dev --no-audit --no-fund --registry=https://registry.npmjs.org/
 npm.cmd run package
-code.cmd --install-extension .\ekod.vsix --force
+code.cmd --install-extension .\codeeko.vsix --force
 ```
 
 VS Code installs extensions for the current user; no administrator installation is requested. See the [VS Code CLI documentation](https://code.visualstudio.com/docs/configure/command-line). A policy that blocks extension installation itself still applies to locally built packages.
@@ -31,8 +31,8 @@ VS Code installs extensions for the current user; no administrator installation 
 ## Connect
 
 1. Reload VS Code and open a trusted Git repository.
-2. Open **EKOD Settings** using the gear in the chat pane. Set `ekod.endpoint` to your HTTPS API base URL. There is no default endpoint.
-3. Run **EKOD: Set API Key**. Keys are stored in VS Code SecretStorage for that endpoint.
+2. Open **CodeEko Settings** using the gear in the chat pane. Set `codeeko.endpoint` to your HTTPS API base URL. There is no default endpoint.
+3. Run **CodeEko: Set API Key**. Keys are stored in VS Code SecretStorage for that endpoint.
 4. Choose a model from the chat composer. Discovery uses `/v1/models`; you can enter a model ID if discovery is unavailable.
 5. Ask a question or request a code change. Review changes in VS Code Source Control.
 
@@ -40,15 +40,15 @@ The initial target is Windows PowerShell 5.1 repositories and VS Code 1.106 or n
 
 ## Endpoint compatibility
 
-**User message** is the default endpoint compatibility mode. It sends instructions and conversation context in one user message and omits the JSON-mode request parameter. For endpoints that support system messages and JSON mode, select **Standard** under **EKOD Settings → Connection → Endpoint compatibility**. Existing explicit selections are preserved. Both modes require valid action JSON and enforce the same permissions. Start a new chat and try a greeting, then a read-only question.
+**User message** is the default endpoint compatibility mode. It sends instructions and conversation context in one user message and omits the JSON-mode request parameter. For endpoints that support system messages and JSON mode, select **Standard** under **CodeEko Settings → Connection → Endpoint compatibility**. Existing explicit selections are preserved. Both modes require valid action JSON and enforce the same permissions. Start a new chat and try a greeting, then a read-only question.
 
-## Updating EKOD
+## Updating CodeEko
 
 From your existing clone, pull the latest code and rerun the installer:
 
 ```powershell
 git pull --ff-only
-.\scripts\Install-Ekod.ps1
+.\scripts\Install-CodeEko.ps1
 ```
 
 Reload VS Code after installation. Check the [changelog](../CHANGELOG.md) for any migration steps before updating.

@@ -23,7 +23,7 @@ import * as path from 'node:path';
 import { StartupDiagnostics, startupError } from '../state/startupDiagnostics';
 const active = new Map<string, AbortController>();
 let startupDiagnostics: StartupDiagnostics | undefined;
-const config = () => vscode.workspace.getConfiguration('ekod');
+const config = () => vscode.workspace.getConfiguration('codeeko');
 const mode = () => { const value = config().get<string>('permissionMode', 'Full access'); return value === 'Custom' ? 'Review' : value; };
 function outcome(task?: EditTask, validation?: TaskValidation): string {
   if (!task?.changes().length && !validation?.hasRun()) return '';
@@ -33,9 +33,9 @@ const keyName = (endpoint: string) => 'apiKey.' + createHash('sha256').update(ap
 async function client(context: vscode.ExtensionContext): Promise<GeminiClient> {
   await performanceDiagnostics.ready;
   const endpoint = config().get<string>('endpoint', '');
-  if (!endpoint) throw new Error('Set ekod.endpoint to your HTTPS API URL first.');
+  if (!endpoint) throw new Error('Set codeeko.endpoint to your HTTPS API URL first.');
   const key = await context.secrets.get(keyName(endpoint));
-  if (!key) throw new Error('Use EKOD: Set API Key before connecting.');
+  if (!key) throw new Error('Use CodeEko: Set API Key before connecting.');
   return new GeminiClient(endpoint, key, config().get<number>('requestTimeout', 300000), fetch, config().get<string>('compatibilityMode', 'User message') === 'Standard' ? 'Standard' : 'User message', config().get<boolean>('streamResponses', true));
 }
 async function selectModel(context: vscode.ExtensionContext, signal?: AbortSignal): Promise<void> {
@@ -67,18 +67,18 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     if (!await vscode.env.openExternal(vscode.Uri.file(storage))) throw new Error('Could not open extension storage.');
     return 'No rejected-response logs yet. Enable capture, then retry your message. Opened extension storage.';
   }, context.extension.packageJSON.version); context.subscriptions.push(settingsPage);
-  context.subscriptions.push(vscode.commands.registerCommand('ekod.openSettings', () => settingsPage.open()));
+  context.subscriptions.push(vscode.commands.registerCommand('codeeko.openSettings', () => settingsPage.open()));
   const review = new NativeReview(); context.subscriptions.push(review);
   const command = (name: string, fn: () => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(name, () => fn().catch(e => vscode.window.showErrorMessage(e instanceof Error ? e.message : 'Operation failed.'))));
-  command('ekod.setKey', async () => {
+  command('codeeko.setKey', async () => {
     const endpoint = config().get<string>('endpoint', '');
     if (!endpoint) throw new Error('Configure an HTTPS API endpoint first.');
     const name = keyName(endpoint);
     const key = await vscode.window.showInputBox({ title: 'API key for ' + new URL(endpoint).host, password: true, ignoreFocusOut: true });
     if (key?.trim()) { await context.secrets.store(name, key.trim()); vscode.window.showInformationMessage('API key stored securely for this endpoint.'); }
   });
-  command('ekod.selectModel', () => selectModel(context));
-  command('ekod.exportStartupDiagnostics', async () => {
+  command('codeeko.selectModel', () => selectModel(context));
+  command('codeeko.exportStartupDiagnostics', async () => {
     const report = await diagnostics.export(context.logUri?.fsPath);
     const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
     await vscode.window.showTextDocument(document, { preview: false });
@@ -86,7 +86,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
   });
   let initialization: Promise<void> | undefined;
   let sidebar: vscode.WebviewView | undefined;
-  context.subscriptions.push(vscode.window.registerWebviewViewProvider('ekod.conversation', {
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('codeeko.conversation', {
     resolveWebviewView: view => {
       const viewId = randomUUID(); diagnostics.log('resolve', { view: viewId, visible: view.visible });
       sidebar = view;
@@ -102,15 +102,15 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
       return initialization;
     }
   }, { webviewOptions: { retainContextWhenHidden: true } }));
-  command('ekod.open', async () => {
+  command('codeeko.open', async () => {
     diagnostics.log('focus.begin', { source: 'command' });
-    try { await vscode.commands.executeCommand('ekod.conversation.focus'); diagnostics.log('focus.end', { source: 'command' }); }
+    try { await vscode.commands.executeCommand('codeeko.conversation.focus'); diagnostics.log('focus.end', { source: 'command' }); }
     catch (error) { diagnostics.log('focus.failed', { source: 'command', code: startupError(error) }); throw error; }
     // View resolution crosses the workbench/extension-host boundary and can arrive
     // after the focus command has returned.
     const deadline = Date.now() + 10000;
     while (!initialization && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
-    if (!initialization) { diagnostics.log('activation.timeout'); throw new Error('The conversation sidebar did not open. Try EKOD: Open Conversation again.'); }
+    if (!initialization) { diagnostics.log('activation.timeout'); throw new Error('The conversation sidebar did not open. Try CodeEko: Open Conversation again.'); }
     await initialization;
     return true;
   });
@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (vscode.workspace.isTrusted && folders.length === 1 && folders[0].uri.scheme === 'file') {
     diagnostics.log('focus.begin', { source: 'automatic' });
-    void vscode.commands.executeCommand('ekod.conversation.focus', { preserveFocus: true }).then(() => diagnostics.log('focus.end', { source: 'automatic' }), error => diagnostics.log('focus.failed', { source: 'automatic', code: startupError(error) }));
+    void vscode.commands.executeCommand('codeeko.conversation.focus', { preserveFocus: true }).then(() => diagnostics.log('focus.end', { source: 'automatic' }), error => diagnostics.log('focus.failed', { source: 'automatic', code: startupError(error) }));
     const timer = setTimeout(() => { if (!initialization) diagnostics.log('activation.timeout'); }, 10000); timer.unref();
     context.subscriptions.push({ dispose: () => clearTimeout(timer) });
   }
@@ -218,7 +218,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         try { await store.save(); } catch (error) { thread.archived = previous; throw error; }
         if (thread.archived) send({ type: 'home' });
       } else if (message.type === 'settings') {
-        await vscode.commands.executeCommand('ekod.openSettings');
+        await vscode.commands.executeCommand('codeeko.openSettings');
       } else if (message.type === 'selectModel') {
         discoveryEndpoint = config().get<string>('endpoint', ''); discoveredModels = []; discoveryFailed = false;
         try { discoveredModels = await (await client(context)).models(); send({ type: 'models', items: discoveredModels }); }
@@ -309,7 +309,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
     } catch (e) { send({ type: 'progress', text: e instanceof Error ? e.message : 'Operation failed.' }); }
     finally { busy = false; update(); if (disposed) await release(); }
   });
-  const settings = vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('ekod')) update(); });
+  const settings = vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('codeeko')) update(); });
   context.subscriptions.push(panel.onDidDispose(() => { disposed = true; clearTimeout(handshakeTimer); active.get(root)?.abort(); listener.dispose(); settings.dispose(); watcher.dispose(); invalidations.forEach(d => d.dispose()); if (!busy) void release(); }));
   // Install the listener before loading HTML so the initial ready message cannot race it.
   diagnostics.log('html', { view: viewId }); armHandshake(); panel.webview.html = conversationHtml();

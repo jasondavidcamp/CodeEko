@@ -54,7 +54,7 @@ test('task correlation isolates concurrent runs and joins requests, tool phases 
 
 test('persistent diagnostics recover interrupted records, discard arbitrary fields and clear saved history', async t => {
   const fs = await import('node:fs/promises'), os = await import('node:os'), path = await import('node:path');
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-performance-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-performance-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const first = new PerformanceDiagnostics(); await first.configure(root, '0.4.51');
   await first.task(async () => { first.setTurn(1); first.begin('completion', 'Standard', 1000, false, { model: 'fixture' }); }, () => 'complete');
@@ -78,7 +78,7 @@ test('persistent diagnostics recover interrupted records, discard arbitrary fiel
 
 test('persistent diagnostics enforce retention and storage errors do not stop work', async t => {
   const fs = await import('node:fs/promises'), os = await import('node:os'), path = await import('node:path');
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-perf-retention-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-perf-retention-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   for (let i = 0; i < 7; i++) {
     const log = new PerformanceDiagnostics(); await log.configure(root, '0.4.51');

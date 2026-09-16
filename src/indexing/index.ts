@@ -6,7 +6,7 @@ import { powershell, SymbolEntry } from './powershell';
 import { decode, DocumentData } from '../repository/document';
 export interface Entry { path: string; size: number; mtime: number; symbols: SymbolEntry[] }
 export function excluded(file: string): boolean {
-  if (/(^|\/)\.ekod-/.test(file)) return true;
+  if (/(^|\/)\.codeeko-/.test(file)) return true;
   return /(^|\/)(\.git|node_modules|dist|build|out|coverage|bin|obj|vendor|\.venv|\.ssh|\.aws|\.azure|\.kube|secrets?)(\/|$)/i.test(file) || /(^|\/)(\.env[^/]*|.*(?:secret|credential|password).*|appsettings[^/]*|web\.config|nuget\.config|\.npmrc|\.netrc|id_rsa|id_ed25519)$/i.test(file) || /\.(pem|key|pfx|p12|jks|kdbx|lock|min\.js|map|exe|dll|zip|pdf|png|jpe?g|gif|ico|woff2?|mp[34]|wav)$/i.test(file);
 }
 export async function fileDocument(root: string, file: string): Promise<DocumentData> {

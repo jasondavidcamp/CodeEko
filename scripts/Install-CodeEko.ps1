@@ -38,21 +38,21 @@ try {
     Write-Host 'Installing locked build dependencies from https://registry.npmjs.org/ into this clone...'
     Invoke-Checked $npm @('ci', '--include=dev', '--no-audit', '--no-fund', '--registry=https://registry.npmjs.org/')
     if ($RunTests) { Invoke-Checked $npm @('test') }
-    Write-Host 'Building and packaging EKOD locally...'
+    Write-Host 'Building and packaging CodeEko locally...'
     Invoke-Checked $npm @('run', 'package')
-    $vsix = Join-Path $repoRoot 'ekod.vsix'
-    if (-not (Test-Path -LiteralPath $vsix -PathType Leaf)) { throw 'Packaging did not produce ekod.vsix.' }
+    $vsix = Join-Path $repoRoot 'codeeko.vsix'
+    if (-not (Test-Path -LiteralPath $vsix -PathType Leaf)) { throw 'Packaging did not produce codeeko.vsix.' }
     Write-Host "Built $vsix"
     Write-Host ('SHA256: ' + (Get-FileHash -LiteralPath $vsix -Algorithm SHA256).Hash)
     if (-not $BuildOnly) {
-        Write-Host 'Installing EKOD into the current VS Code user profile...'
+        Write-Host 'Installing CodeEko into the current VS Code user profile...'
         Invoke-Checked $code.Source @('--install-extension', $vsix, '--force')
         $installed = & $code.Source --list-extensions --show-versions
         if ($LASTEXITCODE -ne 0) { throw 'Could not verify the installed extension.' }
         $manifest = Get-Content -LiteralPath (Join-Path $repoRoot 'package.json') -Raw | ConvertFrom-Json
         $expected = "$($manifest.publisher).$($manifest.name)@$($manifest.version)"
         if ($installed -notcontains $expected) { throw "VS Code did not report $expected as installed." }
-        Write-Host "Installed $expected. Reload VS Code, then open EKOD Settings to configure your endpoint and model."
+        Write-Host "Installed $expected. Reload VS Code, then open CodeEko Settings to configure your endpoint and model."
     }
 } finally {
     Pop-Location

@@ -4,7 +4,7 @@
 
 Build a VS Code coding-agent runtime that turns a text-only LLM API into a repository-aware assistant with local tools, permissions, task memory, validation, and bounded repair.
 
-The established repository is `EKOD`. Settings and commands use the `ekod.*` namespace. Use EKOD for all product identifiers. Use the product name established in current metadata. Do not rename the package, commands, settings, or publisher as part of unrelated work.
+The established repository is `CodeEko`. Settings and commands use the `codeeko.*` namespace. Use CodeEko for all product identifiers. Use the product name established in current metadata. Do not rename the package, commands, settings, or publisher as part of unrelated work.
 
 Read `README.md`, `ROADMAP.md`, applicable nested instructions, and relevant code before changing behavior. `README.md` is for humans using and developing the extension; `AGENTS.md` sets working boundaries; `ROADMAP.md` records direction, priorities, and verified progress. The roadmap describes delivery priorities; this file describes how to work. Distinguish intended features from implemented capabilities. If documents disagree materially, identify the disagreement instead of silently selecting a convenient interpretation.
 

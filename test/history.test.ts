@@ -12,7 +12,7 @@ import { ReadOnlyTools } from '../src/tools/readOnly';
 import { RepositoryIndex } from '../src/indexing';
 
 test('commit inspection distinguishes history from dirty work and includes deletions and initial commits', async t => {
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'ekod-history-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'codeeko-history-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
  await git(root,['init']);await git(root,['config','user.name','Test']);await git(root,['config','user.email','test@example.invalid']);
  await assert.rejects(showCommit(root),/no commits/);
  for(const [file,text] of [['main.ps1','return 1'],['removed.ps1','old function'],['.env','PRIVATE_SECRET']])await fs.writeFile(path.join(root,file),text);

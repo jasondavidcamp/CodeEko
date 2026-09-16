@@ -6,7 +6,7 @@ import * as os from 'node:os';
 import { latestRejectedLog } from '../src/state/rejectedLogs';
 
 test('capture locator finds the newest log and ignores unrelated files and linked directories', async t => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-log-location-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-log-location-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const storage = path.join(root, 'storage');
   assert.equal(await latestRejectedLog(storage), undefined);

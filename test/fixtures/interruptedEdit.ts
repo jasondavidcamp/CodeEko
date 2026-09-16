@@ -24,7 +24,7 @@ async function run(): Promise<void> {
   const original = { open: fs.open, rename: fs.rename, unlink: fs.unlink, link: fs.link };
   if (scenario === 'partial-write') fs.open = (async (...args: Parameters<typeof fs.open>) => {
     const handle = await original.open(...args);
-    if (path.basename(String(args[0])).startsWith('.ekod-')) {
+    if (path.basename(String(args[0])).startsWith('.codeeko-')) {
       const write = handle.writeFile.bind(handle);
       handle.writeFile = async data => { await write((data as Buffer).subarray(0, 16)); return checkpoint(); };
     }

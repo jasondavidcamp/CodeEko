@@ -9,8 +9,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
-if (!$Endpoint) { $Endpoint = Read-Host 'API base URL from EKOD settings' }
-if (!$Model) { $Model = Read-Host 'Exact model ID from EKOD settings' }
+if (!$Endpoint) { $Endpoint = Read-Host 'API base URL from CodeEko settings' }
+if (!$Model) { $Model = Read-Host 'Exact model ID from CodeEko settings' }
 $Endpoint = $Endpoint.Trim().TrimEnd('/')
 $Model = $Model.Trim()
 if (!$Model) { throw 'A model ID is required.' }

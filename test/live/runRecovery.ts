@@ -12,8 +12,8 @@ async function terminate(child: ChildProcess): Promise<void> {
 }
 async function main(): Promise<void> {
   if (process.platform !== 'win32') throw new Error('This recovery test requires Windows.');
-  const executable = process.env.EKOD_VSCODE_EXECUTABLE ?? await downloadAndUnzipVSCode({ version: process.env.EKOD_VSCODE_VERSION ?? 'stable', cachePath: path.join(os.tmpdir(), 'ekod-vscode-cache') });
-  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'ekod-recovery-'));
+  const executable = process.env.CODEEKO_VSCODE_EXECUTABLE ?? await downloadAndUnzipVSCode({ version: process.env.CODEEKO_VSCODE_VERSION ?? 'stable', cachePath: path.join(os.tmpdir(), 'codeeko-vscode-cache') });
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-recovery-'));
   const workspace = path.join(temp, 'workspace'); const profile = path.join(temp, 'profile'); const marker = path.join(temp, 'ready.json'); const report = path.join(temp, 'report.json');
   const childMarker = path.join(temp, 'validator.pid');
   const project = path.resolve(__dirname, '../../..');
@@ -33,10 +33,10 @@ async function main(): Promise<void> {
   await fs.writeFile(path.join(profile, 'User/settings.json'), JSON.stringify({ 'security.workspace.trust.enabled': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'update.mode': 'none' }));
   const env: NodeJS.ProcessEnv = { ...process.env };
   for (const name of Object.keys(env)) if (/KEY|TOKEN|SECRET|PASSWORD|ELECTRON_RUN_AS_NODE/i.test(name)) delete env[name];
-  Object.assign(env, { EKOD_RECOVERY_STORAGE: path.join(profile, 'User/globalStorage', extensionId), EKOD_RECOVERY_MARKER: marker, EKOD_RECOVERY_REPORT: report, EKOD_RECOVERY_CHILD: childMarker });
+  Object.assign(env, { CODEEKO_RECOVERY_STORAGE: path.join(profile, 'User/globalStorage', extensionId), CODEEKO_RECOVERY_MARKER: marker, CODEEKO_RECOVERY_REPORT: report, CODEEKO_RECOVERY_CHILD: childMarker });
   let hostCrashCleanupVerified = false;
   const launch = async (phase: 'seed' | 'verify') => {
-    const child = spawn(executable, [`--extensionDevelopmentPath=${project}`, `--extensionTestsPath=${path.join(__dirname, 'recoveryHost.js')}`, `--user-data-dir=${profile}`, `--extensions-dir=${path.join(temp, 'extensions')}`, '--disable-extensions','--disable-updates','--skip-welcome','--skip-release-notes','--log','error','--new-window', workspace], { env: { ...env, EKOD_RECOVERY_PHASE: phase }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
+    const child = spawn(executable, [`--extensionDevelopmentPath=${project}`, `--extensionTestsPath=${path.join(__dirname, 'recoveryHost.js')}`, `--user-data-dir=${profile}`, `--extensions-dir=${path.join(temp, 'extensions')}`, '--disable-extensions','--disable-updates','--skip-welcome','--skip-release-notes','--log','error','--new-window', workspace], { env: { ...env, CODEEKO_RECOVERY_PHASE: phase }, windowsHide: true, stdio: ['ignore','pipe','pipe'] });
     child.stdout?.on('data', data => process.stdout.write(data)); child.stderr?.on('data', data => process.stderr.write(data));
     let launchError: Error | undefined;
     const exited = new Promise<number | null>(resolve => { child.once('error', error => { launchError = error; resolve(null); }); child.once('exit', code => resolve(code)); });

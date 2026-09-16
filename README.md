@@ -1,6 +1,6 @@
-# EKOD
+# CodeEko
 
-EKOD is a VS Code coding assistant for PowerShell repositories. Connect your model endpoint to chat about code, make edits, run unit tests, and review changes in VS Code.
+CodeEko is a VS Code coding assistant for PowerShell repositories. Connect your model endpoint to chat about code, make edits, run unit tests, and review changes in VS Code.
 
 **Experimental:** some workstations need a second VS Code restart before chat loads. See [troubleshooting](docs/USAGE.md#current-limits).
 
@@ -12,4 +12,4 @@ EKOD is a VS Code coding assistant for PowerShell repositories. Connect your mod
 
 Distribution is currently from source; prebuilt VSIX downloads are paused.
 
-[MIT license](LICENSE) · [Issues](https://github.com/jasondavidcamp/EKOD/issues) · [Contributor instructions](AGENTS.md)
+[MIT license](LICENSE) · [Issues](https://github.com/jasondavidcamp/CodeEko/issues) · [Contributor instructions](AGENTS.md)

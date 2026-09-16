@@ -15,13 +15,13 @@ import { createPowerShellRunner } from '../../src/validation/powershell';
 export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension(extensionId); assert.ok(extension); await extension.activate();
   const root = await fs.realpath(vscode.workspace.workspaceFolders![0].uri.fsPath);
-  const base = process.env.EKOD_RECOVERY_STORAGE!; const marker = process.env.EKOD_RECOVERY_MARKER!;
+  const base = process.env.CODEEKO_RECOVERY_STORAGE!; const marker = process.env.CODEEKO_RECOVERY_MARKER!;
   const storage = repositoryStorage(base, root); const index = new RepositoryIndex(root, storage);
   const store = new ThreadStore(storage); await store.load();
-  const review = new NativeReview('ekod-recovery-test');
+  const review = new NativeReview('codeeko-recovery-test');
   const hooks = { mode: () => 'Full access', isDirty: () => false, confirm: async () => true, preview: (file: string, before: string, after: string) => review.preview(file, before, after) };
   const signal = new AbortController().signal;
-  if (process.env.EKOD_RECOVERY_PHASE === 'seed') {
+  if (process.env.CODEEKO_RECOVERY_PHASE === 'seed') {
     const first = store.create('Interrupted feature'); first.messages.push({ role: 'user', content: 'Change the return value to 2.' }); first.status = 'running';
     const second = store.create('Other conversation'); second.messages.push({ role: 'user', content: 'Keep this independent history.' });
     const task = await EditTask.capture(index, storage, hooks, signal);
@@ -34,7 +34,7 @@ export async function run(): Promise<void> {
     // Attach a rejection handler while waiting for the controlled child-process checkpoint.
     void running.catch(() => {});
     const deadline = Date.now() + 30000;
-    const childMarker = process.env.EKOD_RECOVERY_CHILD!;
+    const childMarker = process.env.CODEEKO_RECOVERY_CHILD!;
     while (!await fs.stat(childMarker).then(() => true, () => false)) {
       if (completed || Date.now() > deadline) throw new Error('Synthetic Pester validation did not reach its checkpoint.');
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -53,7 +53,7 @@ export async function run(): Promise<void> {
     assert.equal(interrupted.status, 'interrupted'); assert.equal(interrupted.undoTaskId, seeded.id);
     assert.equal(store.threads[1].messages[0].content, 'Keep this independent history.');
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 2 }\n# developer note\n');
-    assert.equal(await vscode.commands.executeCommand('ekod.open'), true, 'Sidebar must restore after restart.');
+    assert.equal(await vscode.commands.executeCommand('codeeko.open'), true, 'Sidebar must restore after restart.');
     // Opening the real panel must not replay the interrupted mutation or undo automatically.
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 2 }\n# developer note\n');
     const task = await EditTask.load(index, storage, seeded.id, hooks);
@@ -66,6 +66,6 @@ export async function run(): Promise<void> {
     assert.equal(await fs.readFile(path.join(root, 'main.ps1'), 'utf8'), 'function Get-Value { return 1 }\n# developer note\n');
     assert.equal(await git(root, ['diff','--cached','--no-ext-diff','--no-textconv']), seeded.staged);
     await assert.rejects(fs.stat(path.join(root, 'replayed.txt')));
-    await fs.writeFile(process.env.EKOD_RECOVERY_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, threadsRecovered: true, interruptedStatus: true, appliedEditPreserved: true, validationInterrupted: true, noFalseValidationPass: true, noAutomaticReplay: true, nativeSidebarReopened: true, undoAfterRestart: true, developerWorkPreserved: true }));
+    await fs.writeFile(process.env.CODEEKO_RECOVERY_REPORT!, JSON.stringify({ vscodeVersion: vscode.version, threadsRecovered: true, interruptedStatus: true, appliedEditPreserved: true, validationInterrupted: true, noFalseValidationPass: true, noAutomaticReplay: true, nativeSidebarReopened: true, undoAfterRestart: true, developerWorkPreserved: true }));
   } finally { review.dispose(); }
 }
