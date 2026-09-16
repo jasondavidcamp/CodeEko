@@ -16,6 +16,7 @@ README.md introduces the product and links to setup, usage and development guide
 - [x] Default to User message compatibility for endpoints that do not support system instructions or JSON mode.
 - [x] Retain original task context through empty-response retries and format correction.
 - [x] Recover recognized provider malformed-function-call rejections with bounded plain-JSON retries; preserve finish reasons without executing rejected responses.
+- [x] Diagnose over-escaped action JSON and provide targeted bounded-repair guidance and a multiline editing example; verify strict rejection, source preservation, permission enforcement and offline replay using captured failure shapes.
 - [x] Persist named conversations per repository, with recent chats, searchable history and activity times.
 - [x] Rename, archive and restore conversations from the chat pane.
 - [x] Keep conversation questions, permission choices and model selection in the pane.
@@ -161,3 +162,7 @@ Naming cleanup verification (0.4.42): 118 tests passed, one unavailable Pester 4
 Source installer verification: a real dependency restore and package build passed, the built VSIX installed into an isolated VS Code user profile, and Windows PowerShell 5.1 subprocess tests verified paths containing spaces, build-only mode, optional tests and stop-on-failure behavior. No elevation or workstation-policy changes were used by the installer.
 
 Endpoint compatibility verification (0.4.45): 126 tests passed, one unavailable Pester 4 check skipped; native VS Code activation/sidebar/settings checks and packaging passed. Synthetic transport regressions cover user-message requests, empty output, null tools, retained task evidence and unchanged read-only enforcement. Representative endpoint verification remains open.
+
+Action-encoding verification (2026-09-16): captured responses contained over-escaped top-level JSON quotes, including a multiline test-file creation action. Offline replay identifies this shape without executing it. The updated build passed 147 tests with one unavailable Pester 4 check skipped, and VSIX packaging passed. An installed-profile fresh-chat editing run added a direct-array test using six successful model responses with no format-repair requests or new rejection captures. PowerShell 5.1 parsing and static analysis passed; Pester execution was blocked by inherited signed-script policy, so no live unit-test pass is claimed. This single run does not establish general endpoint reliability. Reload initially failed at repository lease acquisition; a second reload restored the pane. Startup reliability remains open.
+
+Local deployment follow-up (2026-09-16): the installed protocol and transport matched the verified build. With temporary process-only RemoteSigned validation, the six new-function tests passed independently, then the installed chat completed validation with 13 passing tests and no failures. Parsing and eligible static analysis passed; the operational/module-dependent suite and analysis remained skipped for manual inspection, so coverage was partial. The original inherited validation policy was restored afterward; no workstation policy was changed.

@@ -4,7 +4,7 @@
 
 - Handle direct chat undo requests through guarded task undo without a model call; preserve unrelated pending work and explain missing task history in chat.
 - Display the settings sidebar brand as CodeEko instead of forcing uppercase.
-
+- Clarify standalone action encoding and show a multiline PowerShell file-creation example. Detect over-escaped responses with a specific bounded-repair hint while retaining strict JSON and action validation.
 - Build and install from source with the current-user installer.
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.

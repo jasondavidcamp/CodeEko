@@ -6,6 +6,8 @@
 
 Empty model replies retry the original request within the same two-correction budget. Format corrections retain the original request and tool evidence, without adding rejected actions to accepted conversation history. Repeated failures still stop without executing the rejected actions.
 
+Over-escaped actions (for example, backslashes before top-level key quotes or an action wrapped in a JSON string) receive a specific correction hint. CodeEko asks the model to encode the action once and preserves the normal two-correction budget. It does not automatically unescape or execute malformed output. Editing instructions include a multiline source example, and User message requests distinguish the escaped conversation records from the standalone response object. These instructions improve recovery guidance; they do not guarantee model or endpoint compliance.
+
 ## Chat and permissions
 
 `codeeko.requestTimeout` defaults to 300 seconds (300,000 milliseconds) per request. Explicitly saved timeout values remain in effect. `codeeko.permissionMode` defaults to Full access and is always visible in the panel. **Workspace and Full access enable repository edits; Review remains read-only. Existing Custom settings are treated as Review; Custom is no longer offered.** No mode enables general commands. Endpoint/model/timeout/permission settings are application-scoped so repository settings cannot redirect credentials or elevate permissions.
