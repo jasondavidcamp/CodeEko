@@ -6,6 +6,13 @@
 - Pause prebuilt VSIX downloads; retain release source tags.
 - Shorten README and link to setup, usage and development guides.
 
+## 0.4.50 — Streaming responses
+
+- Enable response streaming by default with a Connection setting to disable it.
+- Recognize SSE despite incorrect headers, show receiving progress and validate complete actions before tool execution.
+- Record first-content timing and content-chunk counts in performance diagnostics.
+- Add a standalone PowerShell streaming endpoint probe.
+
 ## 0.4.49 — Settings version
 
 - Show the installed extension version in Settings and include it in performance reports.

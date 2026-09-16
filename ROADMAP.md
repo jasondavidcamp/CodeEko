@@ -96,7 +96,8 @@ Full access currently covers supported repository tools and fixed validation com
 - [ ] Measure repeated live test-generation performance and duplicate-suite avoidance.
 - [ ] Improve durable task intent and validation context across long conversations.
 - [x] Add bounded session request-performance diagnostics with timing, format-repair markers, timeouts and metadata-only export.
-- [ ] Add response streaming and broader structured local diagnostics without recording credentials.
+- [x] Add default-on SSE response streaming, in-pane receiving progress and first-content diagnostics with complete-action validation.
+- [ ] Expand structured local diagnostics without recording credentials.
 - [ ] Automate release packaging, checksum generation and verification.
 
 ## Deferred scope

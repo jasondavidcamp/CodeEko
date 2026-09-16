@@ -1,5 +1,6 @@
 export interface RequestTiming {
   id: number; at: string; operation: 'models' | 'completion'; mode: string; timeoutMs: number; repair: boolean;
+  firstContentMs?: number; contentChunks?: number; streamed?: boolean; streamingRequested?: boolean;
   elapsedMs?: number; headersMs?: number; status?: number; outcome: string;
 }
 // Only locally generated metadata. Never accept request text, URLs, errors or provider bodies.
@@ -12,7 +13,7 @@ export class PerformanceDiagnostics {
     this.records = this.records.slice(-100);
     return id;
   }
-  finish(id: number, result: Pick<RequestTiming, 'elapsedMs' | 'headersMs' | 'status' | 'outcome'>): void {
+  finish(id: number, result: Pick<RequestTiming, 'elapsedMs' | 'headersMs' | 'status' | 'outcome' | 'firstContentMs' | 'contentChunks' | 'streamed' | 'streamingRequested'>): void {
     const record = this.records.find(record => record.id === id);
     if (record) Object.assign(record, result);
   }

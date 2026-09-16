@@ -2,7 +2,7 @@
   "name": "ekod",
   "displayName": "EKOD",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.49",
+  "version": "0.4.50",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -68,6 +68,12 @@
           "default": "",
           "scope": "application",
           "description": "Selected model; also the fallback when discovery fails."
+        },
+        "ekod.streamResponses": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Receive model responses incrementally. Disable for endpoints that do not support streaming. Complete actions are validated before execution."
         },
         "ekod.requestTimeout": {
           "type": "number",

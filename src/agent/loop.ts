@@ -2,7 +2,7 @@ import { Message } from '../api/client';
 import { authorize, check, TaskConflict, ReadRequired, PatchTargetRequired, mutations } from '../policy/boundary';
 import { parseAction, taskProtocol, Action, ActionFormatError } from '../protocol/actions';
 import { RejectedResponse } from './rejections';
-export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal, repair?: boolean): Promise<string> }
+export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal, repair?: boolean, onContent?: () => void): Promise<string> }
 export interface ToolExecutor { initialContext?(signal: AbortSignal): Promise<unknown>; execute(action: Action, signal: AbortSignal): Promise<unknown>; beforeComplete?(signal: AbortSignal): Promise<unknown | undefined> }
 export const limits = { turns: 20, contextCharacters: 60000, resultCharacters: 14000, totalReadFiles: 30 };
 export async function runAgent(model: Model, selectedModel: string, history: Message[], tools: ToolExecutor, mode: () => string, signal: AbortSignal, progress: (text: string) => void, onRejected?: (response: RejectedResponse) => Promise<void>): Promise<string> {
@@ -17,7 +17,7 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
     const characters = (formatRepair ?? messages).reduce((sum, m) => sum + m.content.length, 0);
     if (characters > limits.contextCharacters) throw new Error('Context limit reached. Start a narrower follow-up.');
     progress(thinking);
-    const raw = await model.complete(selectedModel, formatRepair ?? messages, signal, !!formatRepair); check(signal);
+    const raw = await model.complete(selectedModel, formatRepair ?? messages, signal, !!formatRepair, () => progress('Receiving response…')); check(signal);
     let action: Action;
     try { action = parseAction(raw); }
     catch (error) {

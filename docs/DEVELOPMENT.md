@@ -17,3 +17,7 @@ Optional live tests use an isolated synthetic PowerShell repository. Set `EKOD_T
 ## Source installation
 
 See [Getting started](GETTING_STARTED.md) for the build-and-install script.
+
+## Streaming endpoint probe
+
+Run `./scripts/Test-EkodStreaming.ps1` in PowerShell 5.1 or 7. Enter the configured API base URL, exact model ID and key at the prompts. The key prompt is hidden. The probe sends two synthetic requests (normal and streaming), with a 300-second limit each, and prints a metadata-only JSON report. It detects SSE framing independently of the content-type header and records the first 20 content-chunk arrival times. No repository files are sent and no response text or credentials are exported. These are live, potentially billable requests. This probe does not enable streaming in EKOD.

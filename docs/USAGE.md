@@ -97,3 +97,9 @@ The Settings sidebar shows the installed EKOD version. Performance exports inclu
 Open **EKOD Settings > Diagnostics > Request performance** to inspect the latest 100 API requests in the current extension session. Send a message, then select **Refresh**. The table shows total duration, time to response headers, compatibility mode, format-repair requests, HTTP status, empty responses, cancellations and timeouts. **Export performance report** opens JSON that you can save or share; **Clear history** discards the session history. Restarting VS Code also clears it.
 
 These measurements include network and server time; they cannot separate proxy queuing from model computation. They exclude local tool execution and do not measure total task duration. No prompts, response text, endpoint addresses, model IDs or API keys are captured.
+
+## Streaming responses
+
+**Settings > Connection > Stream model responses** is enabled by default. EKOD shows receiving progress when the first content arrives, then validates the complete action before running tools. Turn it off if your endpoint rejects streaming. SSE is recognized even when the response content-type header is incorrect; ordinary JSON responses are also accepted. No automatic retry switches request modes. The request timeout covers the entire response, including all chunks.
+
+Request performance diagnostics includes first-content timing, content-chunk count, whether streaming was requested and whether SSE was received. These timings indicate when content arrives, not when the model started computing.
