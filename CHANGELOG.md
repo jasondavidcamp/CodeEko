@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a standalone PowerShell warm-up probe that automates repeated fresh-chat requests and idle periods, saves progress after each request, and separates valid responses from failures in its timing summary.
+
 ## 0.4.57 — Controlled request comparison
 
 - Compare compact instructions, compatibility wrapping, full agent instructions and provider-default output limits using the same requested JSON answer. Exclude empty, incorrect and failed replies from timing summaries.

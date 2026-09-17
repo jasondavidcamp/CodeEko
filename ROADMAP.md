@@ -153,6 +153,8 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 
 ## Evidence and limits
 
+- [x] Provide a standalone PowerShell idle/repeat API probe with generated production fresh-chat message profiles, configurable batches and idle intervals, incremental reports and optional fresh connections. Windows PowerShell 5.1 loopback tests and static analysis passed; live endpoint behavior remains environment-specific.
+
 - [x] Add a synthetic in-extension request timing comparison with alternating minimal/full fresh-chat prompts, unchanged transport settings, cancellation and metadata-only reporting; verified with fake-provider transport tests.
 - [x] Refine the comparison into compact, wrapped, full-protocol and provider-default output-limit variants with identical requested answers, validity-gated timing summaries, response-shape counts and sanitized transport error codes; verified offline.
 - [ ] Run the comparison on an affected workstation and compare first-body timing before attributing the delay to request content or transport.
