@@ -32,6 +32,53 @@ function Wait-ProbeTask {
     $Task.GetAwaiter().GetResult()
 }
 
+function Get-ProbeFailure {
+    param([Exception]$Exception, [string]$Stage)
+    # Export only known type names and numeric codes, never exception messages,
+    # stack traces, Data, request objects or arbitrary property strings.
+    $allowed = @(
+        'System.Management.Automation.MethodInvocationException',
+        'System.Management.Automation.RuntimeException',
+        'System.AggregateException', 'System.Net.Http.HttpRequestException',
+        'System.Net.WebException', 'System.Net.Sockets.SocketException',
+        'System.Security.Authentication.AuthenticationException',
+        'System.IO.IOException', 'System.TimeoutException',
+        'System.Threading.Tasks.TaskCanceledException', 'System.OperationCanceledException'
+    )
+    $queue = New-Object 'Collections.Generic.Queue[System.Exception]'
+    $queue.Enqueue($Exception)
+    $visited = 0
+    $details = @(while ($queue.Count -gt 0 -and $visited -lt 12) {
+        $current = $queue.Dequeue()
+        $visited++
+        $type = $current.GetType().FullName
+        $entry = [ordered]@{
+            type = $(if ($allowed -contains $type) { $type } else { 'OtherException' })
+            hresult = [int]$current.HResult
+        }
+        if ($current -is [Net.WebException]) {
+            $entry.webExceptionStatusCode = [int]$current.Status
+            if ([Enum]::IsDefined([Net.WebExceptionStatus], $current.Status)) {
+                $entry.webExceptionStatus = $current.Status.ToString()
+            }
+        }
+        if ($current -is [Net.Sockets.SocketException]) {
+            $entry.socketErrorCode = [int]$current.SocketErrorCode
+            $entry.nativeErrorCode = [int]$current.NativeErrorCode
+            if ([Enum]::IsDefined([Net.Sockets.SocketError], $current.SocketErrorCode)) {
+                $entry.socketError = $current.SocketErrorCode.ToString()
+            }
+        }
+        [PSCustomObject]$entry
+        if ($current -is [AggregateException]) {
+            foreach ($inner in $current.InnerExceptions) {
+                if ($queue.Count -lt 12) { $queue.Enqueue($inner) }
+            }
+        } elseif ($current.InnerException) { $queue.Enqueue($current.InnerException) }
+    })
+    [PSCustomObject]@{ stage = $Stage; exceptions = $details }
+}
+
 function Receive-ProbeEvent {
     param([string]$Data, $State, $Report, [Diagnostics.Stopwatch]$Watch)
     if (!$Data.Trim()) { return }
@@ -100,6 +147,7 @@ function Invoke-StreamingProbe {
         validJson = $false
         expectedAction = $false
         outcome = 'pending'
+        failure = $null
     }
     $state = @{
         Sse = $false
@@ -206,6 +254,7 @@ function Invoke-StreamingProbe {
         }
     } catch {
         # Never print arbitrary transport exceptions, bodies, URLs or headers.
+        $report.failure = Get-ProbeFailure $_.Exception $stage
         $report.outcome = if ($watch.ElapsedMilliseconds -ge ($TimeoutSeconds * 1000)) { 'timeout' }
             elseif ($stage -eq 'body-read') { 'body-read-error' }
             elseif ($stage -eq 'body-parse') { 'body-parse-error' }
@@ -239,5 +288,5 @@ try {
         }
     })
     Write-Progress -Activity 'API timing comparison' -Completed
-    [PSCustomObject]@{ probeVersion = 3; results = $results } | ConvertTo-Json -Depth 8
+    [PSCustomObject]@{ probeVersion = 4; results = $results } | ConvertTo-Json -Depth 8
 } finally { $plainKey = $null }

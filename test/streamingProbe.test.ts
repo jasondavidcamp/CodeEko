@@ -1,8 +1,30 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import * as path from 'node:path';
+
+test('PowerShell failure diagnostics redact nested exception messages and retain socket codes', { skip: process.platform !== 'win32' }, () => {
+  const command = `
+    $tokens=$null; $errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($env:PROBE_SCRIPT,[ref]$tokens,[ref]$errors)
+    if ($errors.Count) { throw 'Parser failure' }
+    $function=$ast.Find({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-ProbeFailure'},$true)
+    . ([scriptblock]::Create($function.Extent.Text))
+    $socket=[Net.Sockets.SocketException]::new(10061)
+    $outer=[IO.IOException]::new('private-secret https://private-host/path', $socket)
+    $outer.Data['private-key']='private-value'
+    Get-ProbeFailure $outer 'request' | ConvertTo-Json -Depth 8
+  `;
+  const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+    windowsHide: true, encoding: 'utf8', env: { ...process.env, PROBE_SCRIPT: path.resolve(__dirname, '../../scripts/Test-CodeEkoStreaming.ps1') }
+  });
+  assert.doesNotMatch(output, /private-|https:|Message|StackTrace/);
+  const failure = JSON.parse(output);
+  assert.equal(failure.exceptions[0].type, 'System.IO.IOException');
+  assert.equal(failure.exceptions[1].socketError, 'ConnectionRefused');
+  assert.equal(failure.exceptions[1].nativeErrorCode, 10061);
+});
 
 test('PowerShell streaming probe detects mislabeled incremental SSE and separates parse errors and timeouts', { skip: process.platform !== 'win32', timeout: 30000 }, async t => {
   let scenario = 'sse';
@@ -11,6 +33,7 @@ test('PowerShell streaming probe detects mislabeled incremental SSE and separate
     let input = ''; for await (const chunk of req) input += chunk;
     const request = JSON.parse(input);
     assert.equal(request.messages.length, 1); assert.equal(request.messages[0].role, 'user');
+    if (scenario === 'disconnect') { req.socket.destroy(); return; }
     if (scenario === 'http') { res.writeHead(429); res.end('private-server-error'); return; }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     if (!request.stream) { res.end(JSON.stringify({ choices: [{ message: { content: action }, finish_reason: 'stop' }] })); return; }
@@ -44,6 +67,16 @@ test('PowerShell streaming probe detects mislabeled incremental SSE and separate
   assert.ok(stream.bodyBytes > 0); assert.ok(stream.bodyChunks >= 2); assert.ok(stream.firstBodySeconds <= stream.firstTextSeconds); assert.equal(stream.contentChunks, 2); assert.equal(stream.doneMarker, true);
   assert.ok(stream.lastTextSeconds - stream.firstTextSeconds > 0.2);
   scenario = 'malformed'; assert.equal((await run())[1].outcome, 'body-not-json-or-sse');
-  scenario = 'timeout'; assert.equal((await run())[1].outcome, 'timeout');
+  scenario = 'timeout';
+  const timeout = (await run())[1];
+  assert.equal(timeout.outcome, 'timeout');
+  assert.equal(timeout.failure.stage, 'body-read');
+  assert.ok(timeout.failure.exceptions.some((e: { type: string }) => e.type === 'System.TimeoutException'));
   scenario = 'http'; assert.equal((await run())[1].httpStatus, 429);
+  scenario = 'disconnect';
+  const disconnected = (await run())[0];
+  assert.equal(disconnected.outcome, 'request-error');
+  assert.equal(disconnected.failure.stage, 'request');
+  assert.ok(disconnected.failure.exceptions.some((e: { type: string }) => e.type === 'System.Net.Http.HttpRequestException'));
+  assert.ok(disconnected.failure.exceptions.some((e: { webExceptionStatusCode?: number }) => typeof e.webExceptionStatusCode === 'number'));
 });
