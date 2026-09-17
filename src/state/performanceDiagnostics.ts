@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
+import { transportMetadataSchema } from '../api/transportMetadata';
 import { failureCodes } from '../api/failure';
 
 const count = z.number().finite().nonnegative().max(1e12);
@@ -16,6 +17,7 @@ const requestSchema = z.object({
   ...common, id: count, operation: z.enum(['models', 'completion']), mode: z.enum(['Standard', 'User message']), timeoutMs: count, repair: z.boolean(), outcome,
   model: model.optional(), requestBytes: count.optional(), promptCharacters: count.optional(), messageCount: count.optional(), maxOutputTokens: count.optional(),
   firstContentMs: count.optional(), contentChunks: count.optional(), streamed: z.boolean().optional(), streamingRequested: z.boolean().optional(),
+  responseHeaders: transportMetadataSchema.optional(),
   firstBodyByteMs: count.optional(), firstSseEventMs: count.optional(), sseEvents: count.optional(),
   bodyBytes: count.optional(), bodyChunks: count.optional(), lastBodyByteMs: count.optional(), maxBodyGapMs: count.optional(),
   bodyChunkSamples: z.array(z.object({ atMs: count, bytes: count })).max(32).optional(),

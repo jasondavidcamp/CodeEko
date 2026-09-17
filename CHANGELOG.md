@@ -4,6 +4,11 @@
 
 - Add a standalone PowerShell warm-up probe that automates repeated fresh-chat requests and idle periods, saves progress after each request, and separates valid responses from failures in its timing summary.
 
+## 0.4.58 — Transport diagnostics
+
+- Add a transport/compression choice to **CodeEko: Compare Request Timing**: twenty identical synthetic hello requests alternate VS Code and PowerShell HTTP clients with default and identity encoding. Preserve the existing prompt comparison as a separate choice.
+- Export bounded response-header categories, UTC timestamps, header-to-body gaps, native worker timing and sanitized networking configuration. Keep credentials in memory, normal chat settings unchanged, and certificate/proxy checks intact. Cancellation closes the owned worker and retains collected results.
+
 ## 0.4.57 — Controlled request comparison
 
 - Compare compact instructions, compatibility wrapping, full agent instructions and provider-default output limits using the same requested JSON answer. Exclude empty, incorrect and failed replies from timing summaries.

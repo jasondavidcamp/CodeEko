@@ -2,6 +2,7 @@ import { CompletionDecoder } from './streaming';
 import { checkFinishReason } from './finish';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { failureMetadata } from './failure';
+import { transportMetadata } from './transportMetadata';
 import { performanceDiagnostics, requestMetadata, responseMetadata, rateMetadata, RequestMetadata, RequestTiming } from '../state/performanceDiagnostics';
 export interface Message { role: 'system' | 'user' | 'assistant'; content: string }
 export function apiBase(endpoint: string): string {
@@ -33,6 +34,7 @@ export class GeminiClient {
       signal?.throwIfAborted();
       const response = await this.transport(apiBase(this.endpoint) + route, { method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal, headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: payload });
       headersMs = Math.round(performance.now() - started); status = response.status;
+      timing.responseHeaders = transportMetadata(response.headers);
       Object.assign(metadata, rateMetadata(response.headers));
       performanceDiagnostics.finish(record, { ...metadata, headersMs, status });
       if (!response.ok) throw new Error(`Endpoint returned HTTP ${response.status}.`);
@@ -132,6 +134,18 @@ export class GeminiClient {
   async probe(model: string, messages: Message[], maxOutputTokens: 4096 | null, signal: AbortSignal, onTiming: (timing: RequestTiming) => void): Promise<string> {
     return this.completeMessages(model, messages, signal, false, undefined, maxOutputTokens, onTiming);
   }
+  /** Explicit diagnostics only: preserve credentials/compatibility, isolate overrides from chat. */
+  forTransportProbe(encoding: 'default' | 'identity', observeBody: (body: string) => void, transport = this.transport): GeminiClient {
+    const observed: typeof fetch = (url, init) => {
+      if (typeof init?.body !== 'string') throw new Error('Diagnostic request body is missing.');
+      observeBody(init.body);
+      const headers = new Headers(init.headers);
+      if (encoding === 'identity') headers.set('Accept-Encoding', 'identity');
+      return transport(url, { ...init, headers });
+    };
+    return new GeminiClient(this.endpoint, this.key, Math.min(this.timeout, 90000), observed, this.compatibilityMode, true);
+  }
+  transportProbeSettings() { return { compatibilityMode: this.compatibilityMode, configuredStreaming: this.streaming, timeoutMs: Math.min(this.timeout, 90000) }; }
   private async completeMessages(model: string, requestMessages: Message[], signal?: AbortSignal, repair = false, onContent?: () => void, maxOutputTokens: 4096 | null = 4096, onTiming?: (timing: RequestTiming) => void): Promise<string> {
     const compatible = this.compatibilityMode === 'User message';
     const data = await this.request('/chat/completions', { model, messages: requestMessages, temperature: 0, stream: this.streaming, ...(maxOutputTokens === null ? {} : { max_tokens: maxOutputTokens }),

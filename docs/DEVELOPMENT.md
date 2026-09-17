@@ -20,6 +20,8 @@ See [Getting started](GETTING_STARTED.md) for the build-and-install script.
 
 ## Streaming endpoint probe
 
+For a transport comparison inside the installed extension host, run **CodeEko: Compare Request Timing → Transport and compression**. It compares the same serialized production hello request through VS Code fetch and a reused PowerShell HttpClient, with default and identity encoding. The fixed worker source is compiled with the extension; it needs no downloaded scripts or modules. `test/transportComparison.test.ts` verifies scheduling, request equality, unchanged chat settings, failure filtering, cancellation and redaction with fake providers. `test/powerShellTransport.test.ts` runs both available Windows PowerShell 5.1 and PowerShell 7 engines against a loopback HTTP fixture using only an in-memory test copy that accepts HTTP. It verifies delayed/mislabeled SSE, actual gzip decompression, redirects/errors and owned-worker cleanup. Production URLs still require HTTPS and normal certificate verification. Test results do not establish behavior on a different workstation, proxy or provider.
+
 ### Automated idle/repeat test
 
 Copy **only** `scripts/Test-CodeEkoWarmup.ps1` to the test workstation and run `./Test-CodeEkoWarmup.ps1`. It prompts for the HTTPS API base URL, exact model ID and hidden API key. No Node installation, repository checkout or companion files are needed there.

@@ -25,11 +25,12 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   let viewProvider: any; let viewResolved = false;
   let provider: any; let approveUndo = false; const nativeDiffs: { before: string; after: string }[] = [];
   const panel = { webview: { html: '', postMessage: (message: any) => { sent.push(structuredClone(message)); return Promise.resolve(true); }, onDidReceiveMessage: (fn: typeof receive) => { receive = fn; return disposable; } }, onDidDispose: (fn: () => void) => { disposeListeners.push(fn); return disposable; }, dispose: () => disposeListeners.forEach(fn => fn()) };
-  let exported = ''; let failFocus = false;
+  let exported = ''; let failFocus = false; let cancelDiagnosticPicker = false;
   const mock = {
     commands: { registerCommand: (name: string, fn: () => Promise<void>) => { commands.set(name, fn); return disposable; }, executeCommand: async (name: string, ...args: any[]) => { if (name === 'codeeko.conversation.focus' && failFocus) throw new Error('private-startup-error'); if (name === 'codeeko.conversation.focus' && !viewResolved) { viewResolved = true; await viewProvider.resolveWebviewView(panel); } if (name === 'vscode.diff') nativeDiffs.push({ before: provider.provideTextDocumentContent(args[0]), after: provider.provideTextDocumentContent(args[1]) }); } },
     workspace: { openTextDocument: async (options: any) => { exported = options.content; return {}; }, isTrusted: true, textDocuments: [], registerTextDocumentContentProvider: (_scheme: string, value: unknown) => { provider = value; return disposable; }, workspaceFolders: [{ uri: { scheme: 'file', fsPath: root } }], getConfiguration: () => ({ get: (name: string, fallback: unknown) => settings[name] ?? fallback, update: async (name: string, value: unknown) => { settings[name] = value; } }), onDidChangeConfiguration: () => disposable, createFileSystemWatcher: () => ({ onDidCreate: () => disposable, onDidChange: () => disposable, onDidDelete: () => disposable, dispose() {} }) },
-    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: string[]) => approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'codeeko.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; } },
+    window: { showTextDocument: async () => {}, showErrorMessage: (text: string) => { errors.push(text); }, showInformationMessage() {}, showInputBox: async (options: any) => { if (options.title === 'Model discovery unavailable') fallbackPrompt = options; return input; }, showQuickPick: async (items: any[]) => cancelDiagnosticPicker ? undefined : approveUndo && items.includes('Approve this operation') ? 'Approve this operation' : items[0], registerWebviewViewProvider: (id: string, value: any, options: any) => { assert.equal(id, 'codeeko.conversation'); assert.equal(options.webviewOptions.retainContextWhenHidden, true); viewProvider = value; return disposable; }, withProgress: async (_options: unknown, run: any) => run({ report() {} }, { isCancellationRequested: false, onCancellationRequested: () => disposable }) },
+    version: '1.0.0', env: {}, ProgressLocation: { Notification: 15 },
     ViewColumn: { Beside: 2 }, ConfigurationTarget: { Global: 1 }, RelativePattern: class {},
     Uri: { parse: (value: string) => ({ toString: () => value }) },
     CancellationTokenSource: class { token = {}; cancel() {} dispose() {} }
@@ -221,6 +222,17 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   await commands.get('codeeko.exportStartupDiagnostics')!();
   for (const event of ['activate','resolve','stage.end','ready','state.sent','state.delivered','state.ack','focus.failed']) assert.ok(exported.includes(event), event);
   assert.ok(!exported.includes(root)); assert.ok(!exported.includes('private-startup-error')); assert.ok(!exported.includes('test-key'));
+  const { PowerShellTransport } = await import('../src/api/powerShellTransport');
+  const available = PowerShellTransport.available;
+  PowerShellTransport.available = async () => undefined;
+  let diagnosticCalls = 0;
+  global.fetch = async () => { diagnosticCalls++; return new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"Hello"}}' }, finish_reason: 'stop' }] })); };
+  try {
+    cancelDiagnosticPicker = true; await commands.get('codeeko.compareRequestTiming')!(); assert.equal(diagnosticCalls, 0);
+    cancelDiagnosticPicker = false; await commands.get('codeeko.compareRequestTiming')!();
+    assert.equal(JSON.parse(exported).transportComparisonVersion, 1); assert.equal(diagnosticCalls, 10);
+    assert.equal(JSON.parse(exported).powerShell.status, 'unavailable'); assert.ok(!exported.includes('test-key'));
+  } finally { PowerShellTransport.available = available; }
   panel.dispose(); await new Promise(resolve => setImmediate(resolve));
 });
 

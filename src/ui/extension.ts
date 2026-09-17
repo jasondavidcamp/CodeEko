@@ -1,5 +1,6 @@
 import { performanceDiagnostics } from '../state/performanceDiagnostics';
 import { compareRequestTiming } from '../api/timingComparison';
+import { compareTransportTiming, transportEnvironment } from '../api/transportComparison';
 import { latestRejectedLog } from '../state/rejectedLogs';
 import * as fs from 'node:fs/promises';
 import { SettingsPage } from './settings';
@@ -88,6 +89,11 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     const controller = new AbortController();
     comparisonController = controller;
     try {
+      const comparison = await vscode.window.showQuickPick([
+        { label: 'Transport and compression', description: '20 hello requests: VS Code / PowerShell, default / identity encoding', comparisonType: 'transport' },
+        { label: 'Prompt size and task continuity', description: 'Existing full/progressive prompt and synthetic workflow comparison', comparisonType: 'prompt' }
+      ], { title: 'CodeEko: Compare Request Timing', placeHolder: 'Choose the performance question to investigate' });
+      if (!comparison || controller.signal.aborted) return;
       const api = await client(context);
       const model = config().get<string>('model');
       if (!model) throw new Error('Select a model before running the timing comparison.');
@@ -95,7 +101,22 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
       const report = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CodeEko timing comparison', cancellable: true }, async (progress, token) => {
         const subscription = token.onCancellationRequested(() => controller.abort());
         if (token.isCancellationRequested) controller.abort();
-        try { return await compareRequestTiming(api, model, permissionMode, controller.signal, message => progress.report({ message })); }
+        try {
+          const update = (message: string) => progress.report({ message });
+          if (comparison.comparisonType === 'prompt') return await compareRequestTiming(api, model, permissionMode, controller.signal, update);
+          const http = vscode.workspace.getConfiguration('http');
+          const flag = (name: string) => { const value = http.get(name); return typeof value === 'boolean' ? value : undefined; };
+          const proxySupport = http.get<string>('proxySupport');
+          const envPresent = (name: string) => Object.keys(process.env).some(key => key.toLowerCase() === name && !!process.env[key]);
+          return await compareTransportTiming(api, model, permissionMode, transportEnvironment({
+            vscodeVersion: vscode.version, nodeVersion: process.version, electronVersion: process.versions.electron,
+            host: vscode.env.remoteName ? 'remote' : 'local', platform: ['win32','linux','darwin'].includes(process.platform) ? process.platform : 'other',
+            electronFetch: flag('electronFetch'), fetchAdditionalSupport: flag('fetchAdditionalSupport'),
+            proxySupport: ['off','on','fallback','override'].includes(proxySupport ?? '') ? proxySupport : 'unknown',
+            proxyConfigured: !!http.get('proxy'), proxyStrictSSL: flag('proxyStrictSSL'), systemCertificates: flag('systemCertificates'),
+            httpProxyEnvironment: envPresent('http_proxy'), httpsProxyEnvironment: envPresent('https_proxy'), noProxyEnvironment: envPresent('no_proxy')
+          }), controller.signal, update);
+        }
         finally { subscription.dispose(); }
       });
       const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
