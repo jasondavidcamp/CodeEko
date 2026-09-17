@@ -29,7 +29,7 @@ test('PowerShell streaming probe detects mislabeled incremental SSE and separate
   const script = path.resolve(__dirname, '../../scripts/Test-CodeEkoStreaming.ps1');
   async function run() {
     // Only the in-memory test copy accepts HTTP, to use a loopback fixture without certificates.
-    const command = "$s=[IO.File]::ReadAllText($env:PROBE_SCRIPT); $s=$s.Replace(\"$address.Scheme -ne 'https'\",\"$address.Scheme -ne 'http'\"); & ([scriptblock]::Create($s)) -Endpoint $env:PROBE_ENDPOINT -Model 'fixture' -ApiKey (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force) -TimeoutSeconds 2";
+    const command = "$s=[IO.File]::ReadAllText($env:PROBE_SCRIPT); $s=$s.Replace(\"$address.Scheme -ne 'https'\",\"$address.Scheme -ne 'http'\"); & ([scriptblock]::Create($s)) -Endpoint $env:PROBE_ENDPOINT -Model 'fixture' -ApiKey (ConvertTo-SecureString 'fixture-secret' -AsPlainText -Force) -TimeoutSeconds 2 -Pairs 1";
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { windowsHide: true, env: { ...process.env, PSModulePath: path.join(process.env.SystemRoot ?? 'C:/Windows', 'System32/WindowsPowerShell/v1.0/Modules'), PROBE_SCRIPT: script, PROBE_ENDPOINT: `http://127.0.0.1:${port}/v1` } });
       let stdout = '', stderr = ''; child.stdout.on('data', x => stdout += x); child.stderr.on('data', x => stderr += x);
@@ -41,7 +41,7 @@ test('PowerShell streaming probe detects mislabeled incremental SSE and separate
   const [normal, stream] = await run();
   assert.equal(normal.expectedAction, true); assert.equal(stream.expectedAction, true);
   assert.equal(stream.bodyFormat, 'sse'); assert.equal(stream.headerBodyMismatch, true);
-  assert.equal(stream.contentChunks, 2); assert.equal(stream.doneMarker, true);
+  assert.ok(stream.bodyBytes > 0); assert.ok(stream.bodyChunks >= 2); assert.ok(stream.firstBodySeconds <= stream.firstTextSeconds); assert.equal(stream.contentChunks, 2); assert.equal(stream.doneMarker, true);
   assert.ok(stream.lastTextSeconds - stream.firstTextSeconds > 0.2);
   scenario = 'malformed'; assert.equal((await run())[1].outcome, 'body-not-json-or-sse');
   scenario = 'timeout'; assert.equal((await run())[1].outcome, 'timeout');

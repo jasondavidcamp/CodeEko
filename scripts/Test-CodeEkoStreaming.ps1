@@ -4,7 +4,8 @@ param(
     [string]$Endpoint,
     [string]$Model,
     [Security.SecureString]$ApiKey,
-    [ValidateRange(1, 600)][int]$TimeoutSeconds = 300
+    [ValidateRange(1, 600)][int]$TimeoutSeconds = 300,
+    [ValidateRange(1, 10)][int]$Pairs = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -86,6 +87,8 @@ function Invoke-StreamingProbe {
         lastTextSeconds = $null
         totalSeconds = $null
         bodyCharacters = 0
+        bodyBytes = 0
+        bodyChunks = 0
         events = 0
         contentChunks = 0
         first20ContentChunkSeconds = @()
@@ -135,20 +138,25 @@ function Invoke-StreamingProbe {
         } else {
             $stage = 'body-read'
             $stream = Wait-ProbeTask ($response.Content.ReadAsStreamAsync()) $watch
-            $reader = New-Object IO.StreamReader($stream)
-            $buffer = New-Object char[] 4096
+            $reader = $stream
+            $buffer = New-Object byte[] 4096
+            $decoder = [Text.Encoding]::UTF8.GetDecoder()
+            $characters = New-Object char[] 4096
             while (!$report.doneMarker) {
                 $count = Wait-ProbeTask ($reader.ReadAsync($buffer, 0, $buffer.Length)) $watch
                 if ($count -eq 0) { break }
                 if ($null -eq $report.firstBodySeconds) {
                     $report.firstBodySeconds = [Math]::Round($watch.Elapsed.TotalSeconds, 3)
                 }
-                $report.bodyCharacters += $count
-                if ($report.bodyCharacters -gt 1000000) {
+                $report.bodyBytes += $count
+                $report.bodyChunks++
+                if ($report.bodyBytes -gt 1000000) {
                     $report.outcome = 'response-too-large'
                     break
                 }
-                $chunk = -join $buffer[0..($count - 1)]
+                $characterCount = $decoder.GetChars($buffer, 0, $count, $characters, 0, $false)
+                $report.bodyCharacters += $characterCount
+                $chunk = if ($characterCount -gt 0) { -join $characters[0..($characterCount - 1)] } else { '' }
                 [void]$body.Append($chunk)
                 $pending += $chunk
                 # Detect SSE by its framing, regardless of the content-type header.
@@ -220,6 +228,16 @@ $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($ApiKey)
 try { $plainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
 try {
-    $results = @(Invoke-StreamingProbe $false $plainKey; Invoke-StreamingProbe $true $plainKey)
-    [PSCustomObject]@{ probeVersion = 2; results = $results } | ConvertTo-Json -Depth 8
+    $results = @(for ($pair = 1; $pair -le $Pairs; $pair++) {
+        # Reverse ordering on alternate pairs to reduce ordering bias.
+        $modes = if ($pair % 2 -eq 1) { @($false, $true) } else { @($true, $false) }
+        foreach ($mode in $modes) {
+            Write-Progress -Activity 'API timing comparison' -Status ('Pair {0}/{1}: streaming={2}' -f $pair, $Pairs, $mode)
+            $result = Invoke-StreamingProbe $mode $plainKey
+            $result | Add-Member -NotePropertyName pair -NotePropertyValue $pair
+            $result
+        }
+    })
+    Write-Progress -Activity 'API timing comparison' -Completed
+    [PSCustomObject]@{ probeVersion = 3; results = $results } | ConvertTo-Json -Depth 8
 } finally { $plainKey = $null }
