@@ -2,6 +2,38 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GeminiClient } from '../src/api/client';
 import { PerformanceDiagnostics, performanceDiagnostics } from '../src/state/performanceDiagnostics';
+import { taskProtocol } from '../src/protocol/actions';
+
+test('request size measures the exact UTF-8 payload including hello instructions, wrappers and JSON options', async () => {
+  performanceDiagnostics.clear();
+  for (const mode of ['Standard', 'User message'] as const) {
+    for (const streaming of [false, true]) {
+      let payload = '';
+      const client = new GeminiClient('https://example.test', 'secret-key', 1000, async (_url, init) => {
+        payload = init!.body as string;
+        const pending = performanceDiagnostics.snapshot().requests.at(-1)!;
+        assert.equal(pending.requestBytes, Buffer.byteLength(payload, 'utf8'));
+        assert.equal(pending.outcome, 'pending', 'size is visible while waiting for the provider');
+        return new Response(JSON.stringify({ choices: [{ message: { content: 'Hello' } }] }));
+      }, mode, streaming);
+      await client.complete('fixture', [{ role: 'system', content: taskProtocol('Full access') }, { role: 'assistant', content: 'private-prompt π🙂' }, { role: 'user', content: 'hello' }], undefined, true);
+      const body = JSON.parse(payload), record = performanceDiagnostics.snapshot().requests.at(-1)!;
+      assert.equal(record.requestBytes, Buffer.byteLength(payload, 'utf8'));
+      assert.ok(record.requestBytes! > payload.length, 'non-ASCII bytes are not JavaScript character counts');
+      assert.ok(record.promptCharacters! > 1000, 'hello includes the full agent instructions');
+      assert.equal(record.promptCharacters, body.messages.reduce((sum: number, message: { content: string }) => sum + message.content.length, 0));
+      assert.equal(record.messageCount, mode === 'Standard' ? 3 : 1);
+      assert.equal(body.stream, streaming); assert.equal(record.repair, true);
+    }
+  }
+  let failedPayload = '';
+  const failing = new GeminiClient('https://example.test', 'secret-key', 1000, async (_url, init) => { failedPayload = init!.body as string; throw new Error('private-error'); });
+  await assert.rejects(failing.complete('fixture', [{ role: 'user', content: 'hello' }]));
+  assert.equal(performanceDiagnostics.snapshot().requests.at(-1)!.requestBytes, Buffer.byteLength(failedPayload, 'utf8'));
+  const discovery = new GeminiClient('https://example.test', 'secret-key', 1000, async (_url, init) => { assert.equal(init!.body, undefined); return new Response('{"data":[{"id":"fixture"}]}'); });
+  await discovery.models(); assert.equal(performanceDiagnostics.snapshot().requests.at(-1)!.requestBytes, 0);
+  assert.doesNotMatch(JSON.stringify(performanceDiagnostics.snapshot()), /private-prompt|private-error|secret-key|example.test|Authorization/);
+});
 
 test('performance capture measures requests, failures and repairs without content or credentials', async () => {
   performanceDiagnostics.clear();
@@ -57,7 +89,8 @@ test('persistent diagnostics recover interrupted records, discard arbitrary fiel
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'codeeko-performance-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const first = new PerformanceDiagnostics(); await first.configure(root, '0.4.51');
-  await first.task(async () => { first.setTurn(1); first.begin('completion', 'Standard', 1000, false, { model: 'fixture' }); }, () => 'complete');
+  await first.task(async () => { first.setTurn(1); first.begin('completion', 'Standard', 1000, false, { model: 'fixture', requestBytes: 9876 }); }, () => 'complete');
+  first.begin('completion', 'Standard', 1000, false, { model: 'older-record', promptCharacters: 500 });
   await first.flush();
   const file = path.join(root, 'performance', first.sessionId + '.json');
   const data = JSON.parse(await fs.readFile(file, 'utf8'));
@@ -70,6 +103,9 @@ test('persistent diagnostics recover interrupted records, discard arbitrary fiel
   const restored = second.snapshot(); assert.equal(restored.version, 2);
   assert.equal(restored.requests[0].outcome, 'interrupted'); assert.equal(restored.requests[0].runtimeVersion, '0.4.51');
   assert.equal(restored.requests[0].rateLimit!.retryAfterSeconds, 42); assert.equal(restored.requests[0].usage!.promptTokens, 0);
+  assert.equal(restored.requests[0].requestBytes, 9876);
+  assert.equal(restored.requests[1].requestBytes, undefined, 'older exports do not invent a byte count');
+  assert.equal(restored.requests[1].promptCharacters, 500);
   assert.doesNotMatch(JSON.stringify(restored), /private-source|secret-key|Authorization/);
   second.clear(); await second.flush();
   const third = new PerformanceDiagnostics(); await third.configure(root, '0.4.53');

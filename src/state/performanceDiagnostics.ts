@@ -14,7 +14,7 @@ const rateSchema = z.object({ retryAfterSeconds: count.optional(), tokensMinuteL
 const common = { sessionId: z.string().uuid(), runtimeVersion: version, at: z.string().datetime(), taskId: z.string().uuid().optional(), turn: count.optional() };
 const requestSchema = z.object({
   ...common, id: count, operation: z.enum(['models', 'completion']), mode: z.enum(['Standard', 'User message']), timeoutMs: count, repair: z.boolean(), outcome,
-  model: model.optional(), promptCharacters: count.optional(), messageCount: count.optional(), maxOutputTokens: count.optional(),
+  model: model.optional(), requestBytes: count.optional(), promptCharacters: count.optional(), messageCount: count.optional(), maxOutputTokens: count.optional(),
   firstContentMs: count.optional(), contentChunks: count.optional(), streamed: z.boolean().optional(), streamingRequested: z.boolean().optional(),
   firstBodyByteMs: count.optional(), firstSseEventMs: count.optional(), sseEvents: count.optional(),
   bodyBytes: count.optional(), bodyChunks: count.optional(), lastBodyByteMs: count.optional(), maxBodyGapMs: count.optional(),
@@ -31,7 +31,7 @@ const toolNames = ['list_files', 'read_file', 'read_files', 'search_text', 'find
 const phaseSchema = z.object({ ...common, id: z.string().uuid(), phase: z.enum(phases), tool: z.enum(toolNames).optional(), validationStatus: z.enum(['passed', 'failed', 'partial']).optional(), elapsedMs: count.optional(), outcome });
 const taskSchema = z.object({ ...common, taskId: z.string().uuid(), elapsedMs: count.optional(), outcome });
 export type RequestTiming = z.infer<typeof requestSchema>;
-export type RequestMetadata = Partial<Pick<RequestTiming, 'model' | 'promptCharacters' | 'messageCount' | 'maxOutputTokens' | 'usage' | 'rateLimit' | 'finishReason'>>;
+export type RequestMetadata = Partial<Pick<RequestTiming, 'model' | 'requestBytes' | 'promptCharacters' | 'messageCount' | 'maxOutputTokens' | 'usage' | 'rateLimit' | 'finishReason'>>;
 type Task = z.infer<typeof taskSchema>;
 type Phase = z.infer<typeof phaseSchema>;
 type Context = { taskId: string; turn?: number };

@@ -17,7 +17,8 @@ export class GeminiClient {
   redact(text: string): string { return this.key ? text.split(this.key).join('[REDACTED API KEY]') : text; }
   private async request(route: string, body?: unknown, signal?: AbortSignal, repair = false, onContent?: () => void, metadata: RequestMetadata = {}, onTiming?: (timing: RequestTiming) => void): Promise<any> {
     const started = performance.now();
-    const record = performanceDiagnostics.begin(route === '/models' ? 'models' : 'completion', this.compatibilityMode, this.timeout, repair, metadata);
+    const payload = body ? JSON.stringify(body) : undefined;
+    const record = performanceDiagnostics.begin(route === '/models' ? 'models' : 'completion', this.compatibilityMode, this.timeout, repair, { ...metadata, requestBytes: Buffer.byteLength(payload ?? '', 'utf8') });
     let headersMs: number | undefined, status: number | undefined, firstContentMs: number | undefined;
     let contentChunks = 0, streamed = false;
     const timing: Partial<RequestTiming> = { bodyBytes: 0, bodyChunks: 0, sseEvents: 0, bodyChunkSamples: [] };
@@ -30,7 +31,7 @@ export class GeminiClient {
     const timer = setTimeout(abort, this.timeout);
     try {
       signal?.throwIfAborted();
-      const response = await this.transport(apiBase(this.endpoint) + route, { method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal, headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      const response = await this.transport(apiBase(this.endpoint) + route, { method: body ? 'POST' : 'GET', redirect: 'error', signal: controller.signal, headers: { Authorization: `Bearer ${this.key}`, 'Content-Type': 'application/json' }, body: payload });
       headersMs = Math.round(performance.now() - started); status = response.status;
       Object.assign(metadata, rateMetadata(response.headers));
       performanceDiagnostics.finish(record, { ...metadata, headersMs, status });

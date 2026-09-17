@@ -32,5 +32,27 @@ test('settings tab validates writes, reuses its panel and never exposes keys', a
   values.model='external-change';changed({affectsConfiguration:()=>true});assert.equal(sent.at(-1).values.model,'external-change');
   assert.ok(!JSON.stringify(sent).includes('private-key'));
   const script=/<script nonce="[^"]+">([\s\S]*?)<\/script>/.exec(panel.webview.html)![1];assert.doesNotThrow(()=>new vm.Script(script));
+  // Execute the actual webview renderer, including records from older builds.
+  const node = (tag = ''): any => ({ tag, textContent: '', style: {}, dataset: {}, children: [] as any[], setAttribute() {}, append(...items: any[]) { this.children.push(...items); }, replaceChildren() { this.children = []; } });
+  const nodes = new Map<string, any>();
+  const get = (id: string) => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
+  const diagnostics = node('button'); diagnostics.dataset.group = 'Diagnostics';
+  let renderMessage!: (event: any) => void;
+  vm.runInNewContext(script, { acquireVsCodeApi: () => ({ postMessage() {} }), document: { getElementById: get, createElement: node, querySelectorAll: () => [diagnostics] }, window: { addEventListener: (_type: string, callback: typeof renderMessage) => { renderMessage = callback; } } });
+  diagnostics.onclick();
+  const request = { at: '2026-01-01T00:00:00Z', operation: 'completion', mode: 'Standard', outcome: 'success' };
+  renderMessage({ data: { type: 'settings', values: {}, runtimeVersion: 'test', performance: { requests: [
+    { ...request, model: 'older', promptCharacters: 12345 },
+    { ...request, model: 'new', requestBytes: 15678, promptCharacters: 14000 },
+    { ...request, model: 'empty', requestBytes: 0, promptCharacters: 0 }
+  ] } } });
+  const descendants = (parent: any): any[] => [parent, ...parent.children.flatMap(descendants)];
+  const table = descendants(get('content')).find(item => item.tag === 'table');
+  const headers = table.children[0].children.map((cell: any) => cell.textContent);
+  const row = (model: string) => table.children.slice(1).find((item: any) => item.children[headers.indexOf('Model')].textContent === model);
+  const cell = (model: string, heading: string) => row(model).children[headers.indexOf(heading)].textContent;
+  assert.equal(cell('new', 'Request size'), '15.7 kB'); assert.equal(cell('new', 'Prompt chars'), (14000).toLocaleString());
+  assert.equal(cell('older', 'Request size'), '—'); assert.equal(cell('older', 'Prompt chars'), (12345).toLocaleString());
+  assert.equal(cell('empty', 'Request size'), '0 B'); assert.equal(cell('empty', 'Prompt chars'), '0');
   assert.ok(panel.webview.html.includes("default-src 'none'"));page.dispose();page.open();assert.equal(panels,2);page.dispose();
 });
