@@ -213,7 +213,8 @@ test('isolated format mistakes receive specific feedback without replaying tools
     { version: 1, tool: 'complete_task', args: { summary: 'Done' } }
   ];
   const answer = await runAgent({ complete: async (_model, messages) => {
-    if (calls === 0) assert.match(messages.at(-1)!.content, /tests\/Value.Tests.ps1/);
+    if (calls === 0) assert.equal(messages.at(-1)!.content, 'create a pester test');
+    if (calls === 2) assert.ok(messages.some(message => message.content.includes('tests/Value.Tests.ps1')));
     if (calls === 1) assert.match(messages.at(-1)!.content, /args.path/);
     if (calls === 3) assert.match(messages.at(-1)!.content, /args.summary/);
     return JSON.stringify(replies[calls++]);

@@ -11,13 +11,13 @@ import { GeminiClient, apiBase } from '../api/client';
 import { resolveRepository } from '../repository/git';
 import { RepositoryIndex } from '../indexing';
 import { ThreadStore, Thread, repositoryStorage, lastChatActivity } from '../state/threads';
-import { ReadOnlyTools } from '../tools/readOnly';
+import { RepositorySession } from '../state/repositorySession';
 import { runAgent } from '../agent/loop';
 import { rejectionRecorder } from '../agent/rejections';
 import { acquireRepositoryLease } from '../state/lease';
-import { contained, TaskConflict } from '../policy/boundary';
+import { contained, check, TaskConflict } from '../policy/boundary';
 import { EditTask, EditHooks } from '../state/editTask';
-import { EditingTools, explicitCommitRequest } from '../tools/editing';
+import { explicitCommitRequest } from '../tools/editing';
 import { NativeReview } from './review';
 import { TaskValidation } from '../validation/task';
 import { createPowerShellRunner } from '../validation/powershell';
@@ -298,25 +298,31 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
         const controller = new AbortController(); active.set(root, controller);
         let task: EditTask | undefined;
         let validation: TaskValidation | undefined;
+        thread.activeEditTaskId = null;
         thread.lastUsedAt = new Date().toISOString(); thread.messages.push({ role: 'user', content: message.text }); thread.status = 'running'; update();
-        await performanceDiagnostics.task(async () => {
+        try { await performanceDiagnostics.task(async () => {
         try {
           await store.save();
           const api = await client(context);
           const model = config().get<string>('model'); if (!model) throw new Error('Choose a model using the model button below the chat, then resend your message.');
-          send({ type: 'progress', text: 'Refreshing repository index.' }); await performanceDiagnostics.measure('index', () => index.refresh(controller.signal));
-          if (thread.undoTaskId && (await EditTask.load(index, storage, thread.undoTaskId, hooks)).undoState() === 'running') throw new TaskConflict('Resume the incomplete task undo before continuing this conversation.');
-          const previous = thread.taskId ? await performanceDiagnostics.measure('history', () => EditTask.load(index, storage, thread.taskId!, hooks)) : undefined;
-          send({ type: 'progress', text: 'Capturing task baseline and preexisting changes.' });
-          task = await performanceDiagnostics.measure('baseline', () => EditTask.capture(index, storage, hooks, controller.signal, previous));
-          thread.taskId = task.id; await store.save();
-          validation = new TaskValidation(task, {
-            mode, isDirty: hooks.isDirty, redact: text => api.redact(text),
-            installMissing: () => config().get<boolean>('installValidationModules', false),
-            pesterMajor: () => { const selected = config().get<string>('pesterVersion', 'Auto'); return selected === '4' ? 4 : selected === '5' ? 5 : undefined; },
-            progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
-          }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')));
-          const tools = new EditingTools(new ReadOnlyTools(index, ask), task, mode, (task, file) => review.open(task, file), validation, explicitCommitRequest(message.text));
+          const tools = new RepositorySession({ index, storage, hooks, ask,
+            previousTaskId: thread.taskId, undoTaskId: thread.undoTaskId,
+            review: (task, file) => review.open(task, file), commitRequested: explicitCommitRequest(message.text),
+            progress: text => send({ type: 'progress', text }),
+            ready: async (initializedTask, initializedValidation, signal) => {
+              const previousId = thread.taskId;
+              check(signal); thread.taskId = initializedTask.id; thread.activeEditTaskId = initializedTask.id;
+              try { await store.save(); check(signal); }
+              catch (error) { thread.taskId = previousId; thread.activeEditTaskId = null; await store.save(); throw error; }
+              task = initializedTask; validation = initializedValidation;
+            },
+            createValidation: task => new TaskValidation(task, {
+              mode, isDirty: hooks.isDirty, redact: text => api.redact(text),
+              installMissing: () => config().get<boolean>('installValidationModules', false),
+              pesterMajor: () => { const selected = config().get<string>('pesterVersion', 'Auto'); return selected === '4' ? 4 : selected === '5' ? 5 : undefined; },
+              progress: text => { thread.activity.push({ at: new Date().toISOString(), event: text }); thread.activity = thread.activity.slice(-500); send({ type: 'progress', text }); },
+            }, createPowerShellRunner(config().get<'Inherit' | 'RemoteSigned'>('validationExecutionPolicy', 'Inherit')))
+          });
           let diagnostics: ReturnType<typeof rejectionRecorder> | undefined;
           const summary = await runAgent(api, model, thread.messages, tools, mode, controller.signal, text => {
             thread.activity.push({ at: new Date().toISOString(), event: text });
@@ -324,7 +330,8 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
             send({ type: 'progress', text });
           }, async response => {
             if (!config().get<boolean>('debugRejectedResponses', false)) return;
-            diagnostics ??= rejectionRecorder(task!.directory, String(context.extension.packageJSON.version), model, mode, text => api.redact(text));
+            // Opt-in rejection logs do not require an edit baseline or task journal.
+            diagnostics ??= rejectionRecorder(path.join(storage, 'tasks', randomUUID()), String(context.extension.packageJSON.version), model, mode, text => api.redact(text));
             await diagnostics(response);
           });
           thread.messages.push({ role: 'assistant', content: (summary + outcome(task, validation)).slice(0, 16000) }); thread.status = 'complete';
@@ -340,9 +347,9 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
               await performanceDiagnostics.measure('finalize', () => task!.finish(thread.status === 'complete' ? 'complete' : thread.status === 'cancelled' ? 'cancelled' : thread.status === 'blocked' ? 'blocked' : 'failed'));
               if (task.changes().length && !disposed && config().get<boolean>('autoOpenDiffs', false)) await review.open(task);
             }
-          } finally { active.delete(root); thread.lastUsedAt = new Date().toISOString(); await store.save(); }
+          } finally { delete thread.activeEditTaskId; thread.lastUsedAt = new Date().toISOString(); await store.save(); }
         }
-        }, () => thread.status);
+        }, () => thread.status); } finally { active.delete(root); }
       }
     } catch (e) { send({ type: 'progress', text: e instanceof Error ? e.message : 'Operation failed.' }); }
     finally { busy = false; update(); if (disposed) await release(); }

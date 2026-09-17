@@ -6,6 +6,8 @@ import * as os from 'node:os';
 import * as vm from 'node:vm';
 import { git } from '../src/repository/git';
 import { ThreadStore, repositoryStorage } from '../src/state/threads';
+import { latestRejectedLog } from '../src/state/rejectedLogs';
+import { RepositoryIndex } from '../src/indexing';
 
 test('extension commands, secure webview, discovery fallback, busy guard, cancellation and thread lifecycle', async t => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-ui-'));
@@ -64,6 +66,8 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   let began!: () => void; const started = new Promise<void>(resolve => { began = resolve; });
   global.fetch = async (_url, init) => new Promise((_resolve, reject) => { init?.signal?.addEventListener('abort', () => reject(new Error('aborted'))); began(); });
   const running = receive({ type: 'send', text: 'Explain pilot.ps1' }); await started;
+  const inFlight = JSON.parse(await fs.readFile(path.join(repositoryStorage(storage, root), 'threads.json'), 'utf8'));
+  assert.equal(inFlight.threads[0].activeEditTaskId, null);
   await receive({ type: 'ready' }); assert.equal(sent.at(-1).busy, true);
   await receive({ type: 'send', text: 'Must not overlap' });
   await receive({ type: 'cancel' }); await running;
@@ -74,7 +78,10 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   const lastRequest = performanceReport.requests.at(-1);
   assert.ok(lastRequest.taskId); assert.equal(lastRequest.turn, 1);
   assert.ok(performanceReport.tasks.some((task: any) => task.taskId === lastRequest.taskId && task.outcome === 'complete'));
-  for (const phase of ['index', 'baseline', 'completion-check', 'finalize']) assert.ok(performanceReport.phases.some((item: any) => item.taskId === lastRequest.taskId && item.phase === phase), phase);
+  const conversationPhases = performanceReport.phases.filter((item: any) => item.taskId === lastRequest.taskId);
+  assert.deepEqual(conversationPhases.map((item: any) => item.phase), ['completion-check']);
+  assert.equal(sent.at(-1).thread.taskId, undefined);
+  await assert.rejects(fs.stat(path.join(repositoryStorage(storage, root), 'tasks')), /ENOENT/);
   assert.equal(sent.at(-1).thread.messages.at(-1).content, 'See pilot.ps1:1');
   let questionCalls = 0;
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(++questionCalls === 1 ? { version: 1, tool: 'ask_user', args: { question: 'Which output format?' } } : { version: 1, tool: 'complete_task', args: { summary: 'Used your answer.' } }) } }] }));
@@ -93,6 +100,19 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   while (!sent.at(-1).questionId && Date.now() < cancelDeadline) await new Promise(resolve => setTimeout(resolve, 10));
   assert.ok(sent.at(-1).questionId); await receive({ type: 'cancel' }); await cancelledQuestion;
   assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).questionId, undefined);
+  let initializing!: () => void; const initializationStarted = new Promise<void>(resolve => { initializing = resolve; });
+  const refreshMock = t.mock.method(RepositoryIndex.prototype, 'refresh', async (signal?: AbortSignal) => {
+    await new Promise<void>((_resolve, reject) => { signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true }); initializing(); });
+  });
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"read_file","args":{"path":"pilot.ps1"}}' } }] }));
+  const initializingRun = receive({ type: 'send', text: 'Read pilot.ps1' }); await initializationStarted;
+  await receive({ type: 'cancel' }); await initializingRun; refreshMock.mock.restore();
+  assert.equal(sent.at(-1).thread.status, 'cancelled'); assert.equal(sent.at(-1).busy, false);
+  assert.equal(sent.at(-1).thread.taskId, undefined);
+  await assert.rejects(fs.stat(path.join(repositoryStorage(storage, root), 'tasks')), /ENOENT/);
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"Hello"}}' } }] }));
+  await receive({ type: 'send', text: 'hello' });
+  assert.equal(sent.at(-1).thread.status, 'complete', 'initialization cancellation releases the active-task lock');
   let step = 0;
   let afterEdit!: () => void; const editDone = new Promise<void>(resolve => { afterEdit = resolve; });
   global.fetch = async (_url, init) => {
@@ -102,6 +122,9 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
     return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(action) } }] }));
   };
   const editRun = receive({ type: 'send', text: 'Rename the function to Get-UpdatedPilot' }); await editDone;
+  const editingHistory = JSON.parse(await fs.readFile(path.join(repositoryStorage(storage, root), 'threads.json'), 'utf8'));
+  assert.equal(editingHistory.threads[0].activeEditTaskId, editingHistory.threads[0].taskId);
+  assert.ok(editingHistory.threads[0].activeEditTaskId);
   await receive({ type: 'cancel' }); await editRun;
   assert.equal(sent.at(-1).thread.status, 'cancelled');
   assert.match(sent.at(-1).thread.messages.at(-1).content, /1 file change/);
@@ -113,6 +136,13 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.deepEqual(nativeDiffs.at(-1), { before: 'function Get-Pilot {}', after: 'function Get-UpdatedPilot {}' });
   settings.autoOpenDiffs = true;
   assert.equal(sent.at(-1).thread.undoTaskId, reviewId);
+  global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"version":1,"tool":"complete_task","args":{"summary":"Hello again"}}' } }] }));
+  const existingTasks = await fs.readdir(path.join(repositoryStorage(storage, root), 'tasks'));
+  await receive({ type: 'send', text: 'hello' });
+  assert.equal(sent.at(-1).thread.taskId, reviewId);
+  assert.equal(sent.at(-1).thread.reviewTaskId, reviewId);
+  assert.equal(sent.at(-1).thread.undoTaskId, reviewId);
+  assert.deepEqual(await fs.readdir(path.join(repositoryStorage(storage, root), 'tasks')), existingTasks);
   await fs.writeFile(path.join(root, 'developer.txt'), 'keep staged work');
   await git(root, ['add', 'developer.txt']);
   const stagedBeforeUndo = await git(root, ['diff', '--cached']);
@@ -168,15 +198,16 @@ test('extension commands, secure webview, discovery fallback, busy guard, cancel
   assert.equal(sent.at(-1).thread.undoTaskId, undefined);
   global.fetch = async () => new Response(JSON.stringify({ choices: [{ message: { content: 'invalid response test-key' } }] }));
   await receive({ type: 'send', text: 'Hello' });
-  const taskLog = () => path.join(repositoryStorage(storage, root), 'tasks', sent.at(-1).thread.taskId, 'rejected-responses.jsonl');
-  await assert.rejects(fs.stat(taskLog()), /ENOENT/);
+  assert.equal(await latestRejectedLog(storage), undefined);
   settings.debugRejectedResponses = true; let rejectedCalls = 0;
   global.fetch = async () => {
     if (++rejectedCalls === 2) settings.debugRejectedResponses = false;
     return new Response(JSON.stringify({ choices: [{ message: { content: 'invalid response test-key' } }] }));
   };
   await receive({ type: 'send', text: 'Hello again' });
-  const captured = await fs.readFile(taskLog(), 'utf8');
+  const log = (await latestRejectedLog(storage))!;
+  const captured = await fs.readFile(log, 'utf8');
+  await assert.rejects(fs.stat(path.join(path.dirname(log), 'task.json')), /ENOENT/);
   assert.equal(captured.trim().split('\n').length, 1, 'turning off capture applies before the next rejection');
   assert.ok(!captured.includes('test-key')); assert.match(captured, /REDACTED/);
   await receive({ type: 'ready' });

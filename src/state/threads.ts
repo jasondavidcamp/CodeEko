@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 const turn = z.object({ role: z.enum(['user','assistant']), content: z.string().max(16000) });
-const thread = z.object({ id: z.string().uuid(), name: z.string().min(1).max(100), archived: z.boolean().optional(), lastUsedAt: z.string().datetime().optional(), messages: z.array(turn).max(100), activity: z.array(z.object({ at: z.string(), event: z.string().max(1000) })).max(500).default([]), taskId: z.string().uuid().optional(), reviewTaskId: z.string().uuid().optional(), undoTaskId: z.string().uuid().optional(), status: z.enum(['idle','running','complete','cancelled','failed','interrupted','blocked']) });
+const thread = z.object({ id: z.string().uuid(), name: z.string().min(1).max(100), archived: z.boolean().optional(), lastUsedAt: z.string().datetime().optional(), messages: z.array(turn).max(100), activity: z.array(z.object({ at: z.string(), event: z.string().max(1000) })).max(500).default([]), taskId: z.string().uuid().optional(), reviewTaskId: z.string().uuid().optional(), undoTaskId: z.string().uuid().optional(), activeEditTaskId: z.string().uuid().nullable().optional(), status: z.enum(['idle','running','complete','cancelled','failed','interrupted','blocked']) });
 const state = z.object({ version: z.literal(1), threads: z.array(thread).max(100) });
 export type Thread = z.infer<typeof thread>;
 export function lastChatActivity(t: Thread): string | undefined {
@@ -19,7 +19,15 @@ export class ThreadStore {
       const file = path.join(this.directory, 'threads.json');
       if ((await fs.stat(file)).size > 20000000) throw new Error('Thread store exceeds size limit.');
       this.threads = state.parse(JSON.parse(await fs.readFile(file, 'utf8'))).threads;
-      this.threads.forEach(t => { if (t.status === 'running') { t.status = 'interrupted'; t.reviewTaskId = t.taskId ?? t.reviewTaskId; t.undoTaskId = t.taskId ?? t.undoTaskId; } });
+      this.threads.forEach(t => {
+        if (t.status !== 'running') return;
+        t.status = 'interrupted';
+        // Missing = legacy eager turn; null = lazy turn with no edit state yet.
+        // A conversation must not revive cleared undo or replace older review.
+        const interruptedEdit = t.activeEditTaskId === undefined ? t.taskId : t.activeEditTaskId;
+        if (interruptedEdit) { t.reviewTaskId = interruptedEdit; t.undoTaskId = interruptedEdit; }
+        delete t.activeEditTaskId;
+      });
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Thread history could not be loaded; existing data was preserved.'); }
   }
   create(name: string): Thread {

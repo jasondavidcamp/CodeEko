@@ -20,8 +20,13 @@ export interface EditHooks {
   preview(file: string, before: string, after: string): Promise<void>;
 }
 
-async function head(root: string): Promise<string | null> {
-  return (await git(root, ['rev-parse', '--verify', '--quiet', 'HEAD'], undefined, true)).trim() || null;
+async function head(root: string, signal?: AbortSignal): Promise<string | null> {
+  return (await git(root, ['rev-parse', '--verify', '--quiet', 'HEAD'], signal, true)).trim() || null;
+}
+export interface CaptureEvidence {
+  head: string | null;
+  reads: ReadonlyMap<string, string>;
+  editReads: ReadonlyMap<string, string>;
 }
 export class EditTask {
   readonly id: string;
@@ -32,40 +37,50 @@ export class EditTask {
   private constructor(readonly index: RepositoryIndex, readonly directory: string, private hooks: EditHooks, journal: z.infer<typeof journalSchema>) {
     this.journal = journal; this.journal.files = Object.assign(Object.create(null), journal.files); this.id = journal.id;
   }
-  static async capture(index: RepositoryIndex, storage: string, hooks: EditHooks, signal: AbortSignal, previous?: EditTask): Promise<EditTask> {
+  static async capture(index: RepositoryIndex, storage: string, hooks: EditHooks, signal: AbortSignal, previous?: EditTask, evidence?: CaptureEvidence, refresh = () => index.refresh(signal)): Promise<EditTask> {
     if (contained(index.root, storage)) throw new Error('Task storage must be outside the repository.');
-    if (previous?.journal.undo?.state === 'running') throw new TaskConflict('An earlier task undo is incomplete. Resume undo before starting another edit task.');
-    await index.refresh(signal);
+    previous?.assertUndoComplete(); check(signal);
+    await refresh(); check(signal);
     const id = randomUUID(); const directory = path.join(storage, 'tasks', id);
-    const task = new EditTask(index, directory, hooks, { version: 1, id, root: index.root, head: await head(index.root), status: 'running', files: {}, changes: [] });
-    await fs.mkdir(path.join(directory, 'blobs'), { recursive: true });
-    const status = (await git(index.root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], signal)).split('\0');
-    const dirty = new Set<string>();
-    for (let i = 0; i < status.length; i++) { if (!status[i]) continue; dirty.add(status[i].slice(3)); if (/[RC]/.test(status[i].slice(0, 2))) i++; }
-    for (const file of index.entries.keys()) {
-      check(signal); const document = await index.readDocument(file, signal, false);
-      await task.saveBlob(document.bytes);
-      const protectedRanges: { start: number; end: number }[] = [];
-      if (dirty.has(file)) {
-        let diff = '';
-        if (task.journal.head) diff = await git(index.root, ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--no-color', '--unified=0', task.journal.head, '--', file], signal);
-        const offsets = [0]; for (let i = 0; i < document.text.length; i++) if (document.text[i] === '\n') offsets.push(i + 1);
-        for (const match of diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
-          const first = Number(match[1]); const count = match[2] === undefined ? 1 : Number(match[2]);
-          const start = offsets[Math.max(0, first - 1)] ?? document.text.length;
-          const end = offsets[Math.max(0, first - 1) + count] ?? document.text.length;
-          protectedRanges.push({ start, end });
+    const task = new EditTask(index, directory, hooks, { version: 1, id, root: index.root, head: await head(index.root, signal), status: 'running', files: {}, changes: [] });
+    if (evidence && evidence.head !== task.journal.head) throw new TaskConflict('The Git checkout changed after repository access. Start a new task before editing.');
+    try {
+      await fs.mkdir(path.join(directory, 'blobs'), { recursive: true });
+      const status = (await git(index.root, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], signal)).split('\0');
+      const dirty = new Set<string>();
+      for (let i = 0; i < status.length; i++) { if (!status[i]) continue; dirty.add(status[i].slice(3)); if (/[RC]/.test(status[i].slice(0, 2))) i++; }
+      for (const file of index.entries.keys()) {
+        check(signal); const document = await index.readDocument(file, signal, false);
+        await task.saveBlob(document.bytes);
+        const protectedRanges: { start: number; end: number }[] = [];
+        if (dirty.has(file)) {
+          let diff = '';
+          if (task.journal.head) diff = await git(index.root, ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--no-color', '--unified=0', task.journal.head, '--', file], signal);
+          const offsets = [0]; for (let i = 0; i < document.text.length; i++) if (document.text[i] === '\n') offsets.push(i + 1);
+          for (const match of diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
+            const first = Number(match[1]); const count = match[2] === undefined ? 1 : Number(match[2]);
+            const start = offsets[Math.max(0, first - 1)] ?? document.text.length;
+            const end = offsets[Math.max(0, first - 1) + count] ?? document.text.length;
+            protectedRanges.push({ start, end });
+          }
+          // Untracked files, binary diffs, and uncertain attribution are fully protected.
+          if (!protectedRanges.length) protectedRanges.push({ start: 0, end: document.text.length });
         }
-        // Untracked files, binary diffs, and uncertain attribution are fully protected.
-        if (!protectedRanges.length) protectedRanges.push({ start: 0, end: document.text.length });
+        const prior = previous?.journal.files[file];
+        const canInherit = dirty.has(file) && previous?.journal.head === task.journal.head && !previous?.committed() && !previous?.journal.undo && prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
+        task.journal.files[file] = { before: document.hash, current: document.hash, preexisting: canInherit ? prior!.preexisting : dirty.has(file), protected: canInherit ? prior!.protected.map(r => ({ ...r })) : protectedRanges };
       }
-      const prior = previous?.journal.files[file];
-      const canInherit = dirty.has(file) && previous?.journal.head === task.journal.head && !previous?.committed() && !previous?.journal.undo && prior?.current === document.hash && !previous?.journal.changes.some(c => c.path === file && c.state === 'prepared');
-      task.journal.files[file] = { before: document.hash, current: document.hash, preexisting: canInherit ? prior!.preexisting : dirty.has(file), protected: canInherit ? prior!.protected.map(r => ({ ...r })) : protectedRanges };
-    }
-    check(signal);
-    if (await head(index.root) !== task.journal.head) throw new TaskConflict('The Git checkout changed while capturing the task baseline. Please retry.');
-    await task.persist(); return task;
+      check(signal);
+      // A later baseline must never legitimize stale model context. Keep the first
+      // read hashes, including for patches that omit expectedHash, and recheck disk
+      // after capture so changes during the snapshot are rejected too.
+      for (const [file, digest] of evidence?.reads ?? []) {
+        if (task.journal.files[file]?.before !== digest || (await index.readDocument(file, signal)).hash !== digest) throw new TaskConflict(`${file} changed after the agent read it. Start a new task before editing.`);
+      }
+      for (const [file, digest] of evidence?.editReads ?? []) task.observe(file, digest);
+      if (await head(index.root, signal) !== task.journal.head) throw new TaskConflict('The Git checkout changed while capturing the task baseline. Please retry.');
+      check(signal); await task.persist(); check(signal); return task;
+    } catch (error) { await task.discardInitialization(); throw error; }
   }
   static async load(index: RepositoryIndex, storage: string, id: string, hooks: EditHooks): Promise<EditTask> {
     z.string().uuid().parse(id);
@@ -75,6 +90,16 @@ export class EditTask {
     const task = new EditTask(index, directory, hooks, data); task.reviewOnly = true; return task;
   }
   observe(file: string, digest: string): void { this.observed.set(file, digest); }
+  assertUndoComplete(): void {
+    if (this.journal.undo?.state === 'running') throw new TaskConflict('An earlier task undo is incomplete. Resume undo before continuing repository work.');
+  }
+  /** Only unpublished, side-effect-free initialization may be discarded. */
+  async discardInitialization(): Promise<void> {
+    if (this.reviewOnly || this.operations || this.journal.changes.length || this.journal.commit || this.journal.undo) throw new TaskConflict('Cannot discard an initialized edit task with operations.');
+    const directory = path.resolve(this.directory); const parent = path.dirname(directory);
+    if (path.basename(parent) !== 'tasks' || path.basename(directory) !== this.id || !contained(parent, directory) || contained(this.index.root, directory)) throw new Error('Invalid initialization directory.');
+    await fs.rm(directory, { recursive: true, force: true });
+  }
   matchesStartingState(files: Map<string, string>, head: string | null): boolean {
     return !this.journal.changes.length && head === this.journal.head && files.size === Object.keys(this.journal.files).length &&
       [...files].every(([file, digest]) => this.journal.files[file]?.before === digest);
