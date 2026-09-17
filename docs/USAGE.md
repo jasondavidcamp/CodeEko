@@ -121,3 +121,10 @@ If the provider rejects a response with `MALFORMED_FUNCTION_CALL`, CodeEko retri
 **Settings > Connection > Stream model responses** is enabled by default. CodeEko shows receiving progress when the first content arrives, then validates the complete action before running tools. Turn it off if your endpoint rejects streaming. SSE is recognized even when the response content-type header is incorrect; ordinary JSON responses are also accepted. No automatic retry switches request modes. The request timeout covers the entire response, including all chunks.
 
 Request performance diagnostics includes first-content timing, content-chunk count, whether streaming was requested and whether SSE was received. These timings indicate when content arrives, not when the model started computing.
+# Compare request timing
+
+Run **CodeEko: Compare Request Timing** from the Command Palette with an endpoint, API key and model already configured. The command sends six live synthetic requests: three minimal `hello` messages and three fresh-chat `hello` messages with the normal CodeEko agent instructions and compatibility wrapper. It alternates ordering while retaining the same model, transport, streaming setting, temperature and output allowance. These requests use API quota.
+
+The comparison does not read repository files, execute model actions or change conversation history. It bypasses indexing and baseline capture to isolate request-content differences. Wait for an active task to finish first. Cancel from the progress notification to stop the current request and retain completed measurements.
+
+A JSON report opens automatically; save it to share the timings. It includes request sizes, outcomes, headers/body/content timing and existing sanitized performance metadata, not credentials, endpoint URLs or response text. The full variant represents a fresh conversation, not an existing conversation's accumulated history. The command does not determine whether latency comes from the gateway, model or network.

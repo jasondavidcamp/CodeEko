@@ -153,6 +153,9 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 
 ## Evidence and limits
 
+- [x] Add a synthetic in-extension request timing comparison with alternating minimal/full fresh-chat prompts, unchanged transport settings, cancellation and metadata-only reporting; verified with fake-provider transport tests.
+- [ ] Run the comparison on an affected workstation and compare first-body timing before attributing the delay to request content or transport.
+
 Conversational undo verification (2026-09-16): chat-handler tests submit the exact request "undo the pending changes", restore a synthetic task edit, preserve an unrelated staged file and the Git index, enforce Review denial and report missing undo history with zero provider calls. Request recognition, existing undo conflict/cancellation/recovery tests and protocol regressions passed (39 distinct targeted tests). The user's pending repository changes were not discarded as part of this verification.
 
 Repository-lease recovery verification (2026-09-16): 150 tests passed, with unavailable Pester 4 coverage skipped. Regression tests cover contention timeout, cancellation, idempotent release, reacquisition and recovery after a separate Windows owner process terminates. Three installed-profile window reloads restored chat and acknowledged rendering. The final reload reproduced EADDRINUSE; bounded retry acquired the lease after 3.5 seconds and chat loaded without another reload. Full-application restarts and other workstation configurations remain open; these checks do not establish that every startup failure is resolved.

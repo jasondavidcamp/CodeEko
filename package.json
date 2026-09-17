@@ -2,7 +2,7 @@
   "name": "codeeko",
   "displayName": "CodeEko",
   "description": "Repository coding agent with guarded edits and native review for a configured OpenAI-compatible endpoint.",
-  "version": "0.4.55",
+  "version": "0.4.56",
   "publisher": "jasondavidcamp",
   "private": true,
   "repository": {
@@ -33,6 +33,10 @@
   ],
   "contributes": {
     "commands": [
+      {
+        "command": "codeeko.compareRequestTiming",
+        "title": "CodeEko: Compare Request Timing"
+      },
       {
         "command": "codeeko.open",
         "title": "CodeEko: Open Conversation"

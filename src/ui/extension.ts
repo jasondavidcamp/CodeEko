@@ -1,4 +1,5 @@
 import { performanceDiagnostics } from '../state/performanceDiagnostics';
+import { compareRequestTiming } from '../api/timingComparison';
 import { latestRejectedLog } from '../state/rejectedLogs';
 import * as fs from 'node:fs/promises';
 import { SettingsPage } from './settings';
@@ -23,6 +24,7 @@ import { createPowerShellRunner } from '../validation/powershell';
 import * as path from 'node:path';
 import { StartupDiagnostics, startupError } from '../state/startupDiagnostics';
 const active = new Map<string, AbortController>();
+let comparisonRunning = false;
 let startupDiagnostics: StartupDiagnostics | undefined;
 const config = () => vscode.workspace.getConfiguration('codeeko');
 const mode = () => { const value = config().get<string>('permissionMode', 'Full access'); return value === 'Custom' ? 'Review' : value; };
@@ -79,6 +81,25 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     if (key?.trim()) { await context.secrets.store(name, key.trim()); vscode.window.showInformationMessage('API key stored securely for this endpoint.'); }
   });
   command('codeeko.selectModel', () => selectModel(context));
+  command('codeeko.compareRequestTiming', async () => {
+    if (comparisonRunning || active.size) throw new Error('Wait for the current task or timing comparison to finish.');
+    comparisonRunning = true;
+    const controller = new AbortController();
+    try {
+      const api = await client(context);
+      const model = config().get<string>('model');
+      if (!model) throw new Error('Select a model before running the timing comparison.');
+      const permissionMode = mode();
+      const report = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CodeEko timing comparison', cancellable: true }, async (progress, token) => {
+        const subscription = token.onCancellationRequested(() => controller.abort());
+        if (token.isCancellationRequested) controller.abort();
+        try { return await compareRequestTiming(api, model, permissionMode, controller.signal, message => progress.report({ message })); }
+        finally { subscription.dispose(); }
+      });
+      const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
+      await vscode.window.showTextDocument(document, { preview: false });
+    } finally { comparisonRunning = false; controller.abort(); }
+  });
   command('codeeko.exportStartupDiagnostics', async () => {
     const report = await diagnostics.export(context.logUri?.fsPath);
     const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
@@ -267,6 +288,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
       } else if (message.type === 'switch' && typeof message.id === 'string') {
         thread = store.threads.find(t => t.id === message.id) ?? thread;
       } else if (message.type === 'send' && typeof message.text === 'string' && message.text.trim() && message.text.length <= 8000) {
+        if (comparisonRunning) throw new Error('Wait for the timing comparison to finish, or cancel it first.');
         if (thread.archived && message.newConversation !== true) throw new Error('Restore this archived chat before continuing it.');
         if (active.has(root)) throw new Error('A task is already running for this repository.');
         if (message.newConversation === true && thread.messages.length) thread = store.create('New conversation');

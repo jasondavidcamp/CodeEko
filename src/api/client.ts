@@ -113,6 +113,14 @@ export class GeminiClient {
       JSON.stringify(messages.filter(message => message.role !== 'system')) +
       '\n\nEnd of conversation records. Your response is a standalone action JSON object, not a conversation record or a JSON string. Encode it exactly once. Start with {"version":1,"tool": using ordinary double quotes around keys; escape source text only inside string values. Do not copy the extra escaping used to represent messages in the records above.'
     }] : messages;
+    return this.completeMessages(model, requestMessages, signal, repair, onContent);
+  }
+  /** Diagnostic baseline: same transport/options, without the agent prompt wrapper. */
+  async completeMinimal(model: string, signal?: AbortSignal): Promise<string> {
+    return this.completeMessages(model, [{ role: 'user', content: 'hello' }], signal);
+  }
+  private async completeMessages(model: string, requestMessages: Message[], signal?: AbortSignal, repair = false, onContent?: () => void): Promise<string> {
+    const compatible = this.compatibilityMode === 'User message';
     const data = await this.request('/chat/completions', { model, messages: requestMessages, temperature: 0, stream: this.streaming, max_tokens: 4096,
       ...(compatible ? {} : { response_format: { type: 'json_object' } }) }, signal, repair, onContent, requestMetadata(model, this.key, requestMessages));
     const content = data?.choices?.[0]?.message?.content;

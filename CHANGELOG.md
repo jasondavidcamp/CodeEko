@@ -101,3 +101,6 @@
 - On some workstations, the chat pane intermittently fails to load until VS Code is restarted again. Export Startup Diagnostics helps investigate; the cause remains unresolved.
 - General shell commands, Git push and integration-test execution are not exposed by the runtime.
 - This is an experimental prerelease, not a declaration that all roadmap acceptance gates are complete.
+# 0.4.56 — Request timing comparison
+
+- Add **CodeEko: Compare Request Timing** to compare minimal and full fresh-chat hello requests through the same configured client. Six alternating requests produce a metadata-only report, support cancellation and never execute returned actions.
