@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
+import { failureCodes } from '../api/failure';
 
 const count = z.number().finite().nonnegative().max(1e12);
 const outcome = z.enum(['pending', 'success', 'failed', 'cancelled', 'timeout', 'empty', 'missing-content', 'interrupted', 'blocked', 'complete']);
@@ -19,6 +20,9 @@ const requestSchema = z.object({
   bodyBytes: count.optional(), bodyChunks: count.optional(), lastBodyByteMs: count.optional(), maxBodyGapMs: count.optional(),
   bodyChunkSamples: z.array(z.object({ atMs: count, bytes: count })).max(32).optional(),
   eventLoopDelayMaxMs: count.optional(), eventLoopDelayMeanMs: count.optional(), eventLoopSamples: count.optional(),
+  responseShape: z.object({ selectedChoices: count, otherChoices: count, deltaTextCharacters: count, messageTextCharacters: count,
+    alternateTextCharacters: count, reasoningCharacters: count, refusalCharacters: count, nonStringContentValues: count, toolCallEntries: count }).optional(),
+  failureStage: z.enum(['request', 'body-read', 'body-parse']).optional(), failureCodes: z.array(z.enum(failureCodes)).max(8).optional(),
   elapsedMs: count.optional(), headersMs: count.optional(), status: count.optional(), usage: usageSchema.optional(), rateLimit: rateSchema.optional(),
   finishReason: z.enum(['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'MALFORMED_FUNCTION_CALL', 'function_call_filter: MALFORMED_FUNCTION_CALL', 'other']).optional()
 });

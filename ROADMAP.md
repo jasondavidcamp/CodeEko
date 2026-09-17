@@ -154,6 +154,7 @@ Support Visual Studio as a future extension host alongside VS Code. Keep the cur
 ## Evidence and limits
 
 - [x] Add a synthetic in-extension request timing comparison with alternating minimal/full fresh-chat prompts, unchanged transport settings, cancellation and metadata-only reporting; verified with fake-provider transport tests.
+- [x] Refine the comparison into compact, wrapped, full-protocol and provider-default output-limit variants with identical requested answers, validity-gated timing summaries, response-shape counts and sanitized transport error codes; verified offline.
 - [ ] Run the comparison on an affected workstation and compare first-body timing before attributing the delay to request content or transport.
 
 Conversational undo verification (2026-09-16): chat-handler tests submit the exact request "undo the pending changes", restore a synthetic task edit, preserve an unrelated staged file and the Git index, enforce Review denial and report missing undo history with zero provider calls. Request recognition, existing undo conflict/cancellation/recovery tests and protocol regressions passed (39 distinct targeted tests). The user's pending repository changes were not discarded as part of this verification.

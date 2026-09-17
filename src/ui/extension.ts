@@ -25,6 +25,7 @@ import * as path from 'node:path';
 import { StartupDiagnostics, startupError } from '../state/startupDiagnostics';
 const active = new Map<string, AbortController>();
 let comparisonRunning = false;
+let comparisonController: AbortController | undefined;
 let startupDiagnostics: StartupDiagnostics | undefined;
 const config = () => vscode.workspace.getConfiguration('codeeko');
 const mode = () => { const value = config().get<string>('permissionMode', 'Full access'); return value === 'Custom' ? 'Review' : value; };
@@ -59,7 +60,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
   void performanceDiagnostics.configure(context.globalStorageUri.fsPath, String(context.extension.packageJSON.version));
   const diagnostics = startupDiagnostics = new StartupDiagnostics(context.globalStorageUri.fsPath);
   diagnostics.log('activate', { extensionVersion: context.extension?.packageJSON?.version, vscodeVersion: vscode.version, pid: process.pid, trusted: vscode.workspace.isTrusted, folders: vscode.workspace.workspaceFolders?.length ?? 0 });
-  const settingsPage = new SettingsPage(() => active.size > 0, async () => {
+  const settingsPage = new SettingsPage(() => active.size > 0 || comparisonRunning, async () => {
     const storage = context.globalStorageUri.fsPath;
     const capture = await latestRejectedLog(storage);
     if (capture) {
@@ -85,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
     if (comparisonRunning || active.size) throw new Error('Wait for the current task or timing comparison to finish.');
     comparisonRunning = true;
     const controller = new AbortController();
+    comparisonController = controller;
     try {
       const api = await client(context);
       const model = config().get<string>('model');
@@ -98,7 +100,7 @@ export function activate(context: vscode.ExtensionContext): { isConversationVisi
       });
       const document = await vscode.workspace.openTextDocument({ language: 'json', content: JSON.stringify(report, null, 2) });
       await vscode.window.showTextDocument(document, { preview: false });
-    } finally { comparisonRunning = false; controller.abort(); }
+    } finally { comparisonRunning = false; comparisonController = undefined; controller.abort(); }
   });
   command('codeeko.exportStartupDiagnostics', async () => {
     const report = await diagnostics.export(context.logUri?.fsPath);
@@ -350,7 +352,7 @@ async function open(context: vscode.ExtensionContext, review: NativeReview, pane
   // Install the listener before loading HTML so the initial ready message cannot race it.
   diagnostics.log('html', { view: viewId }); armHandshake(); panel.webview.html = conversationHtml();
 }
-export async function deactivate(): Promise<void> { startupDiagnostics?.log('deactivate'); for (const controller of active.values()) controller.abort(); await startupDiagnostics?.flush(); await performanceDiagnostics.flush(); }
+export async function deactivate(): Promise<void> { startupDiagnostics?.log('deactivate'); comparisonController?.abort(); for (const controller of active.values()) controller.abort(); await startupDiagnostics?.flush(); await performanceDiagnostics.flush(); }
 
 
 export async function paneChoice(panel: vscode.WebviewView, question: string, choices: string[], signal?: AbortSignal): Promise<number | undefined> {

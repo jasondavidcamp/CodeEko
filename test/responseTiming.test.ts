@@ -6,6 +6,21 @@ import { performanceDiagnostics, PerformanceDiagnostics } from '../src/state/per
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { emptyResponseShape, inspectResponseShape } from '../src/api/responseShape';
+import { failureMetadata } from '../src/api/failure';
+
+test('response shape and nested failure diagnostics retain only numeric counts and known codes', () => {
+  const shape = emptyResponseShape();
+  inspectResponseShape(shape, { choices: [{ index: 0, delta: { content: ['private-array'], reasoning_content: 'secret',
+    refusal: 'private', tool_calls: [{ arguments: 'private-source' }] }, message: { content: 'text' }, text: 'other' }, { index: 1, delta: { content: 'private-other-choice' } }] });
+  assert.equal(shape.nonStringContentValues, 1); assert.equal(shape.toolCallEntries, 1);
+  assert.equal(shape.reasoningCharacters, 6); assert.equal(shape.refusalCharacters, 7);
+  assert.equal(shape.messageTextCharacters, 4); assert.equal(shape.alternateTextCharacters, 5); assert.equal(shape.otherChoices, 1);
+  assert.doesNotMatch(JSON.stringify(shape), /private|secret/);
+  const error: any = { code: 'private-code', message: 'private-message', errors: [{ code: 'UND_ERR_SOCKET' }, { code: 'ECONNRESET' }] };
+  error.cause = error;
+  assert.deepEqual(failureMetadata(error), ['UND_ERR_SOCKET', 'ECONNRESET']);
+});
 
 test('timing separates heartbeat bytes, role events and content; samples are bounded and contain no payload', async () => {
   performanceDiagnostics.clear();
@@ -60,15 +75,19 @@ test('persisted timing survives restart and strips arbitrary nested sample field
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const first = new PerformanceDiagnostics(); await first.configure(root, 'test');
   const id = first.begin('completion', 'Standard', 1000);
-  first.finish(id, { firstBodyByteMs: 10, firstSseEventMs: 20, bodyChunkSamples: [{ atMs: 10, bytes: 30 }], eventLoopDelayMaxMs: 21 });
+  first.finish(id, { firstBodyByteMs: 10, firstSseEventMs: 20, bodyChunkSamples: [{ atMs: 10, bytes: 30 }], eventLoopDelayMaxMs: 21,
+    responseShape: { ...emptyResponseShape(), messageTextCharacters: 20 }, failureStage: 'request', failureCodes: ['ECONNRESET'] });
   await first.flush();
   const filename = path.join(root, 'performance', first.sessionId + '.json');
   const data = JSON.parse(await fs.readFile(filename, 'utf8'));
   data.requests[0].bodyChunkSamples[0].content = 'private-source';
+  data.requests[0].responseShape.secret = 'private-content';
   data.storageErrors = [{ operation: 'read', code: 'private-path' }];
   await fs.writeFile(filename, JSON.stringify(data));
   const second = new PerformanceDiagnostics(); await second.configure(root, 'test');
   assert.equal(second.snapshot().requests[0].firstSseEventMs, 20);
+  assert.equal(second.snapshot().requests[0].responseShape?.messageTextCharacters, 20);
+  assert.deepEqual(second.snapshot().requests[0].failureCodes, ['ECONNRESET']);
   assert.equal(second.snapshot().requests[0].eventLoopDelayMaxMs, 21);
   assert.doesNotMatch(JSON.stringify(second.snapshot()), /private/);
 });

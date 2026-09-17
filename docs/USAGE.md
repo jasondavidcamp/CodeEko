@@ -121,10 +121,21 @@ If the provider rejects a response with `MALFORMED_FUNCTION_CALL`, CodeEko retri
 **Settings > Connection > Stream model responses** is enabled by default. CodeEko shows receiving progress when the first content arrives, then validates the complete action before running tools. Turn it off if your endpoint rejects streaming. SSE is recognized even when the response content-type header is incorrect; ordinary JSON responses are also accepted. No automatic retry switches request modes. The request timeout covers the entire response, including all chunks.
 
 Request performance diagnostics includes first-content timing, content-chunk count, whether streaming was requested and whether SSE was received. These timings indicate when content arrives, not when the model started computing.
-# Compare request timing
+## Compare request timing
 
-Run **CodeEko: Compare Request Timing** from the Command Palette with an endpoint, API key and model already configured. The command sends six live synthetic requests: three minimal `hello` messages and three fresh-chat `hello` messages with the normal CodeEko agent instructions and compatibility wrapper. It alternates ordering while retaining the same model, transport, streaming setting, temperature and output allowance. These requests use API quota.
+Run **CodeEko: Compare Request Timing** from the Command Palette with an endpoint, API key and model already configured. Comparison version 2 sends twelve live synthetic requests, three of each variant in mixed order. Every request explicitly asks for the same small `complete_task` JSON answer with summary `Hello`. These requests use API quota and may take several minutes.
+
+| Variant | Messages | Output allowance |
+| --- | --- | --- |
+| `compact` | Short explicit JSON instruction | 4,096 tokens |
+| `compact-wrapped` | Same instruction through the configured compatibility wrapper | 4,096 tokens |
+| `full` | Same instruction plus the normal agent protocol and wrapper | 4,096 tokens |
+| `full-provider-limit` | Exactly the same messages as `full` | `max_tokens` omitted; provider default |
+
+All variants use the same client, endpoint, model, temperature and configured streaming mode. Compare the first two for wrapper effects, the middle two for agent-instruction effects, and the last two for output-allowance effects. In Standard compatibility mode the first two are identical controls because no message wrapper is added. The provider-default variant retains the existing request timeout and one-megabyte response limit. Normal chat request settings are unchanged.
 
 The comparison does not read repository files, execute model actions or change conversation history. It bypasses indexing and baseline capture to isolate request-content differences. Wait for an active task to finish first. Cancel from the progress notification to stop the current request and retain completed measurements.
 
-A JSON report opens automatically; save it to share the timings. It includes request sizes, outcomes, headers/body/content timing and existing sanitized performance metadata, not credentials, endpoint URLs or response text. The full variant represents a fresh conversation, not an existing conversation's accumulated history. The command does not determine whether latency comes from the gateway, model or network.
+A JSON report opens automatically; save it to share the timings. It reports exact-answer validity separately from HTTP success. Empty, unexpected and failed replies are excluded from latency medians, and valid sample counts remain visible. Do not treat quick empty responses as successful answers. Message digests verify identical synthetic content across repeats without exporting the prompt. The full variant uses fresh-chat agent instructions, not existing conversation history. This is a small exploratory comparison; mixed request order does not eliminate gateway load, caching or connection-state effects.
+
+Request diagnostics include numeric response-shape counts: selected/other choices, text in delta/message/alternate fields, reasoning/refusal character counts, non-string content values and native tool-call entries. These counts help identify unexpected stream formats without accepting unsupported content or exporting text. Failures include the stage and allowlisted nested network/TLS error codes; absent codes do not identify a cause. No exception messages, stacks, arbitrary keys, endpoint URLs, credentials or response bodies are exported.

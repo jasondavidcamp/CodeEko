@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.4.57 — Controlled request comparison
+
+- Compare compact instructions, compatibility wrapping, full agent instructions and provider-default output limits using the same requested JSON answer. Exclude empty, incorrect and failed replies from timing summaries.
+- Record numeric response-shape evidence and allowlisted nested transport error codes without response text or exception messages. Normal chat request settings are unchanged.
+
+## 0.4.56 — Request timing comparison
+
+- Add **CodeEko: Compare Request Timing** to compare minimal and full fresh-chat hello requests through the same configured client. Six alternating requests produce a metadata-only report, support cancellation and never execute returned actions.
+
 ## 0.4.55 — Response timing and storage diagnostics
 
 - Measure first body bytes, first SSE event, bounded body-chunk arrivals and event-loop delay alongside first content and total request time.
@@ -101,6 +110,3 @@
 - On some workstations, the chat pane intermittently fails to load until VS Code is restarted again. Export Startup Diagnostics helps investigate; the cause remains unresolved.
 - General shell commands, Git push and integration-test execution are not exposed by the runtime.
 - This is an experimental prerelease, not a declaration that all roadmap acceptance gates are complete.
-# 0.4.56 — Request timing comparison
-
-- Add **CodeEko: Compare Request Timing** to compare minimal and full fresh-chat hello requests through the same configured client. Six alternating requests produce a metadata-only report, support cancellation and never execute returned actions.
