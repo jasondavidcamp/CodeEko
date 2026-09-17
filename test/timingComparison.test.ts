@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GeminiClient } from '../src/api/client';
 import { compareRequestTiming, comparisonInstruction } from '../src/api/timingComparison';
 import { taskProtocol } from '../src/protocol/actions';
+import { fullProtocolBaseline } from '../src/api/fullProtocolBaseline';
 
 const expected = JSON.stringify({ version: 1, tool: 'complete_task', args: { summary: 'Hello' } });
 
@@ -14,25 +15,29 @@ test('comparison alternates identical transport settings and exports only metada
   };
   const client = new GeminiClient('https://fixture.invalid', 'private-key', 1000, transport, 'User message', false);
   const report = await compareRequestTiming(client, 'fixture-model', 'Full access', new AbortController().signal, () => {});
-  assert.equal(requests.length, 12);
-  assert.equal(report.comparisonVersion, 2); assert.equal(report.allRepliesValid, true);
-  assert.deepEqual(report.summary.map(s => s.validReplies), [3, 3, 3, 3]);
+  assert.equal(report.results.length, 15);
+  assert.equal(requests.length, 15 + report.workflows.results.reduce((sum, r) => sum + r.modelCalls, 0));
+  assert.equal(report.comparisonVersion, 3); assert.equal(report.allRepliesValid, true);
+  assert.deepEqual(report.summary.map(s => s.validReplies), [3, 3, 3, 3, 3]);
   const normalMessages = [{ role: 'system' as const, content: taskProtocol('Full access') }, { role: 'user' as const, content: comparisonInstruction }];
-  for (let i = 0; i < requests.length; i++) {
+  for (let i = 0; i < 15; i++) {
     const { messages, ...options } = requests[i];
     const omitted = report.results[i].variant === 'full-provider-limit';
     assert.deepEqual(options, { model: 'fixture-model', temperature: 0, stream: false, ...(omitted ? {} : { max_tokens: 4096 }) });
     assert.equal(report.results[i].timing?.maxOutputTokens, omitted ? undefined : 4096);
     if (report.results[i].variant === 'compact') assert.deepEqual(messages, [{ role: 'user', content: comparisonInstruction }]);
     else if (report.results[i].variant === 'compact-wrapped') assert.deepEqual(messages, client.formatMessages([{ role: 'user', content: comparisonInstruction }]));
-    else assert.deepEqual(messages, client.formatMessages(normalMessages));
+    else if (report.results[i].variant === 'progressive') assert.deepEqual(messages, client.formatMessages(normalMessages));
+    else assert.deepEqual(messages, client.formatMessages([{ role: 'system', content: fullProtocolBaseline('Full access') }, { role: 'user', content: comparisonInstruction }]));
     assert.equal(report.results[i].timing?.outcome, 'success');
     assert.ok(report.results[i].timing?.firstBodyByteMs !== undefined);
   }
-  // The full arm is exactly the production request, not a separate diagnostic prompt implementation.
+  // The candidate arm is exactly production. The old full prompt stays frozen.
   await client.complete('fixture-model', normalMessages);
-  assert.deepEqual(requests[12], requests[2]);
-  assert.equal(report.results[2].messageDigest, report.results[3].messageDigest);
+  assert.deepEqual(requests.at(-1), requests[3]);
+  assert.equal(report.results[2].messageDigest, report.results[4].messageDigest);
+  assert.ok(report.summary.find(s => s.variant === 'progressive')!.medianPromptCharacters! < report.summary.find(s => s.variant === 'full')!.medianPromptCharacters! / 2);
+  assert.equal(report.workflows.allChecksPassed, false, 'Hello alone cannot pass repository/continuity checks');
   assert.doesNotMatch(JSON.stringify(report), /private-key|private-response-secret|fixture.invalid|Available tools/);
 });
 

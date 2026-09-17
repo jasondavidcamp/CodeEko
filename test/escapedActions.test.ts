@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseAction, taskProtocol, ActionFormatError } from '../src/protocol/actions';
 import { runAgent } from '../src/agent/loop';
 import { GeminiClient } from '../src/api/client';
+import { ProgressivePrompt } from '../src/protocol/prompt';
 
 // Synthetic reproduction of captured output: the model escaped an entire
 // create_file object (sometimes twice) without its enclosing string quotes.
@@ -23,12 +24,16 @@ test('over-escaped actions get a precise hint but are never decoded or accepted'
 });
 
 test('editing prompt provides a schema-valid multiline example without exposing edit tools in Review', () => {
-  const prompt = taskProtocol('Full access');
+  const session = new ProgressivePrompt();
+  assert.doesNotMatch(session.render('Full access'), /"tool":"create_file"/);
+  session.observe({ version: 1, tool: 'read_file', args: { path: 'main.ps1' } });
+  const prompt = session.render('Full access');
   const example = prompt.split('\n').find(line => line.startsWith('{"version":1,"tool":"create_file"'))!;
   const action = parseAction(example);
   assert.equal(action.tool, 'create_file');
   if (action.tool === 'create_file') assert.equal(action.args.content, 'Write-Output "example"\n$relativePath = ".\\Example.ps1"\n');
   assert.doesNotMatch(taskProtocol('Review'), /"tool":"create_file"/);
+  assert.doesNotMatch(session.render('Review'), /"tool":"create_file"/);
 });
 
 test('compatible transport repairs escaped code with original evidence before execution and validation', async () => {

@@ -1,18 +1,23 @@
 import { performanceDiagnostics } from '../state/performanceDiagnostics';
 import { Message } from '../api/client';
 import { authorize, check, TaskConflict, ReadRequired, PatchTargetRequired, mutations } from '../policy/boundary';
-import { parseAction, taskProtocol, Action, ActionFormatError } from '../protocol/actions';
+import { parseAction, Action, ActionFormatError } from '../protocol/actions';
+import { AgentPrompt, ProgressivePrompt } from '../protocol/prompt';
 import { RejectedResponse } from './rejections';
 import { MalformedFunctionCall } from '../api/finish';
 export interface Model { complete(model: string, messages: Message[], signal?: AbortSignal, repair?: boolean, onContent?: () => void): Promise<string> }
 export interface ToolExecutor { initialContext?(signal: AbortSignal): Promise<unknown>; execute(action: Action, signal: AbortSignal): Promise<unknown>; beforeComplete?(signal: AbortSignal): Promise<unknown | undefined> }
 export const limits = { turns: 20, contextCharacters: 60000, resultCharacters: 14000, totalReadFiles: 30 };
-export async function runAgent(model: Model, selectedModel: string, history: Message[], tools: ToolExecutor, mode: () => string, signal: AbortSignal, progress: (text: string) => void, onRejected?: (response: RejectedResponse) => Promise<void>): Promise<string> {
-  const messages: Message[] = [{ role: 'system', content: taskProtocol(mode()) }, ...history.slice(-20)]; let readCount = 0; let protocolCorrections = 0; let providerCorrections = 0; const readCorrections = new Map<string, number>(); let formatRepair: Message[] | undefined;
+export async function runAgent(model: Model, selectedModel: string, history: Message[], tools: ToolExecutor, mode: () => string, signal: AbortSignal, progress: (text: string) => void, onRejected?: (response: RejectedResponse) => Promise<void>, prompt: AgentPrompt = new ProgressivePrompt()): Promise<string> {
+  const messages: Message[] = [{ role: 'system', content: prompt.render(mode()) }, ...history.slice(-20)]; let readCount = 0; let protocolCorrections = 0; let providerCorrections = 0; const readCorrections = new Map<string, number>(); let formatRepair: Message[] | undefined;
   let inventoryPending = !!tools.initialContext && /test|pester/i.test(history.filter(m => m.role === 'user').at(-1)?.content ?? '');
   let thinking = 'Reviewing your request…';
   for (let turn = 0; turn < limits.turns; turn++) {
     check(signal);
+    // Keep prior prompt objects immutable; refresh guidance and permissions
+    // before every request, including provider and format repairs.
+    messages[0] = { role: 'system', content: prompt.render(mode()) };
+    if (formatRepair) formatRepair[0] = messages[0];
     performanceDiagnostics.setTurn(turn + 1);
     const characters = (formatRepair ?? messages).reduce((sum, m) => sum + m.content.length, 0);
     if (characters > limits.contextCharacters) throw new Error('Context limit reached. Start a narrower follow-up.');
@@ -57,9 +62,11 @@ export async function runAgent(model: Model, selectedModel: string, history: Mes
     providerCorrections = 0;
     formatRepair = undefined;
     authorize(action.tool, mode());
+    prompt.observe(action);
     if (action.tool === 'complete_task') {
       const validation = await performanceDiagnostics.measure('completion-check', async () => tools.beforeComplete?.(signal)); check(signal);
       if (validation === undefined) return action.args.summary;
+      prompt.observe({ version: 1, tool: 'run_validation', args: {} });
       thinking = 'Reviewing validation failures…'; progress(thinking);
       messages.push({ role: 'assistant', content: raw }, { role: 'user', content: JSON.stringify({ version: 1, tool: 'run_validation', result: compactValidation(validation) }).slice(0, limits.resultCharacters) + '\nCompletion is blocked by validation failures. Read the relevant files and make a focused repair. Do not weaken tests to conceal incorrect behavior. At most three validation rounds are allowed.' });
       continue;

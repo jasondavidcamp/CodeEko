@@ -115,8 +115,8 @@ export class GeminiClient {
     if (!models.length) throw new Error('Endpoint returned no models.');
     return models.sort();
   }
-  async complete(model: string, messages: Message[], signal?: AbortSignal, repair = false, onContent?: () => void): Promise<string> {
-    return this.completeMessages(model, this.formatMessages(messages), signal, repair, onContent);
+  async complete(model: string, messages: Message[], signal?: AbortSignal, repair = false, onContent?: () => void, onTiming?: (timing: RequestTiming) => void): Promise<string> {
+    return this.completeMessages(model, this.formatMessages(messages), signal, repair, onContent, 4096, onTiming);
   }
   formatMessages(messages: Message[]): Message[] {
     const compatible = this.compatibilityMode === 'User message';
